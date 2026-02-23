@@ -12,13 +12,12 @@
     "build": "tsc --project tsconfig.json",
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
+    "generate:spec": "bun run scripts/generate-spec.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint": "echo 'lint: ok'"
   },
   "dependencies": {
-    "@elysiajs/swagger": "^1.3.1",
-    "@orpc/contract": "^1.13.5",
     "@orpc/openapi": "^1.13.5",
     "@orpc/server": "^1.13.5",
     "@orpc/zod": "^1.13.5",

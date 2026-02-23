@@ -1,116 +1,95 @@
-/**
- * @strus/api — Elysia HTTP server
- *
- * TODO: Integrate oRPC properly once the exact adapter API is confirmed.
- *
- *   Option A (if @orpc/elysia exists):
- *     import { createElysiaHandler } from '@orpc/elysia'
- *     app.use(createElysiaHandler({ router }))
- *
- *   Option B (generic fetch adapter):
- *     import { createFetchHandler } from '@orpc/server'
- *     app.all('/rpc/*', ({ request }) => createFetchHandler({ router, request }))
- *
- * See https://orpc.unnoq.com/adapters for current adapter docs.
- */
-
 import { resolve } from "node:path";
 import { Elysia } from "elysia";
-import { swagger } from "@elysiajs/swagger";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { OpenAPIHandler } from "@orpc/openapi/fetch";
+import { OpenAPIGenerator } from "@orpc/openapi";
+import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { db } from "@strus/db";
 import { router } from "./router.js";
 
-// Default to 3457 — port 3000 is commonly forwarded from Windows to WSL2
-const PORT = Number(process.env["PORT"] ?? 3457);
+// ---------------------------------------------------------------------------
+// Migrations — applied at startup before the server binds
+// ---------------------------------------------------------------------------
 
-// Apply any pending migrations at startup.
-// Using import.meta.dir (absolute path to this file's directory) so the
-// migrations folder resolves correctly regardless of cwd.
 const migrationsFolder = resolve(import.meta.dir, "../../db/migrations");
 migrate(db, { migrationsFolder });
-console.log(`Migrations applied from ${migrationsFolder}`);
+console.log(`✓ Migrations applied from ${migrationsFolder}`);
+
+// ---------------------------------------------------------------------------
+// OpenAPI spec — generated from the oRPC router at startup
+// ---------------------------------------------------------------------------
+
+const generator = new OpenAPIGenerator({
+  schemaConverters: [new ZodToJsonSchemaConverter()],
+});
+
+const spec = await generator.generate(router, {
+  info: {
+    title: "strus API",
+    version: "0.0.1",
+    description: "Polish morphological spaced repetition system 🦤",
+  },
+  servers: [{ url: "/api", description: "API base" }],
+});
+
+// ---------------------------------------------------------------------------
+// oRPC handler — routes all /api/* requests to the correct procedure
+// ---------------------------------------------------------------------------
+
+const orpcHandler = new OpenAPIHandler(router);
+
+// ---------------------------------------------------------------------------
+// Elysia app
+// ---------------------------------------------------------------------------
+
+const PORT = Number(process.env["PORT"] ?? 3457);
+
+// Minimal Swagger UI (CDN) — points at our generated spec
+const SWAGGER_UI_HTML = /* html */`<!DOCTYPE html>
+<html>
+<head>
+  <title>strus API</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = () => SwaggerUIBundle({
+      url: "/openapi.json",
+      dom_id: "#swagger-ui",
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+      layout: "StandaloneLayout",
+      deepLinking: true,
+    });
+  </script>
+</body>
+</html>`;
 
 export const app = new Elysia()
-  // OpenAPI + Swagger UI
-  .use(
-    swagger({
-      path: "/docs",
-      documentation: {
-        info: {
-          title: "strus API",
-          version: "0.0.1",
-          description: "Polish morphological spaced repetition system",
-        },
-      },
-      // Swagger UI served at /docs; spec available at /docs/json
-    }),
-  )
-
-  // ---------------------------------------------------------------------------
   // Health check
-  // ---------------------------------------------------------------------------
   .get("/", () => ({ ok: true, version: "0.0.1" }))
 
-  // ---------------------------------------------------------------------------
-  // TODO: Mount oRPC router here.
-  //
-  // Stub REST-ish routes so the server starts while the oRPC adapter is sorted:
-  // ---------------------------------------------------------------------------
+  // OpenAPI spec (generated from oRPC router + Zod schemas)
+  .get("/openapi.json", () => spec)
 
-  // Lists
-  .get("/api/lists", () => router.lists.list({}))
-  .post("/api/lists", ({ body }) =>
-    router.lists.create(body as { name: string; description?: string }),
-  )
-  .get("/api/lists/:id", ({ params }) => router.lists.get({ id: params.id }))
-  .delete("/api/lists/:id", ({ params }) =>
-    router.lists.delete({ id: params.id }),
-  )
-  .post("/api/lists/:id/lexemes", ({ params, body }) =>
-    router.lists.addLexeme({
-      listId: params.id,
-      lexemeId: (body as { lexemeId: string }).lexemeId,
-    }),
-  )
+  // Swagger UI (CDN, loads spec from /openapi.json)
+  .get("/docs", () => new Response(SWAGGER_UI_HTML, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  }))
 
-  // Lexemes
-  .get("/api/lexemes", ({ query }) =>
-    router.lexemes.list({
-      ...(query["listId"] !== undefined ? { listId: query["listId"] } : {}),
-    }),
-  )
-  .post("/api/lexemes", ({ body }) =>
-    router.lexemes.create(
-      body as { lemma: string; pos: string; notes?: string; listId?: string },
-    ),
-  )
-  .get("/api/lexemes/:id", ({ params }) =>
-    router.lexemes.get({ id: params.id }),
-  )
-  .delete("/api/lexemes/:id", ({ params }) =>
-    router.lexemes.delete({ id: params.id }),
-  )
-
-  // Session
-  .get("/api/session/due", ({ query }) =>
-    router.session.due({
-      ...(query["listId"] !== undefined ? { listId: query["listId"] } : {}),
-      ...(query["limit"] !== undefined ? { limit: Number(query["limit"]) } : {}),
-    }),
-  )
-  .post("/api/session/review", ({ body }) =>
-    router.session.review(
-      body as { learningTargetId: string; rating: number },
-    ),
-  )
-
-  // Stats
-  .get("/api/stats", () => router.stats.overview({}))
+  // oRPC handler — all API routes
+  .all("/api/*", async ({ request }) => {
+    const response = await orpcHandler.handle(request, { prefix: "/api" });
+    return response ?? new Response("No procedure matched", { status: 404 });
+  })
 
   .listen(PORT);
 
-console.log(`strus API running at http://localhost:${PORT}`);
-console.log(`Swagger UI: http://localhost:${PORT}/docs`);
+console.log(`✓ strus API running at http://localhost:${PORT}`);
+console.log(`  OpenAPI spec: http://localhost:${PORT}/openapi.json`);
+console.log(`  Swagger UI:   http://localhost:${PORT}/docs`);
 
 export type App = typeof app;
