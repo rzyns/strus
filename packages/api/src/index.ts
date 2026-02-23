@@ -14,12 +14,22 @@
  * See https://orpc.unnoq.com/adapters for current adapter docs.
  */
 
+import { resolve } from "node:path";
 import { Elysia } from "elysia";
 import { swagger } from "@elysiajs/swagger";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { db } from "@strus/db";
 import { router } from "./router.js";
 
 // Default to 3457 — port 3000 is commonly forwarded from Windows to WSL2
 const PORT = Number(process.env["PORT"] ?? 3457);
+
+// Apply any pending migrations at startup.
+// Using import.meta.dir (absolute path to this file's directory) so the
+// migrations folder resolves correctly regardless of cwd.
+const migrationsFolder = resolve(import.meta.dir, "../../db/migrations");
+migrate(db, { migrationsFolder });
+console.log(`Migrations applied from ${migrationsFolder}`);
 
 export const app = new Elysia()
   // OpenAPI + Swagger UI
