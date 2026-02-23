@@ -60,8 +60,6 @@ const SWAGGER_UI_HTML = /* html */`<!DOCTYPE html>
     window.onload = () => SwaggerUIBundle({
       url: "/openapi.json",
       dom_id: "#swagger-ui",
-      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-      layout: "StandaloneLayout",
       deepLinking: true,
     });
   </script>
@@ -82,8 +80,10 @@ export const app = new Elysia()
 
   // oRPC handler — all API routes
   .all("/api/*", async ({ request }) => {
-    const response = await orpcHandler.handle(request, { prefix: "/api" });
-    return response ?? new Response("No procedure matched", { status: 404 });
+    const result = await orpcHandler.handle(request, { prefix: "/api" });
+    return result.matched
+      ? result.response
+      : new Response("No procedure matched", { status: 404 });
   })
 
   .listen(PORT);

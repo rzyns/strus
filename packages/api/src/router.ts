@@ -11,25 +11,26 @@ import {
   vocabListLexemes,
 } from "@strus/db";
 import { generate, parseTag } from "@strus/morph";
-import { scheduleReview, createLearningTarget, Rating, CardState } from "@strus/core";
+import {
+  scheduleReview,
+  createLearningTarget,
+  Rating,
+  CardState,
+  type LearningTarget,
+} from "@strus/core";
 
 // ---------------------------------------------------------------------------
-// Shared output schemas
-//
-// Note on timestamps:
-//   - Columns defined with integer(..., { mode: "timestamp" }) in the schema
-//     are returned as Date objects by Drizzle → z.date() in output
-//   - Plain integer() columns (due, lastReview, reviewedAt) are returned as
-//     number (Unix seconds) → z.number().int() in output
+// Output schemas — all timestamps emitted as ISO 8601 strings
 // ---------------------------------------------------------------------------
 
 const zId = z.string().uuid();
+const zIso = z.string().datetime();
 
 const VocabListOutput = z.object({
   id: zId,
   name: z.string(),
   description: z.string().nullable(),
-  createdAt: z.date(),
+  createdAt: zIso,
 });
 
 const LexemeOutput = z.object({
@@ -37,24 +38,23 @@ const LexemeOutput = z.object({
   lemma: z.string(),
   pos: z.string(),
   notes: z.string().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: zIso,
+  updatedAt: zIso,
 });
 
-/** due / lastReview are stored as plain integers (Unix seconds) */
 const LearningTargetOutput = z.object({
   id: zId,
   lexemeId: zId,
   tag: z.string(),
   state: z.number().int(),
-  due: z.number().int(),
+  due: zIso,
   stability: z.number(),
   difficulty: z.number(),
   elapsedDays: z.number().int(),
   scheduledDays: z.number().int(),
   reps: z.number().int(),
   lapses: z.number().int(),
-  lastReview: z.number().int().nullable(),
+  lastReview: zIso.nullable(),
 });
 
 const SuccessOutput = z.object({ success: z.literal(true) });
@@ -66,6 +66,71 @@ const StatsOutput = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Mappers — convert raw DB rows / domain objects to output shapes
+//
+// Drizzle returns Date objects for integer(..., { mode: "timestamp" }) columns
+// and plain numbers for integer() columns (Unix seconds).
+// ---------------------------------------------------------------------------
+
+function mapVocabList(row: typeof vocabLists.$inferSelect) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function mapLexeme(row: typeof lexemes.$inferSelect) {
+  return {
+    id: row.id,
+    lemma: row.lemma,
+    pos: row.pos,
+    notes: row.notes,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+/** Maps a raw DB row from learningTargets (due/lastReview are Unix seconds). */
+function mapLearningTargetRow(row: typeof learningTargets.$inferSelect) {
+  return {
+    id: row.id,
+    lexemeId: row.lexemeId,
+    tag: row.tag,
+    state: row.state,
+    due: new Date(row.due * 1000).toISOString(),
+    stability: row.stability,
+    difficulty: row.difficulty,
+    elapsedDays: row.elapsedDays,
+    scheduledDays: row.scheduledDays,
+    reps: row.reps,
+    lapses: row.lapses,
+    lastReview: row.lastReview != null
+      ? new Date(row.lastReview * 1000).toISOString()
+      : null,
+  };
+}
+
+/** Maps a domain LearningTarget (due/lastReview are Date objects). */
+function mapLearningTargetDomain(target: LearningTarget) {
+  return {
+    id: target.id,
+    lexemeId: target.lexemeId,
+    tag: target.tag,
+    state: target.state,
+    due: target.due.toISOString(),
+    stability: target.stability,
+    difficulty: target.difficulty,
+    elapsedDays: target.elapsedDays,
+    scheduledDays: target.scheduledDays,
+    reps: target.reps,
+    lapses: target.lapses,
+    lastReview: target.lastReview?.toISOString() ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Lists procedures
 // ---------------------------------------------------------------------------
 
@@ -73,7 +138,9 @@ const listsList = os
   .route({ method: "GET", path: "/lists" })
   .input(z.object({}))
   .output(z.array(VocabListOutput))
-  .handler(async () => db.select().from(vocabLists).all());
+  .handler(async () =>
+    db.select().from(vocabLists).all().map(mapVocabList)
+  );
 
 const listsCreate = os
   .route({ method: "POST", path: "/lists" })
@@ -91,7 +158,7 @@ const listsCreate = os
       description: input.description ?? null,
       createdAt: now,
     });
-    return { id, name: input.name, description: input.description ?? null, createdAt: now };
+    return mapVocabList({ id, name: input.name, description: input.description ?? null, createdAt: now });
   });
 
 const listsGet = os
@@ -101,7 +168,7 @@ const listsGet = os
   .handler(async ({ input }) => {
     const [row] = await db.select().from(vocabLists).where(eq(vocabLists.id, input.id)).limit(1);
     if (!row) throw new ORPCError("NOT_FOUND", { message: `VocabList not found: ${input.id}` });
-    return row;
+    return mapVocabList(row);
   });
 
 const listsDelete = os
@@ -146,9 +213,9 @@ const lexemesList = os
           ),
         )
         .all()
-        .map((r) => r.lexeme);
+        .map((r) => mapLexeme(r.lexeme));
     }
-    return db.select().from(lexemes).all();
+    return db.select().from(lexemes).all().map(mapLexeme);
   });
 
 const lexemesCreate = os
@@ -186,10 +253,9 @@ const lexemesCreate = os
     }
 
     for (const form of forms) {
-      const formId = crypto.randomUUID();
       const parsed = parseTag(form.tag);
       await db.insert(morphForms).values({
-        id: formId,
+        id: crypto.randomUUID(),
         lexemeId: id,
         orth: form.orth,
         tag: form.tag,
@@ -216,14 +282,7 @@ const lexemesCreate = os
       });
     }
 
-    return {
-      id,
-      lemma: input.lemma,
-      pos: input.pos,
-      notes: input.notes ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    return mapLexeme({ id, lemma: input.lemma, pos: input.pos, notes: input.notes ?? null, createdAt: now, updatedAt: now });
   });
 
 const lexemesGet = os
@@ -233,7 +292,7 @@ const lexemesGet = os
   .handler(async ({ input }) => {
     const [row] = await db.select().from(lexemes).where(eq(lexemes.id, input.id)).limit(1);
     if (!row) throw new ORPCError("NOT_FOUND", { message: `Lexeme not found: ${input.id}` });
-    return row;
+    return mapLexeme(row);
   });
 
 const lexemesDelete = os
@@ -273,7 +332,7 @@ const sessionDue = os
         .where(lte(learningTargets.due, nowSecs))
         .limit(input.limit)
         .all()
-        .map((r) => r.target);
+        .map((r) => mapLearningTargetRow(r.target));
     }
 
     return db
@@ -281,7 +340,8 @@ const sessionDue = os
       .from(learningTargets)
       .where(lte(learningTargets.due, nowSecs))
       .limit(input.limit)
-      .all();
+      .all()
+      .map(mapLearningTargetRow);
   });
 
 const sessionReview = os
@@ -360,22 +420,7 @@ const sessionReview = os
 
     return {
       reviewId,
-      updated: {
-        id: updated.id,
-        lexemeId: updated.lexemeId,
-        tag: updated.tag,
-        state: updated.state,
-        due: Math.floor(updated.due.getTime() / 1000),
-        stability: updated.stability,
-        difficulty: updated.difficulty,
-        elapsedDays: updated.elapsedDays,
-        scheduledDays: updated.scheduledDays,
-        reps: updated.reps,
-        lapses: updated.lapses,
-        lastReview: updated.lastReview
-          ? Math.floor(updated.lastReview.getTime() / 1000)
-          : null,
-      },
+      updated: mapLearningTargetDomain(updated),
     };
   });
 
