@@ -18,7 +18,8 @@ import { Elysia } from "elysia";
 import { swagger } from "@elysiajs/swagger";
 import { router } from "./router.js";
 
-const PORT = Number(process.env["PORT"] ?? 3000);
+// Default to 3457 — port 3000 is commonly forwarded from Windows to WSL2
+const PORT = Number(process.env["PORT"] ?? 3457);
 
 export const app = new Elysia()
   // OpenAPI + Swagger UI

@@ -1,22 +1,23 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema.js";
 
 export type DbClient = ReturnType<typeof createDb>;
 
 /**
- * Create a Drizzle database client backed by better-sqlite3.
+ * Create a Drizzle database client backed by Bun's native SQLite.
  *
  * @param path  Filesystem path to the SQLite database file.
+ *              Pass ":memory:" for an in-memory database.
  *              Created automatically if it does not exist.
  */
 export function createDb(path: string) {
-  const sqlite = new Database(path);
+  const sqlite = new Database(path, { create: true });
 
   // Enable WAL mode for better concurrent read performance
-  sqlite.pragma("journal_mode = WAL");
+  sqlite.exec("PRAGMA journal_mode = WAL;");
   // Enforce foreign key constraints
-  sqlite.pragma("foreign_keys = ON");
+  sqlite.exec("PRAGMA foreign_keys = ON;");
 
   return drizzle(sqlite, { schema });
 }
