@@ -1,0 +1,25 @@
+{
+  "name": "@strus/core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Domain types and FSRS scheduling logic for strus",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "echo 'lint: ok'"
+  },
+  "dependencies": {
+    "@strus/morph": "workspace:*",
+    "ts-fsrs": "^5.2.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "typescript": "^5.7.0"
+  }
+}

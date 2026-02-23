@@ -1,0 +1,31 @@
+{
+  "name": "@strus/cli",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Commander.js CLI for strus",
+  "type": "module",
+  "main": "./src/index.ts",
+  "bin": {
+    "strus": "./src/index.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "echo 'lint: ok'"
+  },
+  "dependencies": {
+    "@strus/api": "workspace:*",
+    "@strus/core": "workspace:*",
+    "commander": "^12.1.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.dist/
+build/
+
+# TypeScript
+*.tsbuildinfo
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+.drizzle/
+
+# Drizzle migrations (generated)
+packages/db/migrations/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Bun
+bun.lockb

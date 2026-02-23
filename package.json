@@ -1,0 +1,22 @@
+{
+  "name": "strus",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Polish morphological spaced repetition system",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "dev": "pnpm --filter @strus/api run dev",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "db:migrate": "pnpm --filter @strus/db run migrate",
+    "db:generate": "pnpm --filter @strus/db run generate"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

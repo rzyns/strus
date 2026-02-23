@@ -1,0 +1,36 @@
+{
+  "name": "@strus/api",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Elysia + oRPC HTTP server for strus",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "echo 'lint: ok'"
+  },
+  "dependencies": {
+    "@elysiajs/swagger": "^1.3.1",
+    "@orpc/contract": "^1.13.5",
+    "@orpc/openapi": "^1.13.5",
+    "@orpc/server": "^1.13.5",
+    "@orpc/zod": "^1.13.5",
+    "@strus/core": "workspace:*",
+    "@strus/db": "workspace:*",
+    "@strus/morph": "workspace:*",
+    "drizzle-orm": "^0.45.1",
+    "elysia": "^1.4.25",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@strus/db",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Drizzle ORM schema, migrations, and query helpers for strus",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "echo 'lint: ok'",
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@strus/core": "workspace:*",
+    "better-sqlite3": "^12.6.2",
+    "drizzle-orm": "^0.45.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/bun": "^1.1.0",
+    "drizzle-kit": "^0.31.9",
+    "typescript": "^5.7.0"
+  }
+}
