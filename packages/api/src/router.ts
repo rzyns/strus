@@ -4,11 +4,11 @@ import { count, eq, lte, and } from "drizzle-orm";
 import { db } from "@strus/db";
 import {
   vocabLists,
-  lexemes,
+  lemmas,
   morphForms,
   learningTargets,
   reviews,
-  vocabListLexemes,
+  vocabListLemmas,
 } from "@strus/db";
 import { generate, parseTag } from "@strus/morph";
 import {
@@ -25,6 +25,11 @@ import {
 
 const zId = z.string().uuid().describe("UUID v4 identifier");
 const zIso = z.string().datetime().describe("ISO 8601 date-time string");
+const zSource = z
+  .enum(["morfeusz", "manual"])
+  .describe(
+    "How the paradigm was populated: morfeusz = auto-generated via Morfeusz2 CLI, manual = user-supplied forms",
+  );
 
 // ---------------------------------------------------------------------------
 // Output schemas with field-level descriptions
@@ -37,22 +42,25 @@ const VocabListOutput = z.object({
   createdAt: zIso.describe("When this list was created"),
 });
 
-const LexemeOutput = z.object({
+const LemmaOutput = z.object({
   id: zId,
-  lemma: z.string().describe("Dictionary/base form of the word, e.g. 'dom', 'iść', 'dobry'"),
+  lemma: z
+    .string()
+    .describe("Citation/dictionary form of the word, e.g. 'dom', 'iść', 'dobry'"),
   pos: z
     .string()
     .describe(
       "Part of speech from the NKJP tagset: subst (noun), verb, adj (adjective), adv (adverb), etc.",
     ),
-  notes: z.string().nullable().describe("Free-form notes about this lexeme; null if not set"),
-  createdAt: zIso.describe("When this lexeme was added"),
-  updatedAt: zIso.describe("When this lexeme was last modified"),
+  source: zSource,
+  notes: z.string().nullable().describe("Free-form notes about this lemma; null if not set"),
+  createdAt: zIso.describe("When this lemma was added"),
+  updatedAt: zIso.describe("When this lemma was last modified"),
 });
 
 const LearningTargetOutput = z.object({
   id: zId,
-  lexemeId: zId.describe("ID of the parent lexeme"),
+  lemmaId: zId.describe("ID of the parent lemma"),
   tag: z
     .string()
     .describe(
@@ -83,7 +91,7 @@ const SuccessOutput = z.object({
 });
 
 const StatsOutput = z.object({
-  lexemeCount: z.number().int().describe("Total number of lexemes in the database"),
+  lemmaCount: z.number().int().describe("Total number of lemmas in the database"),
   listCount: z.number().int().describe("Total number of vocabulary lists"),
   dueCount: z.number().int().describe("Number of learning targets currently due for review"),
 });
@@ -101,11 +109,12 @@ function mapVocabList(row: typeof vocabLists.$inferSelect) {
   };
 }
 
-function mapLexeme(row: typeof lexemes.$inferSelect) {
+function mapLemma(row: typeof lemmas.$inferSelect) {
   return {
     id: row.id,
     lemma: row.lemma,
     pos: row.pos,
+    source: row.source,
     notes: row.notes,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -116,7 +125,7 @@ function mapLexeme(row: typeof lexemes.$inferSelect) {
 function mapLearningTargetRow(row: typeof learningTargets.$inferSelect) {
   return {
     id: row.id,
-    lexemeId: row.lexemeId,
+    lemmaId: row.lemmaId,
     tag: row.tag,
     state: row.state,
     due: new Date(row.due * 1000).toISOString(),
@@ -136,7 +145,7 @@ function mapLearningTargetRow(row: typeof learningTargets.$inferSelect) {
 function mapLearningTargetDomain(target: LearningTarget) {
   return {
     id: target.id,
-    lexemeId: target.lexemeId,
+    lemmaId: target.lemmaId,
     tag: target.tag,
     state: target.state,
     due: target.due.toISOString(),
@@ -213,7 +222,7 @@ const listsDelete = os
     tags: ["Lists"],
     summary: "Delete a vocabulary list",
     description:
-      "Deletes the list and removes all its lexeme associations. Lexemes themselves are not deleted.",
+      "Deletes the list and removes all its lemma associations. Lemmas themselves are not deleted.",
   })
   .input(z.object({ id: zId }))
   .output(SuccessOutput)
@@ -222,175 +231,183 @@ const listsDelete = os
     return { success: true as const };
   });
 
-const listsAddLexeme = os
+const listsAddLemma = os
   .route({
     method: "POST",
-    path: "/lists/{listId}/lexemes",
+    path: "/lists/{listId}/lemmas",
     tags: ["Lists"],
-    summary: "Add a lexeme to a vocabulary list",
-    description: "Associates an existing lexeme with a vocabulary list. The lexeme must already exist.",
+    summary: "Add a lemma to a vocabulary list",
+    description: "Associates an existing lemma with a vocabulary list. The lemma must already exist.",
   })
   .input(z.object({
     listId: zId.describe("ID of the vocabulary list"),
-    lexemeId: zId.describe("ID of the lexeme to add"),
+    lemmaId: zId.describe("ID of the lemma to add"),
   }))
   .output(SuccessOutput)
   .handler(async ({ input }) => {
-    await db.insert(vocabListLexemes).values({
+    await db.insert(vocabListLemmas).values({
       listId: input.listId,
-      lexemeId: input.lexemeId,
+      lemmaId: input.lemmaId,
     });
     return { success: true as const };
   });
 
 // ---------------------------------------------------------------------------
-// Lexemes procedures
+// Lemmas procedures
 // ---------------------------------------------------------------------------
 
-const lexemesList = os
+const lemmasList = os
   .route({
     method: "GET",
-    path: "/lexemes",
-    tags: ["Lexemes"],
-    summary: "List lexemes",
-    description: "Returns all lexemes, optionally filtered to those belonging to a specific vocabulary list.",
+    path: "/lemmas",
+    tags: ["Lemmas"],
+    summary: "List lemmas",
+    description: "Returns all lemmas, optionally filtered to those belonging to a specific vocabulary list.",
   })
   .input(z.object({
-    listId: z.string().uuid().optional().describe("Filter to lexemes in this vocabulary list"),
+    listId: z.string().uuid().optional().describe("Filter to lemmas in this vocabulary list"),
   }))
-  .output(z.array(LexemeOutput))
+  .output(z.array(LemmaOutput))
   .handler(async ({ input }) => {
     if (input.listId) {
       return db
-        .select({ lexeme: lexemes })
-        .from(lexemes)
+        .select({ lemma: lemmas })
+        .from(lemmas)
         .innerJoin(
-          vocabListLexemes,
+          vocabListLemmas,
           and(
-            eq(vocabListLexemes.lexemeId, lexemes.id),
-            eq(vocabListLexemes.listId, input.listId),
+            eq(vocabListLemmas.lemmaId, lemmas.id),
+            eq(vocabListLemmas.listId, input.listId),
           ),
         )
         .all()
-        .map((r) => mapLexeme(r.lexeme));
+        .map((r) => mapLemma(r.lemma));
     }
-    return db.select().from(lexemes).all().map(mapLexeme);
+    return db.select().from(lemmas).all().map(mapLemma);
   });
 
-const lexemesCreate = os
+const lemmasCreate = os
   .route({
     method: "POST",
-    path: "/lexemes",
-    tags: ["Lexemes"],
-    summary: "Create a lexeme",
+    path: "/lemmas",
+    tags: ["Lemmas"],
+    summary: "Create a lemma",
     description:
-      "Creates a lexeme and, if Morfeusz2 is available, automatically generates all " +
-      "morphological forms and seeds one FSRS learning target per form. " +
-      "Optionally associates the new lexeme with a vocabulary list.",
+      "Creates a lemma and, if source is 'morfeusz' and Morfeusz2 is available, automatically " +
+      "generates all morphological word forms and seeds one FSRS learning target per form. " +
+      "Use source='manual' to supply forms yourself via POST /lemmas/{id}/forms. " +
+      "Optionally associates the new lemma with a vocabulary list.",
   })
   .input(z.object({
-    lemma: z.string().min(1).describe("Dictionary/base form of the word, e.g. 'dom', 'iść'"),
+    lemma: z.string().min(1).describe("Citation/dictionary form of the word, e.g. 'dom', 'iść'"),
     pos: z
       .string()
       .min(1)
       .describe("Part of speech (NKJP tag prefix): subst, verb, adj, adv, etc."),
+    source: zSource.default("morfeusz").describe(
+      "morfeusz (default) = auto-generate word forms via Morfeusz2; manual = user will supply forms",
+    ),
     notes: z.string().optional().describe("Optional free-form notes"),
-    listId: z.string().uuid().optional().describe("Vocabulary list to add this lexeme to"),
+    listId: z.string().uuid().optional().describe("Vocabulary list to add this lemma to"),
   }))
-  .output(LexemeOutput)
+  .output(LemmaOutput)
   .handler(async ({ input }) => {
     const id = crypto.randomUUID();
     const now = new Date();
 
-    await db.insert(lexemes).values({
+    await db.insert(lemmas).values({
       id,
       lemma: input.lemma,
       pos: input.pos,
+      source: input.source,
       notes: input.notes ?? null,
       createdAt: now,
       updatedAt: now,
     });
 
     if (input.listId) {
-      await db.insert(vocabListLexemes).values({ listId: input.listId, lexemeId: id });
+      await db.insert(vocabListLemmas).values({ listId: input.listId, lemmaId: id });
     }
 
-    let forms: Awaited<ReturnType<typeof generate>> = [];
-    try {
-      forms = await generate(input.lemma);
-    } catch {
-      console.warn(`[morph] morfeusz2 unavailable; skipping form generation for "${input.lemma}"`);
+    if (input.source === "morfeusz") {
+      let forms: Awaited<ReturnType<typeof generate>> = [];
+      try {
+        forms = await generate(input.lemma);
+      } catch {
+        console.warn(`[morph] morfeusz2 unavailable; skipping form generation for "${input.lemma}"`);
+      }
+
+      for (const form of forms) {
+        const parsed = parseTag(form.tag);
+        await db.insert(morphForms).values({
+          id: crypto.randomUUID(),
+          lemmaId: id,
+          orth: form.orth,
+          tag: form.tag,
+          parsedTag: JSON.stringify(parsed),
+          createdAt: now,
+        });
+
+        const target = createLearningTarget(id, form.tag);
+        await db.insert(learningTargets).values({
+          id: crypto.randomUUID(),
+          lemmaId: target.lemmaId,
+          tag: target.tag,
+          state: target.state,
+          due: Math.floor(target.due.getTime() / 1000),
+          stability: target.stability,
+          difficulty: target.difficulty,
+          elapsedDays: target.elapsedDays,
+          scheduledDays: target.scheduledDays,
+          reps: target.reps,
+          lapses: target.lapses,
+          lastReview: target.lastReview
+            ? Math.floor(target.lastReview.getTime() / 1000)
+            : null,
+        });
+      }
     }
 
-    for (const form of forms) {
-      const parsed = parseTag(form.tag);
-      await db.insert(morphForms).values({
-        id: crypto.randomUUID(),
-        lexemeId: id,
-        orth: form.orth,
-        tag: form.tag,
-        parsedTag: JSON.stringify(parsed),
-        createdAt: now,
-      });
-
-      const target = createLearningTarget(id, form.tag);
-      await db.insert(learningTargets).values({
-        id: crypto.randomUUID(),
-        lexemeId: target.lexemeId,
-        tag: target.tag,
-        state: target.state,
-        due: Math.floor(target.due.getTime() / 1000),
-        stability: target.stability,
-        difficulty: target.difficulty,
-        elapsedDays: target.elapsedDays,
-        scheduledDays: target.scheduledDays,
-        reps: target.reps,
-        lapses: target.lapses,
-        lastReview: target.lastReview
-          ? Math.floor(target.lastReview.getTime() / 1000)
-          : null,
-      });
-    }
-
-    return mapLexeme({
+    return mapLemma({
       id,
       lemma: input.lemma,
       pos: input.pos,
+      source: input.source,
       notes: input.notes ?? null,
       createdAt: now,
       updatedAt: now,
     });
   });
 
-const lexemesGet = os
+const lemmasGet = os
   .route({
     method: "GET",
-    path: "/lexemes/{id}",
-    tags: ["Lexemes"],
-    summary: "Get a lexeme",
+    path: "/lemmas/{id}",
+    tags: ["Lemmas"],
+    summary: "Get a lemma",
   })
   .input(z.object({ id: zId }))
-  .output(LexemeOutput)
+  .output(LemmaOutput)
   .handler(async ({ input }) => {
-    const [row] = await db.select().from(lexemes).where(eq(lexemes.id, input.id)).limit(1);
-    if (!row) throw new ORPCError("NOT_FOUND", { message: `Lexeme not found: ${input.id}` });
-    return mapLexeme(row);
+    const [row] = await db.select().from(lemmas).where(eq(lemmas.id, input.id)).limit(1);
+    if (!row) throw new ORPCError("NOT_FOUND", { message: `Lemma not found: ${input.id}` });
+    return mapLemma(row);
   });
 
-const lexemesDelete = os
+const lemmasDelete = os
   .route({
     method: "DELETE",
-    path: "/lexemes/{id}",
-    tags: ["Lexemes"],
-    summary: "Delete a lexeme",
+    path: "/lemmas/{id}",
+    tags: ["Lemmas"],
+    summary: "Delete a lemma",
     description:
-      "Deletes a lexeme along with all its morphological forms and learning targets (cascade). " +
+      "Deletes a lemma along with all its morphological forms and learning targets (cascade). " +
       "Review history is also removed.",
   })
   .input(z.object({ id: zId }))
   .output(SuccessOutput)
   .handler(async ({ input }) => {
-    await db.delete(lexemes).where(eq(lexemes.id, input.id));
+    await db.delete(lemmas).where(eq(lemmas.id, input.id));
     return { success: true as const };
   });
 
@@ -432,10 +449,10 @@ const sessionDue = os
         .select({ target: learningTargets })
         .from(learningTargets)
         .innerJoin(
-          vocabListLexemes,
+          vocabListLemmas,
           and(
-            eq(vocabListLexemes.lexemeId, learningTargets.lexemeId),
-            eq(vocabListLexemes.listId, input.listId),
+            eq(vocabListLemmas.lemmaId, learningTargets.lemmaId),
+            eq(vocabListLemmas.listId, input.listId),
           ),
         )
         .where(lte(learningTargets.due, nowSecs))
@@ -493,7 +510,7 @@ const sessionReview = os
 
     const target = {
       id: row.id,
-      lexemeId: row.lexemeId,
+      lemmaId: row.lemmaId,
       tag: row.tag,
       state: row.state as CardState,
       due: dueDateBefore,
@@ -561,7 +578,7 @@ const statsOverview = os
   .output(StatsOutput)
   .handler(async () => {
     const nowSecs = Math.floor(Date.now() / 1000);
-    const [lexResult] = await db.select({ value: count() }).from(lexemes);
+    const [lemmaResult] = await db.select({ value: count() }).from(lemmas);
     const [listResult] = await db.select({ value: count() }).from(vocabLists);
     const [dueResult] = await db
       .select({ value: count() })
@@ -569,7 +586,7 @@ const statsOverview = os
       .where(lte(learningTargets.due, nowSecs));
 
     return {
-      lexemeCount: lexResult?.value ?? 0,
+      lemmaCount: lemmaResult?.value ?? 0,
       listCount: listResult?.value ?? 0,
       dueCount: dueResult?.value ?? 0,
     };
@@ -585,13 +602,13 @@ export const router = {
     create: listsCreate,
     get: listsGet,
     delete: listsDelete,
-    addLexeme: listsAddLexeme,
+    addLemma: listsAddLemma,
   },
-  lexemes: {
-    list: lexemesList,
-    create: lexemesCreate,
-    get: lexemesGet,
-    delete: lexemesDelete,
+  lemmas: {
+    list: lemmasList,
+    create: lemmasCreate,
+    get: lemmasGet,
+    delete: lemmasDelete,
   },
   session: {
     due: sessionDue,

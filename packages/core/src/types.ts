@@ -7,17 +7,20 @@ export interface VocabList {
   createdAt: Date;
 }
 
-export interface Lexeme {
+export interface Lemma {
   id: string;
+  /** Citation/dictionary form, e.g. "dom", "iść", "dobry" */
   lemma: string;
   pos: string;
+  /** How the paradigm was populated */
+  source: "morfeusz" | "manual";
   notes?: string;
   createdAt: Date;
 }
 
 export interface MorphFormRecord {
   id: string;
-  lexemeId: string;
+  lemmaId: string;
   /** Surface form */
   orth: string;
   /** NKJP morphosyntactic tag */
@@ -27,7 +30,7 @@ export interface MorphFormRecord {
 
 export interface LearningTarget {
   id: string;
-  lexemeId: string;
+  lemmaId: string;
   /** The specific morphosyntactic tag being drilled */
   tag: string;
   state: CardState;

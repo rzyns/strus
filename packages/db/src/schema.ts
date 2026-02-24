@@ -19,33 +19,36 @@ export const vocabLists = sqliteTable("vocab_lists", {
 });
 
 // ---------------------------------------------------------------------------
-// lexemes
+// lemmas
 // ---------------------------------------------------------------------------
 
-export const lexemes = sqliteTable("lexemes", {
+export const lemmas = sqliteTable("lemmas", {
   id:        text("id").primaryKey(),
+  /** The citation/dictionary form, e.g. "dom", "iść", "dobry" */
   lemma:     text("lemma").notNull(),
   pos:       text("pos").notNull(),
+  /** How the paradigm was populated: morfeusz = auto-generated, manual = user-supplied */
+  source:    text("source", { enum: ["morfeusz", "manual"] }).notNull().default("morfeusz"),
   notes:     text("notes"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
 // ---------------------------------------------------------------------------
-// vocabListLexemes  (join table)
+// vocabListLemmas  (join table)
 // ---------------------------------------------------------------------------
 
-export const vocabListLexemes = sqliteTable(
-  "vocab_list_lexemes",
+export const vocabListLemmas = sqliteTable(
+  "vocab_list_lemmas",
   {
-    listId:   text("list_id")
+    listId:  text("list_id")
       .notNull()
       .references(() => vocabLists.id, { onDelete: "cascade" }),
-    lexemeId: text("lexeme_id")
+    lemmaId: text("lemma_id")
       .notNull()
-      .references(() => lexemes.id, { onDelete: "cascade" }),
+      .references(() => lemmas.id, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.listId, t.lexemeId] })],
+  (t) => [primaryKey({ columns: [t.listId, t.lemmaId] })],
 );
 
 // ---------------------------------------------------------------------------
@@ -54,9 +57,9 @@ export const vocabListLexemes = sqliteTable(
 
 export const morphForms = sqliteTable("morph_forms", {
   id:        text("id").primaryKey(),
-  lexemeId:  text("lexeme_id")
+  lemmaId:   text("lemma_id")
     .notNull()
-    .references(() => lexemes.id, { onDelete: "cascade" }),
+    .references(() => lemmas.id, { onDelete: "cascade" }),
   orth:      text("orth").notNull(),
   tag:       text("tag").notNull(),
   /** JSON-serialised ParsedTag */
@@ -72,9 +75,9 @@ export const learningTargets = sqliteTable(
   "learning_targets",
   {
     id:            text("id").primaryKey(),
-    lexemeId:      text("lexeme_id")
+    lemmaId:       text("lemma_id")
       .notNull()
-      .references(() => lexemes.id, { onDelete: "cascade" }),
+      .references(() => lemmas.id, { onDelete: "cascade" }),
     tag:           text("tag").notNull(),
     /** CardState enum value (0=New,1=Learning,2=Review,3=Relearning) */
     state:         integer("state").notNull().default(0),
@@ -91,7 +94,7 @@ export const learningTargets = sqliteTable(
   },
   (t) => [
     index("learning_targets_due_idx").on(t.due),
-    index("learning_targets_lexeme_id_idx").on(t.lexemeId),
+    index("learning_targets_lemma_id_idx").on(t.lemmaId),
   ],
 );
 

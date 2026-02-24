@@ -17,7 +17,7 @@ export interface ParsedTag {
 }
 
 /**
- * All morphological forms of a lexeme grouped by tag.
+ * All morphological word forms of a lemma grouped by tag.
  * Multiple orth variants can share the same tag (e.g. variant spellings).
  */
 export type Paradigm = Map<string, MorphForm[]>;

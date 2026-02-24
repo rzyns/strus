@@ -104,15 +104,15 @@ export function getNextReviewDates(
 }
 
 /**
- * Create a fresh LearningTarget (never-seen card) for the given lexeme + tag.
+ * Create a fresh LearningTarget (never-seen card) for the given lemma + tag.
  */
 export function createLearningTarget(
-  lexemeId: string,
+  lemmaId: string,
   tag: string,
 ): Omit<LearningTarget, "id"> {
   const card = createEmptyCard();
   return {
-    lexemeId,
+    lemmaId,
     tag,
     state: CardState.New,
     due: card.due,

@@ -16,8 +16,6 @@ build/
 *.db-wal
 .drizzle/
 
-# Drizzle migrations (generated)
-packages/db/migrations/
 
 # Environment
 .env

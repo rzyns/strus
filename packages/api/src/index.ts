@@ -29,21 +29,21 @@ const spec = await generator.generate(router, {
     version: "0.0.1",
     description:
       "Polish morphological spaced repetition system 🦤\n\n" +
-      "Stores vocabulary as *lexemes* (dictionary entries). When a lexeme is created, " +
-      "Morfeusz2 generates all inflected forms and seeds one FSRS learning target per form. " +
-      "Review sessions surface due cards; each review updates the FSRS schedule.",
+      "Stores vocabulary as *lemmas* (citation/dictionary forms). When a lemma is created with " +
+      "source=morfeusz, Morfeusz2 generates all inflected word forms and seeds one FSRS " +
+      "learning target per form. Review sessions surface due cards; each review updates the FSRS schedule.",
   },
   servers: [{ url: "/api", description: "API base" }],
   tags: [
     {
       name: "Lists",
-      description: "Vocabulary list management. Lists are named collections of lexemes.",
+      description: "Vocabulary list management. Lists are named collections of lemmas.",
     },
     {
-      name: "Lexemes",
+      name: "Lemmas",
       description:
-        "Lexeme and morphological form management. " +
-        "Creating a lexeme triggers automatic paradigm generation via the Morfeusz2 CLI.",
+        "Lemma and morphological form management. " +
+        "Creating a lemma with source=morfeusz triggers automatic paradigm generation via the Morfeusz2 CLI.",
     },
     {
       name: "Session",

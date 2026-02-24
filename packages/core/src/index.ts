@@ -1,6 +1,6 @@
 export type {
   VocabList,
-  Lexeme,
+  Lemma,
   MorphFormRecord,
   LearningTarget,
   ReviewRecord,

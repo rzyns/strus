@@ -3,7 +3,7 @@
  * @strus/cli — Command-line interface for the strus SRS system.
  *
  * The CLI communicates with the strus API server. By default it hits
- * http://localhost:3000, configurable via STRUS_API_URL.
+ * http://localhost:3457, configurable via STRUS_API_URL.
  *
  * TODO: Replace raw fetch calls with a type-safe oRPC client once the
  *       @orpc/client adapter is set up:
@@ -17,7 +17,7 @@ import { Command } from "commander";
 import * as readline from "readline";
 import { Rating } from "@strus/core";
 
-const API_URL = process.env["STRUS_API_URL"] ?? "http://localhost:3000";
+const API_URL = process.env["STRUS_API_URL"] ?? "http://localhost:3457";
 
 // ---------------------------------------------------------------------------
 // HTTP helpers
@@ -106,43 +106,50 @@ listCmd
   });
 
 // ---------------------------------------------------------------------------
-// strus lexeme
+// strus lemma
 // ---------------------------------------------------------------------------
 
-const lexemeCmd = program
-  .command("lexeme")
-  .description("Lexeme (vocabulary entry) commands");
+const lemmaCmd = program
+  .command("lemma")
+  .description("Lemma (vocabulary entry) commands");
 
-lexemeCmd
+lemmaCmd
   .command("add <lemma>")
-  .description("Add a new lexeme; auto-generates morph forms + learning targets")
+  .description("Add a new lemma; auto-generates word forms + learning targets via Morfeusz2")
   .option("-l, --list <listId>", "Add to this list")
   .option("-p, --pos <pos>", "Part of speech (e.g. subst, verb, adj)", "subst")
-  .action(async (lemma: string, opts: { list?: string; pos?: string }) => {
-    const lexeme = await apiPost<{ id: string; lemma: string }>(
-      "/api/lexemes",
-      { lemma, pos: opts.pos ?? "subst", listId: opts.list },
+  .option("-m, --manual", "Skip Morfeusz2; supply forms manually later (source=manual)")
+  .action(async (lemma: string, opts: { list?: string; pos?: string; manual?: boolean }) => {
+    const result = await apiPost<{ id: string; lemma: string; source: string }>(
+      "/api/lemmas",
+      {
+        lemma,
+        pos: opts.pos ?? "subst",
+        source: opts.manual ? "manual" : "morfeusz",
+        listId: opts.list,
+      },
     );
     console.log(
-      `Added lexeme "${lexeme.lemma}" (id: ${lexeme.id})${opts.list ? ` to list ${opts.list}` : ""}`,
+      `Added lemma "${result.lemma}" [${result.source}] (id: ${result.id})` +
+      (opts.list ? ` to list ${opts.list}` : ""),
     );
   });
 
-lexemeCmd
+lemmaCmd
   .command("ls")
-  .description("List all lexemes")
+  .description("List all lemmas")
   .option("-l, --list <listId>", "Filter by list")
   .action(async (opts: { list?: string }) => {
     const url = opts.list
-      ? `/api/lexemes?listId=${encodeURIComponent(opts.list)}`
-      : "/api/lexemes";
-    const items = await apiGet<Array<{ id: string; lemma: string; pos: string }>>(url);
+      ? `/api/lemmas?listId=${encodeURIComponent(opts.list)}`
+      : "/api/lemmas";
+    const items = await apiGet<Array<{ id: string; lemma: string; pos: string; source: string }>>(url);
     if (items.length === 0) {
-      console.log("No lexemes found.");
+      console.log("No lemmas found.");
       return;
     }
     for (const l of items) {
-      console.log(`${l.id}  ${l.lemma}  (${l.pos})`);
+      console.log(`${l.id}  ${l.lemma}  (${l.pos}) [${l.source}]`);
     }
   });
 
@@ -163,7 +170,7 @@ program
 
     interface DueTarget {
       id: string;
-      lexemeId: string;
+      lemmaId: string;
       tag: string;
       state: number;
     }
@@ -186,7 +193,7 @@ program
 
     for (const card of due) {
       console.log(`\n[${reviewed + 1}/${due.length}]`);
-      console.log(`Lexeme ID : ${card.lexemeId}`);
+      console.log(`Lemma ID  : ${card.lemmaId}`);
       console.log(`Tag       : ${card.tag}`);
       console.log("─".repeat(40));
 
@@ -236,11 +243,11 @@ program
   .description("Show overview statistics")
   .action(async () => {
     const stats = await apiGet<{
-      lexemeCount: number;
+      lemmaCount: number;
       listCount: number;
       dueCount: number;
     }>("/api/stats");
-    console.log(`Lexemes : ${stats.lexemeCount}`);
+    console.log(`Lemmas  : ${stats.lemmaCount}`);
     console.log(`Lists   : ${stats.listCount}`);
     console.log(`Due now : ${stats.dueCount}`);
   });
