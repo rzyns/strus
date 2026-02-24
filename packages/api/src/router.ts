@@ -10,7 +10,7 @@ import {
   reviews,
   vocabListLemmas,
 } from "@strus/db";
-import { generate, parseTag } from "@strus/morph";
+import { generate, parseTag, analyseText } from "@strus/morph";
 import {
   scheduleReview,
   createLearningTarget,
@@ -97,6 +97,24 @@ const StatsOutput = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Import schemas
+// ---------------------------------------------------------------------------
+
+const ImportTextInput = z.object({
+  text: z.string().min(1).describe("Polish text to analyse — HTML should be stripped by the caller"),
+  listId: z.string().uuid().optional().describe("Vocabulary list to add imported lemmas to"),
+});
+
+const ImportCandidateOutput = z.object({
+  lemma: z.string(),
+  pos: z.string(),
+  formsFound: z.array(z.string()).describe("Surface forms from the input text that mapped to this lemma"),
+  ambiguous: z.boolean().describe("True if multiple lemmas were possible for at least one of the input forms"),
+  alreadyExists: z.boolean().describe("True if this lemma already exists in the database"),
+  isMultiWord: z.boolean().describe("True if the lemma contains spaces — will be imported with source=manual"),
+});
+
+// ---------------------------------------------------------------------------
 // Mappers — convert raw DB rows / domain objects to output shapes
 // ---------------------------------------------------------------------------
 
@@ -157,6 +175,87 @@ function mapLearningTargetDomain(target: LearningTarget) {
     lapses: target.lapses,
     lastReview: target.lastReview?.toISOString() ?? null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Import pipeline helpers
+// ---------------------------------------------------------------------------
+
+const STOPWORD_TAG_PREFIXES = new Set([
+  "prep", "conj", "comp", "qub", "interj",
+  "ppron12", "ppron3", "num", "numcol",
+  "ign", "aglt", "brev",
+]);
+
+function isStopwordForm(tag: string, lemma: string): boolean {
+  const base = tag.split(":")[0] ?? tag;
+  return STOPWORD_TAG_PREFIXES.has(base) || lemma === "siebie";
+}
+
+function inferPos(tag: string): string {
+  const base = tag.split(":")[0] ?? tag;
+  if (base === "subst") return "subst";
+  if (["adj", "adja", "adjp"].includes(base)) return "adj";
+  if (base === "adv") return "adv";
+  if (["fin", "praet", "impt", "imps", "inf", "pcon", "pant", "ger", "pact", "ppas", "bedzie"].includes(base)) return "verb";
+  return base;
+}
+
+interface ImportCandidate {
+  lemma: string;
+  pos: string;
+  formsFound: string[];
+  ambiguous: boolean;
+  isMultiWord: boolean;
+}
+
+async function analyseImportText(
+  text: string,
+): Promise<{ candidates: ImportCandidate[]; unknownTokens: string[] }> {
+  // Let analyseText errors propagate — callers get a 500 with a useful message
+  // rather than silently returning 0 candidates when morfeusz_analyzer is unavailable.
+  const allForms = await analyseText(text);
+
+  // Group analyses by surface form (orth)
+  const byOrth = new Map<string, typeof allForms>();
+  for (const form of allForms) {
+    const existing = byOrth.get(form.orth);
+    if (existing !== undefined) existing.push(form);
+    else byOrth.set(form.orth, [form]);
+  }
+
+  // Build lemma map, tracking ambiguity and which surface forms contributed
+  const lemmaMap = new Map<string, { pos: string; orths: Set<string>; ambiguous: boolean }>();
+
+  for (const [orth, forms] of byOrth) {
+    const nonStop = forms.filter((f) => !isStopwordForm(f.tag, f.lemma));
+    if (nonStop.length === 0) continue;
+
+    const distinctLemmas = [...new Set(nonStop.map((f) => f.lemma))];
+    const ambiguous = distinctLemmas.length > 1;
+
+    for (const lemma of distinctLemmas) {
+      const representativeTag = nonStop.find((f) => f.lemma === lemma)!.tag;
+      const pos = inferPos(representativeTag);
+      const entry = lemmaMap.get(lemma);
+      if (entry !== undefined) {
+        entry.orths.add(orth);
+        if (ambiguous) entry.ambiguous = true;
+      } else {
+        lemmaMap.set(lemma, { pos, orths: new Set([orth]), ambiguous });
+      }
+    }
+  }
+
+  const candidates: ImportCandidate[] = [...lemmaMap.entries()].map(([lemma, info]) => ({
+    lemma,
+    pos: info.pos,
+    formsFound: [...info.orths],
+    ambiguous: info.ambiguous,
+    isMultiWord: lemma.includes(" "),
+  }));
+
+  return { candidates, unknownTokens: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -593,6 +692,168 @@ const statsOverview = os
   });
 
 // ---------------------------------------------------------------------------
+// Import procedures
+// ---------------------------------------------------------------------------
+
+const importPreview = os
+  .route({
+    method: "POST",
+    path: "/import/text/preview",
+    tags: ["Import"],
+    summary: "Preview text import candidates",
+    description:
+      "Tokenises Polish text via Morfeusz2, filters stopwords, and returns candidate lemmas " +
+      "with ambiguity and existence flags. Does not modify the database.",
+  })
+  .input(ImportTextInput)
+  .output(
+    z.object({
+      candidates: z.array(ImportCandidateOutput),
+      unknownTokens: z.array(z.string()).describe("Tokens that Morfeusz2 could not analyse"),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const { candidates, unknownTokens } = await analyseImportText(input.text);
+    const withExists = await Promise.all(
+      candidates.map(async (c) => {
+        const [row] = await db
+          .select({ id: lemmas.id })
+          .from(lemmas)
+          .where(eq(lemmas.lemma, c.lemma))
+          .limit(1);
+        return { ...c, alreadyExists: row !== undefined };
+      }),
+    );
+    return { candidates: withExists, unknownTokens };
+  });
+
+const importCommit = os
+  .route({
+    method: "POST",
+    path: "/import/text",
+    tags: ["Import"],
+    summary: "Import lemmas from text",
+    description:
+      "Tokenises Polish text, filters stopwords, then commits non-duplicate lemmas to the database. " +
+      "Multi-word expressions are imported with source=manual; single words with source=morfeusz " +
+      "(Morfeusz2 will generate their inflected forms). Ambiguous candidates are skipped by default.",
+  })
+  .input(
+    ImportTextInput.extend({
+      skipAmbiguous: z
+        .boolean()
+        .default(true)
+        .describe("Skip ambiguous candidates (default: true). Set false to commit all candidates."),
+    }),
+  )
+  .output(
+    z.object({
+      created: z.array(
+        z.object({
+          lemmaId: z.string().uuid(),
+          lemma: z.string(),
+          pos: z.string(),
+          source: zSource,
+        }),
+      ),
+      skipped: z.array(
+        z.object({
+          lemma: z.string(),
+          reason: z.enum(["already_exists", "ambiguous"]),
+        }),
+      ),
+      unknownTokens: z.array(z.string()),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const { candidates, unknownTokens } = await analyseImportText(input.text);
+
+    const created: Array<{ lemmaId: string; lemma: string; pos: string; source: "morfeusz" | "manual" }> = [];
+    const skipped: Array<{ lemma: string; reason: "already_exists" | "ambiguous" }> = [];
+
+    for (const c of candidates) {
+      // Check if already in DB
+      const [existing] = await db
+        .select({ id: lemmas.id })
+        .from(lemmas)
+        .where(eq(lemmas.lemma, c.lemma))
+        .limit(1);
+      if (existing !== undefined) {
+        skipped.push({ lemma: c.lemma, reason: "already_exists" });
+        continue;
+      }
+
+      // Skip ambiguous if requested
+      if (c.ambiguous && input.skipAmbiguous) {
+        skipped.push({ lemma: c.lemma, reason: "ambiguous" });
+        continue;
+      }
+
+      const source: "morfeusz" | "manual" = c.isMultiWord ? "manual" : "morfeusz";
+      const id = crypto.randomUUID();
+      const now = new Date();
+
+      await db.insert(lemmas).values({
+        id,
+        lemma: c.lemma,
+        pos: c.pos,
+        source,
+        notes: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      if (input.listId !== undefined) {
+        await db.insert(vocabListLemmas).values({ listId: input.listId, lemmaId: id });
+      }
+
+      // Generate morphological forms for non-manual lemmas
+      if (source === "morfeusz") {
+        let forms: Awaited<ReturnType<typeof generate>> = [];
+        try {
+          forms = await generate(c.lemma);
+        } catch {
+          console.warn(`[morph] morfeusz2 unavailable; skipping form generation for "${c.lemma}"`);
+        }
+
+        for (const form of forms) {
+          const parsed = parseTag(form.tag);
+          await db.insert(morphForms).values({
+            id: crypto.randomUUID(),
+            lemmaId: id,
+            orth: form.orth,
+            tag: form.tag,
+            parsedTag: JSON.stringify(parsed),
+            createdAt: now,
+          });
+
+          const target = createLearningTarget(id, form.tag);
+          await db.insert(learningTargets).values({
+            id: crypto.randomUUID(),
+            lemmaId: target.lemmaId,
+            tag: target.tag,
+            state: target.state,
+            due: Math.floor(target.due.getTime() / 1000),
+            stability: target.stability,
+            difficulty: target.difficulty,
+            elapsedDays: target.elapsedDays,
+            scheduledDays: target.scheduledDays,
+            reps: target.reps,
+            lapses: target.lapses,
+            ...(target.lastReview !== undefined
+              ? { lastReview: Math.floor(target.lastReview.getTime() / 1000) }
+              : { lastReview: null }),
+          });
+        }
+      }
+
+      created.push({ lemmaId: id, lemma: c.lemma, pos: c.pos, source });
+    }
+
+    return { created, skipped, unknownTokens };
+  });
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -616,6 +877,10 @@ export const router = {
   },
   stats: {
     overview: statsOverview,
+  },
+  import: {
+    preview: importPreview,
+    commit: importCommit,
   },
 };
 

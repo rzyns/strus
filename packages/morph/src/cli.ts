@@ -1,48 +1,110 @@
 import type { MorphForm } from "./types.js";
 
-const MORFEUSZ_BINARY = "morfeusz2";
+// The Morfeusz2 package ships two separate CLI binaries:
+//   morfeusz_generator  — generation mode (all forms of a given lemma)
+//   morfeusz_analyzer   — analysis mode (all analyses for a given surface form / text)
+const MORFEUSZ_GENERATOR = "morfeusz_generator";
+const MORFEUSZ_ANALYZER = "morfeusz_analyzer";
+
+// ---------------------------------------------------------------------------
+// Output parsers
+// ---------------------------------------------------------------------------
 
 /**
- * Parse raw morfeusz2 output lines into MorphForm objects.
- * Each line is tab-separated: orth\tlemma\ttag
- * Lines that don't match the expected format are silently skipped.
+ * Parse output from `morfeusz_generator`.
+ *
+ * Each entry in the output is a bracket-delimited block. Lines look like:
+ *   [orth,lemma,tag,qualifier,_         ← opening line (no closing bracket yet)
+ *    orth,lemma,tag,qualifier,_          ← continuation form line
+ *    orth,lemma,tag,qualifier,_]         ← last form line (closing bracket)
+ *
+ * Strategy: strip `[`, `]`, and surrounding whitespace from each line,
+ * then parse as comma-separated with orth at index 0, lemma at 1, tag at 2.
+ * Header lines (version banner, path, dict) are skipped.
  */
-function parseOutputLines(output: string): MorphForm[] {
+function parseGeneratorOutput(output: string): MorphForm[] {
   const forms: MorphForm[] = [];
-
   for (const line of output.split("\n")) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
+    if (
+      trimmed.startsWith("Morfeusz") ||
+      trimmed.startsWith("Setting") ||
+      trimmed.startsWith("Using")
+    ) continue;
 
-    const parts = trimmed.split("\t");
+    const content = trimmed.replace(/^\[/, "").replace(/\]$/, "").trim();
+    const parts = content.split(",");
     if (parts.length < 3) continue;
 
-    const [orth, lemma, tag] = parts as [string, string, string];
+    const orth = parts[0]?.trim();
+    const lemma = parts[1]?.trim();
+    const tag = parts[2]?.trim();
     if (orth && lemma && tag) {
       forms.push({ orth, lemma, tag });
     }
   }
-
   return forms;
 }
 
 /**
- * Run a morfeusz2 subprocess, write `input` to its stdin, and return stdout.
+ * Parse output from `morfeusz_analyzer`.
+ *
+ * Lines look like:
+ *   [start,end,orth,lemma,tag,qualifier,disambiguation]   ← single analysis
+ *   [start,end,orth,lemma,tag,qualifier,disambiguation    ← first of multi-line entry
+ *    start,end,orth,lemma,tag,qualifier,disambiguation]   ← continuation line
+ *
+ * Strategy: strip `[`, `]`, and surrounding whitespace from each line,
+ * then parse as comma-separated with orth at index 2, lemma at 3, tag at 4.
+ * Header lines are skipped.
+ */
+function parseAnalyzerOutput(output: string): MorphForm[] {
+  const forms: MorphForm[] = [];
+  for (const line of output.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    if (
+      trimmed.startsWith("Morfeusz") ||
+      trimmed.startsWith("Setting") ||
+      trimmed.startsWith("Using")
+    ) continue;
+
+    const content = trimmed.replace(/^\[/, "").replace(/\]$/, "").trim();
+    const parts = content.split(",");
+    if (parts.length < 5) continue;
+
+    const orth = parts[2]?.trim();
+    const lemma = parts[3]?.trim();
+    const tag = parts[4]?.trim();
+    if (orth && lemma && tag) {
+      forms.push({ orth, lemma, tag });
+    }
+  }
+  return forms;
+}
+
+// ---------------------------------------------------------------------------
+// Subprocess runner
+// ---------------------------------------------------------------------------
+
+/**
+ * Run a Morfeusz subprocess, write `input` to its stdin, and return stdout.
  * Throws a descriptive error if the binary is not found or exits non-zero.
  */
-async function runMorfeusz(args: string[], input: string): Promise<string> {
+async function runMorfeusz(binary: string, input: string): Promise<string> {
   // Spawn inline (IIFE) so TypeScript infers the narrow generic type and
   // knows stdin/stdout/stderr are FileSink / ReadableStream, not `number`.
   const proc = (() => {
     try {
-      return Bun.spawn([MORFEUSZ_BINARY, ...args], {
+      return Bun.spawn([binary], {
         stdin: "pipe",
         stdout: "pipe",
         stderr: "pipe",
       });
     } catch (err) {
       throw new Error(
-        `Failed to launch morfeusz2: binary "${MORFEUSZ_BINARY}" may not be installed. ` +
+        `Failed to launch ${binary}: binary may not be installed. ` +
           `Original error: ${String(err)}`,
       );
     }
@@ -60,7 +122,7 @@ async function runMorfeusz(args: string[], input: string): Promise<string> {
 
   if (exitCode !== 0) {
     throw new Error(
-      `morfeusz2 exited with code ${exitCode}. ` +
+      `${binary} exited with code ${exitCode}. ` +
         `stderr: ${stderr.trim() || "(empty)"}`,
     );
   }
@@ -68,37 +130,48 @@ async function runMorfeusz(args: string[], input: string): Promise<string> {
   return stdout;
 }
 
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /**
  * Generate all morphological forms for the given lemma.
- * Calls `morfeusz2 --generate` with the lemma on stdin.
+ * Uses `morfeusz_generator` with the lemma on stdin.
  *
- * Returns an empty array if morfeusz2 produces no output (e.g. unknown lemma).
+ * Returns an empty array if the lemma is unknown to Morfeusz2.
  */
 export async function generate(lemma: string): Promise<MorphForm[]> {
   try {
-    const output = await runMorfeusz(["--generate"], lemma);
-    return parseOutputLines(output);
+    const output = await runMorfeusz(MORFEUSZ_GENERATOR, lemma);
+    return parseGeneratorOutput(output);
   } catch (err) {
-    // Re-throw with context
-    throw new Error(
-      `morph.generate("${lemma}") failed: ${String(err)}`,
-    );
+    throw new Error(`morph.generate("${lemma}") failed: ${String(err)}`);
   }
 }
 
 /**
- * Analyse a surface form and return all possible interpretations.
- * Calls `morfeusz2` (analysis mode) with the surface form on stdin.
- *
- * Returns an empty array if morfeusz2 produces no output.
+ * Analyse a single surface form and return all possible interpretations.
+ * Uses `morfeusz_analyzer` with the surface form on stdin.
  */
 export async function analyse(surface: string): Promise<MorphForm[]> {
   try {
-    const output = await runMorfeusz([], surface);
-    return parseOutputLines(output);
+    const output = await runMorfeusz(MORFEUSZ_ANALYZER, surface);
+    return parseAnalyzerOutput(output);
   } catch (err) {
-    throw new Error(
-      `morph.analyse("${surface}") failed: ${String(err)}`,
-    );
+    throw new Error(`morph.analyse("${surface}") failed: ${String(err)}`);
+  }
+}
+
+/**
+ * Analyse a multi-token text in a single subprocess call.
+ * Uses `morfeusz_analyzer` with the full text on stdin.
+ * More efficient than calling `analyse` per token.
+ */
+export async function analyseText(text: string): Promise<MorphForm[]> {
+  try {
+    const output = await runMorfeusz(MORFEUSZ_ANALYZER, text);
+    return parseAnalyzerOutput(output);
+  } catch (err) {
+    throw new Error(`morph.analyseText failed: ${String(err)}`);
   }
 }

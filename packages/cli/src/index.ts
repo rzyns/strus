@@ -64,6 +64,15 @@ function prompt(rl: readline.Interface, question: string): Promise<string> {
   });
 }
 
+async function readStdin(): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin });
+    const lines: string[] = [];
+    rl.on("line", (line) => lines.push(line));
+    rl.on("close", () => resolve(lines.join("\n")));
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Program
 // ---------------------------------------------------------------------------
@@ -103,6 +112,41 @@ listCmd
     for (const l of lists) {
       console.log(`${l.id}  ${l.name}${l.description ? `  — ${l.description}` : ""}`);
     }
+  });
+
+listCmd
+  .command("get <id>")
+  .description("Get a vocabulary list by ID")
+  .action(async (id: string) => {
+    const list = await apiGet<{
+      id: string;
+      name: string;
+      description: string | null;
+      createdAt: string;
+    }>(`/api/lists/${encodeURIComponent(id)}`);
+    console.log(`id          : ${list.id}`);
+    console.log(`name        : ${list.name}`);
+    console.log(`description : ${list.description ?? "(none)"}`);
+    console.log(`createdAt   : ${list.createdAt}`);
+  });
+
+listCmd
+  .command("delete <id>")
+  .description("Delete a vocabulary list")
+  .action(async (id: string) => {
+    await apiDelete<{ success: true }>(`/api/lists/${encodeURIComponent(id)}`);
+    console.log(`Deleted list ${id}`);
+  });
+
+listCmd
+  .command("add-lemma <listId> <lemmaId>")
+  .description("Add a lemma to a vocabulary list")
+  .action(async (listId: string, lemmaId: string) => {
+    await apiPost<{ success: true }>(
+      `/api/lists/${encodeURIComponent(listId)}/lemmas`,
+      { listId, lemmaId },
+    );
+    console.log(`Added lemma ${lemmaId} to list ${listId}`);
   });
 
 // ---------------------------------------------------------------------------
@@ -153,6 +197,36 @@ lemmaCmd
     }
   });
 
+lemmaCmd
+  .command("get <id>")
+  .description("Get a lemma by ID")
+  .action(async (id: string) => {
+    const l = await apiGet<{
+      id: string;
+      lemma: string;
+      pos: string;
+      source: string;
+      notes: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>(`/api/lemmas/${encodeURIComponent(id)}`);
+    console.log(`id        : ${l.id}`);
+    console.log(`lemma     : ${l.lemma}`);
+    console.log(`pos       : ${l.pos}`);
+    console.log(`source    : ${l.source}`);
+    console.log(`notes     : ${l.notes ?? "(none)"}`);
+    console.log(`createdAt : ${l.createdAt}`);
+    console.log(`updatedAt : ${l.updatedAt}`);
+  });
+
+lemmaCmd
+  .command("delete <id>")
+  .description("Delete a lemma")
+  .action(async (id: string) => {
+    await apiDelete<{ success: true }>(`/api/lemmas/${encodeURIComponent(id)}`);
+    console.log(`Deleted lemma ${id}`);
+  });
+
 // ---------------------------------------------------------------------------
 // strus quiz
 // ---------------------------------------------------------------------------
@@ -192,8 +266,18 @@ program
     let reviewed = 0;
 
     for (const card of due) {
+      let lemmaStr = card.lemmaId;
+      try {
+        const lemmaObj = await apiGet<{ id: string; lemma: string }>(
+          `/api/lemmas/${card.lemmaId}`,
+        );
+        lemmaStr = lemmaObj.lemma;
+      } catch {
+        // Fall back to ID if fetch fails
+      }
+
       console.log(`\n[${reviewed + 1}/${due.length}]`);
-      console.log(`Lemma ID  : ${card.lemmaId}`);
+      console.log(`Lemma     : ${lemmaStr}`);
       console.log(`Tag       : ${card.tag}`);
       console.log("─".repeat(40));
 
@@ -251,6 +335,120 @@ program
     console.log(`Lists   : ${stats.listCount}`);
     console.log(`Due now : ${stats.dueCount}`);
   });
+
+// ---------------------------------------------------------------------------
+// strus import
+// ---------------------------------------------------------------------------
+
+const importCmd = program.command("import").description("Import lemmas from Polish text");
+
+importCmd
+  .command("preview [text]")
+  .description("Preview lemma candidates extracted from text")
+  .option("-f, --file <path>", "Read text from a file instead of argument")
+  .option("-l, --list <listId>", "Vocabulary list to check existence against (optional)")
+  .action(async (text: string | undefined, opts: { file?: string; list?: string }) => {
+    let inputText: string;
+    if (opts.file !== undefined) {
+      inputText = await Bun.file(opts.file).text();
+    } else if (text !== undefined) {
+      inputText = text;
+    } else {
+      inputText = await readStdin();
+    }
+
+    const body = {
+      text: inputText,
+      ...(opts.list !== undefined ? { listId: opts.list } : {}),
+    };
+
+    const result = await apiPost<{
+      candidates: Array<{
+        lemma: string;
+        pos: string;
+        formsFound: string[];
+        ambiguous: boolean;
+        alreadyExists: boolean;
+        isMultiWord: boolean;
+      }>;
+      unknownTokens: string[];
+    }>("/api/import/text/preview", body);
+
+    const { candidates, unknownTokens } = result;
+    const existsCount = candidates.filter((c) => c.alreadyExists).length;
+    const ambiguousCount = candidates.filter((c) => c.ambiguous).length;
+
+    console.log(
+      `Found ${candidates.length} candidate lemmas (${existsCount} already exist, ${ambiguousCount} ambiguous):`,
+    );
+    console.log();
+    for (const c of candidates) {
+      const lemmaCol = c.lemma.padEnd(20);
+      const posCol = c.pos.padEnd(8);
+      const formsStr = `forms: ${c.formsFound.slice(0, 3).join(", ")}`;
+      const flags = [
+        c.alreadyExists ? "[exists]" : "",
+        c.ambiguous ? "[ambiguous]" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      console.log(`  ${lemmaCol}${posCol}${formsStr}${flags ? `    ${flags}` : ""}`);
+    }
+    console.log();
+    console.log(`Skipped stopwords + unknown tokens: ${unknownTokens.length}`);
+  });
+
+importCmd
+  .command("commit [text]")
+  .description("Import lemmas from text into the database")
+  .option("-f, --file <path>", "Read text from a file")
+  .option("-l, --list <listId>", "Add imported lemmas to this list (optional)")
+  .option("--include-ambiguous", "Also commit ambiguous candidates (default: skip them)")
+  .action(
+    async (
+      text: string | undefined,
+      opts: { file?: string; list?: string; includeAmbiguous?: boolean },
+    ) => {
+      let inputText: string;
+      if (opts.file !== undefined) {
+        inputText = await Bun.file(opts.file).text();
+      } else if (text !== undefined) {
+        inputText = text;
+      } else {
+        inputText = await readStdin();
+      }
+
+      const body = {
+        text: inputText,
+        skipAmbiguous: !opts.includeAmbiguous,
+        ...(opts.list !== undefined ? { listId: opts.list } : {}),
+      };
+
+      const result = await apiPost<{
+        created: Array<{ lemmaId: string; lemma: string; pos: string; source: string }>;
+        skipped: Array<{ lemma: string; reason: string }>;
+        unknownTokens: string[];
+      }>("/api/import/text", body);
+
+      const { created, skipped } = result;
+      const alreadyExistsCount = skipped.filter((s) => s.reason === "already_exists").length;
+      const ambiguousCount = skipped.filter((s) => s.reason === "ambiguous").length;
+
+      console.log("Import complete.");
+      console.log(`  Created : ${created.length} lemmas`);
+      console.log(
+        `  Skipped : ${alreadyExistsCount} (already exist), ${ambiguousCount} (ambiguous)`,
+      );
+
+      if (created.length > 0) {
+        console.log();
+        console.log("Created:");
+        for (const c of created) {
+          console.log(`  ${c.lemma.padEnd(12)}${c.pos.padEnd(8)}${c.source}`);
+        }
+      }
+    },
+  );
 
 // ---------------------------------------------------------------------------
 // Run
