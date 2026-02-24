@@ -1,6 +1,6 @@
 import { os, ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { count, eq, lte, and } from "drizzle-orm";
+import { count, eq, lte, and, inArray } from "drizzle-orm";
 import { db } from "@strus/db";
 import {
   vocabLists,
@@ -514,6 +514,18 @@ const lemmasDelete = os
 // Session procedures
 // ---------------------------------------------------------------------------
 
+const DueCardOutput = LearningTargetOutput.extend({
+  lemmaText: z
+    .string()
+    .describe("Citation/dictionary form of the lemma, e.g. 'dom', 'iść'"),
+  forms: z
+    .array(z.string())
+    .describe(
+      "Orthographic variants for this lemma+tag combination. " +
+      "Empty when the lemma has source=manual or Morfeusz2 form generation was skipped.",
+    ),
+});
+
 const sessionDue = os
   .route({
     method: "GET",
@@ -522,7 +534,8 @@ const sessionDue = os
     summary: "Get cards due for review",
     description:
       "Returns learning targets whose due date has passed, ordered by due date ascending. " +
-      "Optionally scoped to a single vocabulary list.",
+      "Each card includes the parent lemma's citation form and the orthographic variants " +
+      "for the specific tag being drilled. Optionally scoped to a single vocabulary list.",
   })
   .input(z.object({
     listId: z
@@ -539,34 +552,62 @@ const sessionDue = os
       .default(20)
       .describe("Maximum number of cards to return (default: 20, max: 100)"),
   }))
-  .output(z.array(LearningTargetOutput))
+  .output(z.array(DueCardOutput))
   .handler(async ({ input }) => {
     const nowSecs = Math.floor(Date.now() / 1000);
 
-    if (input.listId) {
-      return db
-        .select({ target: learningTargets })
-        .from(learningTargets)
-        .innerJoin(
-          vocabListLemmas,
-          and(
-            eq(vocabListLemmas.lemmaId, learningTargets.lemmaId),
-            eq(vocabListLemmas.listId, input.listId),
-          ),
-        )
-        .where(lte(learningTargets.due, nowSecs))
-        .limit(input.limit)
-        .all()
-        .map((r) => mapLearningTargetRow(r.target));
+    // Fetch due targets, joining lemmas to get the citation form.
+    const rawDue = input.listId
+      ? db
+          .select({ target: learningTargets, lemmaText: lemmas.lemma })
+          .from(learningTargets)
+          .innerJoin(lemmas, eq(lemmas.id, learningTargets.lemmaId))
+          .innerJoin(
+            vocabListLemmas,
+            and(
+              eq(vocabListLemmas.lemmaId, learningTargets.lemmaId),
+              eq(vocabListLemmas.listId, input.listId),
+            ),
+          )
+          .where(lte(learningTargets.due, nowSecs))
+          .limit(input.limit)
+          .all()
+      : db
+          .select({ target: learningTargets, lemmaText: lemmas.lemma })
+          .from(learningTargets)
+          .innerJoin(lemmas, eq(lemmas.id, learningTargets.lemmaId))
+          .where(lte(learningTargets.due, nowSecs))
+          .limit(input.limit)
+          .all();
+
+    if (rawDue.length === 0) return [];
+
+    // Batch-fetch all morph forms for the lemmas in this result set.
+    const lemmaIds = [...new Set(rawDue.map((r) => r.target.lemmaId))];
+    const allForms = db
+      .select({
+        lemmaId: morphForms.lemmaId,
+        orth: morphForms.orth,
+        tag: morphForms.tag,
+      })
+      .from(morphForms)
+      .where(inArray(morphForms.lemmaId, lemmaIds))
+      .all();
+
+    // Build a lookup: `${lemmaId}::${tag}` → orth[]
+    const formsByKey = new Map<string, string[]>();
+    for (const f of allForms) {
+      const key = `${f.lemmaId}::${f.tag}`;
+      const existing = formsByKey.get(key);
+      if (existing !== undefined) existing.push(f.orth);
+      else formsByKey.set(key, [f.orth]);
     }
 
-    return db
-      .select()
-      .from(learningTargets)
-      .where(lte(learningTargets.due, nowSecs))
-      .limit(input.limit)
-      .all()
-      .map(mapLearningTargetRow);
+    return rawDue.map((r) => ({
+      ...mapLearningTargetRow(r.target),
+      lemmaText: r.lemmaText,
+      forms: formsByKey.get(`${r.target.lemmaId}::${r.target.tag}`) ?? [],
+    }));
   });
 
 const sessionReview = os

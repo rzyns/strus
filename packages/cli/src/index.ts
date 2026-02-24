@@ -242,14 +242,16 @@ program
     if (opts.list) qs.set("listId", opts.list);
     qs.set("limit", String(limit));
 
-    interface DueTarget {
+    interface DueCard {
       id: string;
       lemmaId: string;
       tag: string;
       state: number;
+      lemmaText: string;
+      forms: string[];
     }
 
-    const due = await apiGet<DueTarget[]>(`/api/session/due?${qs.toString()}`);
+    const due = await apiGet<DueCard[]>(`/api/session/due?${qs.toString()}`);
 
     if (due.length === 0) {
       console.log("No cards due right now. Come back later!");
@@ -266,24 +268,18 @@ program
     let reviewed = 0;
 
     for (const card of due) {
-      let lemmaStr = card.lemmaId;
-      try {
-        const lemmaObj = await apiGet<{ id: string; lemma: string }>(
-          `/api/lemmas/${card.lemmaId}`,
-        );
-        lemmaStr = lemmaObj.lemma;
-      } catch {
-        // Fall back to ID if fetch fails
-      }
-
       console.log(`\n[${reviewed + 1}/${due.length}]`);
-      console.log(`Lemma     : ${lemmaStr}`);
+      console.log(`Lemma     : ${card.lemmaText}`);
       console.log(`Tag       : ${card.tag}`);
       console.log("─".repeat(40));
 
       await prompt(rl, "Press Enter to reveal the answer...");
 
-      console.log("(Answer: produce the correct morphological form for the tag above)");
+      if (card.forms.length > 0) {
+        console.log(`Answer    : ${card.forms.join(" / ")}`);
+      } else {
+        console.log("Answer    : (no forms on record — lemma may be manual or form generation was skipped)");
+      }
       console.log("\nRate your recall:");
       console.log("  1 = Again (complete blackout)");
       console.log("  2 = Hard  (recalled with serious difficulty)");
