@@ -544,6 +544,50 @@ const DueCardOutput = LearningTargetOutput.extend({
     ),
 });
 
+/**
+ * Round-robin interleave cards by lemmaId so that consecutive cards in a
+ * session are unlikely to share the same lemma (i.e. won't drill all forms
+ * of one word back-to-back).
+ */
+function interleaveByLemma<T extends { target: { lemmaId: string } }>(cards: T[]): T[] {
+  // Group by lemmaId (preserve internal order within each group)
+  const groups = new Map<string, T[]>();
+  for (const card of cards) {
+    const g = groups.get(card.target.lemmaId);
+    if (g !== undefined) g.push(card);
+    else groups.set(card.target.lemmaId, [card]);
+  }
+
+  // Round-robin across groups until all cards are placed
+  const queues = [...groups.values()];
+  const result: T[] = [];
+  let round = 0;
+  while (result.length < cards.length) {
+    let advanced = false;
+    for (let q = 0; q < queues.length; q++) {
+      const queue = queues[q];
+      if (queue !== undefined && round < queue.length) {
+        result.push(queue[round]!);
+        advanced = true;
+      }
+    }
+    if (!advanced) break;
+    round++;
+  }
+  return result;
+}
+
+/** Fisher-Yates in-place shuffle — returns the same array. */
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i]!;
+    arr[i] = arr[j]!;
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
 const sessionDue = os
   .route({
     method: "GET",
@@ -551,9 +595,13 @@ const sessionDue = os
     tags: ["Session"],
     summary: "Get cards due for review",
     description:
-      "Returns learning targets whose due date has passed, ordered by due date ascending. " +
-      "Each card includes the parent lemma's citation form and the orthographic variants " +
-      "for the specific tag being drilled. Optionally scoped to a single vocabulary list.",
+      "Returns learning targets whose due date has passed. " +
+      "Review cards (state ≥ 1) are always included. New cards (state = 0) " +
+      "are capped at `newLimit` to pace vocabulary introduction. " +
+      "When `interleave` is true (default), cards are round-robin'd by lemma " +
+      "so consecutive cards are unlikely to share the same word. " +
+      "Each card includes the parent lemma's citation form and the accepted " +
+      "orthographic variants for the specific tag being drilled.",
   })
   .input(z.object({
     listId: z
@@ -566,15 +614,31 @@ const sessionDue = os
       .number()
       .int()
       .min(1)
-      .max(100)
+      .max(500)
+      .default(100)
+      .describe("Hard cap on total session size (default: 100)"),
+    newLimit: z
+      .coerce
+      .number()
+      .int()
+      .min(0)
+      .max(200)
       .default(20)
-      .describe("Maximum number of cards to return (default: 20, max: 100)"),
+      .describe("Maximum new (state=0) cards to introduce per session (default: 20)"),
+    interleave: z
+      .coerce
+      .boolean()
+      .default(true)
+      .describe("Interleave cards by lemma to avoid back-to-back form drilling (default: true)"),
   }))
   .output(z.array(DueCardOutput))
   .handler(async ({ input }) => {
     const nowSecs = Math.floor(Date.now() / 1000);
 
-    // Fetch due targets, joining lemmas to get the citation form.
+    // Fetch a broad pool of due targets (no SQL limit — we'll filter in app).
+    // Cap at 2× limit + 4× newLimit to avoid scanning the entire table when
+    // there are thousands of new cards all due at epoch 0.
+    const fetchCap = Math.max(500, input.limit * 2 + input.newLimit * 4);
     const rawDue = input.listId
       ? db
           .select({ target: learningTargets, lemmaText: lemmas.lemma })
@@ -588,20 +652,42 @@ const sessionDue = os
             ),
           )
           .where(lte(learningTargets.due, nowSecs))
-          .limit(input.limit)
+          .limit(fetchCap)
           .all()
       : db
           .select({ target: learningTargets, lemmaText: lemmas.lemma })
           .from(learningTargets)
           .innerJoin(lemmas, eq(lemmas.id, learningTargets.lemmaId))
           .where(lte(learningTargets.due, nowSecs))
-          .limit(input.limit)
+          .limit(fetchCap)
           .all();
 
     if (rawDue.length === 0) return [];
 
-    // Batch-fetch all morph forms for the lemmas in this result set.
-    const lemmaIds = [...new Set(rawDue.map((r) => r.target.lemmaId))];
+    // -----------------------------------------------------------------------
+    // Session composition:
+    //   - Review/Learning/Relearning cards (state > 0): always included
+    //   - New cards (state = 0): capped at newLimit, shuffled for variety
+    // -----------------------------------------------------------------------
+    const reviewPool = rawDue.filter((r) => r.target.state > 0);
+    const newPool = shuffle(rawDue.filter((r) => r.target.state === 0));
+    const newCards = newPool.slice(0, input.newLimit);
+
+    // Shuffle reviews too so the order isn't purely by insertion date.
+    shuffle(reviewPool);
+
+    let session = [...reviewPool, ...newCards];
+
+    // Interleave by lemma: round-robin so forms of the same word are spread out.
+    if (input.interleave && session.length > 1) {
+      session = interleaveByLemma(session);
+    }
+
+    // Apply hard session cap.
+    session = session.slice(0, input.limit);
+
+    // Batch-fetch all morph forms for the lemmas in the final session set.
+    const lemmaIds = [...new Set(session.map((r) => r.target.lemmaId))];
     const allForms = db
       .select({
         lemmaId: morphForms.lemmaId,
@@ -621,7 +707,7 @@ const sessionDue = os
       else formsByKey.set(key, [f.orth]);
     }
 
-    return rawDue.map((r) => ({
+    return session.map((r) => ({
       ...mapLearningTargetRow(r.target),
       lemmaText: r.lemmaText,
       forms: formsByKey.get(`${r.target.lemmaId}::${r.target.tag}`) ?? [],
