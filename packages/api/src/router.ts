@@ -192,6 +192,15 @@ function isStopwordForm(tag: string, lemma: string): boolean {
   return STOPWORD_TAG_PREFIXES.has(base) || lemma === "siebie";
 }
 
+/**
+ * Strip SGJP homonym-disambiguation suffixes from lemma strings.
+ * SGJP encodes multiple homonymous lexemes as e.g. "kot:Sm1", "kot:Sm2".
+ * For import purposes we treat these as the same base lemma ("kot").
+ */
+function stripSgjpSuffix(lemma: string): string {
+  return lemma.replace(/:[A-Z][a-zA-Z0-9]*$/, "");
+}
+
 function inferPos(tag: string): string {
   const base = tag.split(":")[0] ?? tag;
   if (base === "subst") return "subst";
@@ -231,11 +240,20 @@ async function analyseImportText(
     const nonStop = forms.filter((f) => !isStopwordForm(f.tag, f.lemma));
     if (nonStop.length === 0) continue;
 
-    const distinctLemmas = [...new Set(nonStop.map((f) => f.lemma))];
-    const ambiguous = distinctLemmas.length > 1;
+    // Normalise SGJP homonym suffixes ("kot:Sm1" → "kot") before dedup.
+    const normalised = nonStop.map((f) => ({ ...f, lemma: stripSgjpSuffix(f.lemma) }));
+    const distinctLemmas = [...new Set(normalised.map((f) => f.lemma))];
 
-    for (const lemma of distinctLemmas) {
-      const representativeTag = nonStop.find((f) => f.lemma === lemma)!.tag;
+    // If one candidate exactly matches the surface form, prefer it and
+    // don't flag as ambiguous (e.g. "kot" typed as vocab → "kot", not "kota").
+    const resolvedLemmas =
+      distinctLemmas.length > 1 && distinctLemmas.includes(orth)
+        ? [orth]
+        : distinctLemmas;
+    const ambiguous = resolvedLemmas.length > 1;
+
+    for (const lemma of resolvedLemmas) {
+      const representativeTag = normalised.find((f) => f.lemma === lemma)!.tag;
       const pos = inferPos(representativeTag);
       const entry = lemmaMap.get(lemma);
       if (entry !== undefined) {
