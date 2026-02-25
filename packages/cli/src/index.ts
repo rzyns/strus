@@ -266,6 +266,7 @@ program
     console.log(`\nStarting quiz: ${due.length} card(s) due.\n`);
 
     let reviewed = 0;
+    let correct = 0;
 
     for (const card of due) {
       console.log(`\n[${reviewed + 1}/${due.length}]`);
@@ -273,27 +274,52 @@ program
       console.log(`Tag       : ${card.tag}`);
       console.log("─".repeat(40));
 
-      await prompt(rl, "Press Enter to reveal the answer...");
+      let rating: Rating;
 
-      if (card.forms.length > 0) {
-        console.log(`Answer    : ${card.forms.join(" / ")}`);
+      if (card.forms.length === 0) {
+        // No forms on record (manual lemma or form generation was skipped).
+        // Fall back to self-assessment: reveal and ask.
+        await prompt(rl, "No forms on record — press Enter to continue...");
+        console.log("\nRate your recall:");
+        console.log("  1 = Again  (forgot)");
+        console.log("  2 = Hard   (recalled with difficulty)");
+        console.log("  3 = Good   (recalled correctly)");
+        console.log("  4 = Easy   (perfect recall)");
+        let r: Rating | undefined;
+        while (r === undefined) {
+          const raw = (await prompt(rl, "Rating [1-4]: ")).trim();
+          const n = Number(raw);
+          if (n >= 1 && n <= 4) r = n as Rating;
+          else console.log("Please enter 1, 2, 3, or 4.");
+        }
+        rating = r;
       } else {
-        console.log("Answer    : (no forms on record — lemma may be manual or form generation was skipped)");
-      }
-      console.log("\nRate your recall:");
-      console.log("  1 = Again (complete blackout)");
-      console.log("  2 = Hard  (recalled with serious difficulty)");
-      console.log("  3 = Good  (recalled correctly after hesitation)");
-      console.log("  4 = Easy  (perfect recall)");
+        // Exact-answer mode: user must type the correct form.
+        const userInput = (await prompt(rl, "Your answer: ")).trim();
+        const isCorrect = card.forms.some(
+          (f) => f.toLowerCase() === userInput.toLowerCase(),
+        );
 
-      let rating: Rating | undefined;
-      while (rating === undefined) {
-        const answer = (await prompt(rl, "Rating [1-4]: ")).trim();
-        const n = Number(answer);
-        if (n >= 1 && n <= 4) {
-          rating = n as Rating;
+        if (isCorrect) {
+          console.log("✓ Correct!");
+          correct++;
+          // Ask recall quality (but not Again — that's for wrong answers only).
+          console.log("\nHow easy was that recall?");
+          console.log("  2 = Hard   (correct but felt difficult)");
+          console.log("  3 = Good   (recalled with normal effort)");
+          console.log("  4 = Easy   (came to mind immediately)");
+          let r: Rating | undefined;
+          while (r === undefined) {
+            const raw = (await prompt(rl, "Rating [2-4]: ")).trim();
+            const n = Number(raw);
+            if (n >= 2 && n <= 4) r = n as Rating;
+            else console.log("Please enter 2, 3, or 4.");
+          }
+          rating = r;
         } else {
-          console.log("Please enter 1, 2, 3, or 4.");
+          const correctDisplay = card.forms.join(" / ");
+          console.log(`✗ Incorrect.  Correct form(s): ${correctDisplay}`);
+          rating = Rating.Again;
         }
       }
 
@@ -302,7 +328,6 @@ program
           learningTargetId: card.id,
           rating,
         });
-        console.log("Recorded.");
       } catch (err) {
         console.error(`Failed to record review: ${String(err)}`);
       }
@@ -311,7 +336,13 @@ program
     }
 
     rl.close();
-    console.log(`\nQuiz complete! Reviewed ${reviewed} card(s).`);
+    if (reviewed > 0 && reviewed !== correct) {
+      console.log(`\nQuiz complete! ${correct}/${reviewed} correct.`);
+    } else if (reviewed > 0) {
+      console.log(`\nQuiz complete! Perfect — ${reviewed}/${reviewed} correct.`);
+    } else {
+      console.log("\nQuiz complete!");
+    }
   });
 
 // ---------------------------------------------------------------------------
