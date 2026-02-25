@@ -235,12 +235,17 @@ program
   .command("quiz")
   .description("Interactive terminal quiz for due cards")
   .option("-l, --list <listId>", "Filter by list")
-  .option("-n, --limit <n>", "Max cards per session", "20")
-  .action(async (opts: { list?: string; limit?: string }) => {
-    const limit = Number(opts.limit ?? 20);
+  .option("-n, --limit <n>", "Hard cap on total session size", "100")
+  .option("--new-limit <n>", "Max new (state=0) cards per session", "20")
+  .option("--no-interleave", "Disable lemma interleaving (serve in order)")
+  .action(async (opts: { list?: string; limit?: string; newLimit?: string; interleave: boolean }) => {
+    const limit = Number(opts.limit ?? 100);
+    const newLimit = Number(opts.newLimit ?? 20);
     const qs = new URLSearchParams();
     if (opts.list) qs.set("listId", opts.list);
     qs.set("limit", String(limit));
+    qs.set("newLimit", String(newLimit));
+    qs.set("interleave", String(opts.interleave));
 
     interface DueCard {
       id: string;
