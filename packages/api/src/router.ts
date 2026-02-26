@@ -201,6 +201,16 @@ function stripSgjpSuffix(lemma: string): string {
   return lemma.replace(/:[A-Z][a-zA-Z0-9]*$/, "");
 }
 
+/**
+ * Return true if a morph form should be excluded from learning targets.
+ * We skip negated forms (tag ending in ":neg") — they are regular and
+ * predictable, and quizzing both "udostępnionym" and "nieudostępnionym"
+ * as separate cards adds noise rather than value.
+ */
+function isExcludedForm(tag: string): boolean {
+  return tag.endsWith(":neg");
+}
+
 function inferPos(tag: string): string {
   const base = tag.split(":")[0] ?? tag;
   if (base === "subst") return "subst";
@@ -453,6 +463,10 @@ const lemmasCreate = os
       } catch {
         console.warn(`[morph] morfeusz2 unavailable; skipping form generation for "${input.lemma}"`);
       }
+
+      // Skip negated forms (":neg" tag suffix) — they are regular/predictable
+      // and create confusing quiz cards (e.g. "nieudostępnionym" for udostępnić).
+      forms = forms.filter((f) => !isExcludedForm(f.tag));
 
       for (const form of forms) {
         const parsed = parseTag(form.tag);
@@ -960,6 +974,8 @@ const importCommit = os
         } catch {
           console.warn(`[morph] morfeusz2 unavailable; skipping form generation for "${c.lemma}"`);
         }
+
+        forms = forms.filter((f) => !isExcludedForm(f.tag));
 
         for (const form of forms) {
           const parsed = parseTag(form.tag);
