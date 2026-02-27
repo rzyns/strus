@@ -4,4 +4,4 @@ import type { Router } from '../../../api/src/router'
 
 const link = new RPCLink({ url: '/api' })
 
-export const api = createORPCClient<Router>(link)
+export const api = createORPCClient<Router>({ links: [link] })
