@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { Elysia } from "elysia";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
+import { RPCHandler } from "@orpc/server/fetch";
 import { OpenAPIGenerator } from "@orpc/openapi";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { db } from "@strus/db";
@@ -64,6 +65,7 @@ const spec = await generator.generate(router, {
 // ---------------------------------------------------------------------------
 
 const orpcHandler = new OpenAPIHandler(router);
+const rpcHandler = new RPCHandler(router);
 
 // ---------------------------------------------------------------------------
 // Elysia app
@@ -105,7 +107,15 @@ export const app = new Elysia()
     headers: { "Content-Type": "text/html; charset=utf-8" },
   }))
 
-  // oRPC handler — all API routes
+  // oRPC RPC handler — used by the web client
+  .all("/rpc/*", async ({ request }) => {
+    const result = await rpcHandler.handle(request, { prefix: "/rpc" });
+    return result.matched
+      ? result.response
+      : new Response("No procedure matched", { status: 404 });
+  })
+
+  // oRPC OpenAPI handler — REST routes for Swagger/external consumers
   .all("/api/*", async ({ request }) => {
     const result = await orpcHandler.handle(request, { prefix: "/api" });
     return result.matched
