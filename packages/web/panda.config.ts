@@ -26,6 +26,12 @@ export default defineConfig({
   },
 
   theme: {
+    keyframes: {
+      spin: {
+        from: { transform: 'rotate(0deg)' },
+        to: { transform: 'rotate(360deg)' },
+      },
+    },
     tokens: {
       colors: {
         // Brand palette — blue-grey hue 220, oklch
@@ -89,6 +95,123 @@ export default defineConfig({
         },
         danger: {
           DEFAULT: { value: { base: '{colors.red.500}', _dark: '{colors.red.500}' } },
+        },
+      },
+    },
+    recipes: {
+      button: {
+        className: 'btn',
+        base: {
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '2',
+          fontWeight: 'medium',
+          borderRadius: 'md',
+          cursor: 'pointer',
+          border: 'none',
+          transition: 'all 0.15s ease',
+          _disabled: {
+            opacity: 0.5,
+            cursor: 'not-allowed',
+          },
+        },
+        variants: {
+          variant: {
+            solid: {
+              bg: 'primary',
+              color: 'primary.fg',
+              _hover: { bg: 'primary.hover' },
+            },
+            outline: {
+              bg: 'transparent',
+              color: 'primary',
+              border: '1px solid',
+              borderColor: 'primary',
+              _hover: { bg: 'bg.subtle' },
+            },
+            ghost: {
+              bg: 'transparent',
+              color: 'fg',
+              _hover: { bg: 'bg.muted' },
+            },
+            danger: {
+              bg: 'danger',
+              color: 'white',
+              _hover: { opacity: 0.9 },
+            },
+          },
+          size: {
+            sm: { px: '3', py: '1', fontSize: 'sm' },
+            md: { px: '4', py: '2', fontSize: 'sm' },
+            lg: { px: '6', py: '3', fontSize: 'md' },
+          },
+        },
+        defaultVariants: {
+          variant: 'solid',
+          size: 'md',
+        },
+      },
+      badge: {
+        className: 'badge',
+        base: {
+          display: 'inline-flex',
+          alignItems: 'center',
+          px: '2',
+          py: '0.5',
+          borderRadius: 'full',
+          fontSize: 'xs',
+          fontWeight: 'medium',
+          lineHeight: '1',
+          whiteSpace: 'nowrap',
+        },
+        variants: {
+          variant: {
+            default: { bg: 'bg.muted', color: 'fg.muted' },
+            blue:    { bg: 'blue.100', color: 'blue.500' },
+            green:   { bg: 'green.100', color: 'green.500' },
+            purple:  { bg: 'purple.100', color: 'purple.500' },
+            teal:    { bg: 'teal.100', color: 'teal.500' },
+            amber:   { bg: 'amber.100', color: 'amber.500' },
+            red:     { bg: 'red.100', color: 'red.500' },
+            slate:   { bg: 'slate.100', color: 'slate.500' },
+          },
+        },
+        defaultVariants: {
+          variant: 'default',
+        },
+      },
+      input: {
+        className: 'input',
+        base: {
+          display: 'block',
+          w: 'full',
+          px: '3',
+          py: '2',
+          fontSize: 'sm',
+          borderRadius: 'md',
+          border: '1px solid',
+          borderColor: 'border',
+          bg: 'bg',
+          color: 'fg',
+          outline: 'none',
+          transition: 'border-color 0.15s ease',
+          _focus: {
+            borderColor: 'primary',
+          },
+          _placeholder: {
+            color: 'fg.subtle',
+          },
+        },
+        variants: {
+          size: {
+            sm: { px: '2', py: '1', fontSize: 'xs' },
+            md: { px: '3', py: '2', fontSize: 'sm' },
+            lg: { px: '4', py: '3', fontSize: 'md' },
+          },
+        },
+        defaultVariants: {
+          size: 'md',
         },
       },
     },
