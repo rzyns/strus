@@ -1,4 +1,4 @@
-import { createResource, createMemo, For, Show, Suspense, ErrorBoundary } from 'solid-js'
+import { createResource, createSignal, Show, Suspense, ErrorBoundary, Switch, Match } from 'solid-js'
 import { useParams, useNavigate } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -8,7 +8,10 @@ import { Spinner } from '../../components/Spinner'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorState } from '../../components/ErrorState'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { createSignal } from 'solid-js'
+import { NounTable } from '../../components/paradigm/NounTable'
+import { VerbTable } from '../../components/paradigm/VerbTable'
+import { AdjTable } from '../../components/paradigm/AdjTable'
+import { FlatFormTable } from '../../components/paradigm/FlatFormTable'
 
 export default function LemmaDetail() {
   const params = useParams<{ id: string }>()
@@ -20,12 +23,6 @@ export default function LemmaDetail() {
   const [showDelete, setShowDelete] = createSignal(false)
   const [deleting, setDeleting] = createSignal(false)
 
-  const sortedForms = createMemo(() => {
-    const data = forms()
-    if (!data) return []
-    return [...data].sort((a, b) => a.tag.localeCompare(b.tag))
-  })
-
   const handleDelete = async () => {
     setDeleting(true)
     try {
@@ -33,14 +30,6 @@ export default function LemmaDetail() {
       navigate('/lemmas')
     } finally {
       setDeleting(false)
-    }
-  }
-
-  const parseParsedTag = (json: string): Record<string, string> => {
-    try {
-      return JSON.parse(json)
-    } catch {
-      return {}
     }
   }
 
@@ -76,50 +65,21 @@ export default function LemmaDetail() {
 
                 <Suspense fallback={<Spinner />}>
                   <Show when={forms()}>
-                    {() => (
+                    {(fs) => (
                       <Show
-                        when={sortedForms().length > 0}
+                        when={fs().length > 0}
                         fallback={
                           <EmptyState
                             heading="No forms"
-                            description={data().source === 'manual' ? 'This lemma uses manual source — forms must be added manually.' : 'No morphological forms were generated.'}
+                            description={data().source === 'manual' ? 'This lemma uses manual source \u2014 forms must be added manually.' : 'No morphological forms were generated.'}
                           />
                         }
                       >
-                        <table class={css({ w: 'full', borderCollapse: 'collapse' })}>
-                          <thead>
-                            <tr class={css({ borderBottom: '2px solid', borderColor: 'border' })}>
-                              <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>Form</th>
-                              <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>Tag</th>
-                              <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>Breakdown</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <For each={sortedForms()}>
-                              {(form) => (
-                                <tr class={css({ borderBottom: '1px solid', borderColor: 'border', _hover: { bg: 'bg.subtle' } })}>
-                                  <td class={css({ p: '3', fontFamily: 'monospace', fontWeight: 'medium' })}>
-                                    {form.orth}
-                                  </td>
-                                  <td class={css({ p: '3' })}>
-                                    <code class={css({ fontSize: 'xs', bg: 'bg.muted', px: '2', py: '0.5', borderRadius: 'sm' })}>
-                                      {form.tag}
-                                    </code>
-                                  </td>
-                                  <td class={css({ p: '3' })}>
-                                    <div class={css({ display: 'flex', gap: '1', flexWrap: 'wrap' })}>
-                                      <For each={Object.entries(parseParsedTag(form.parsedTag))}>
-                                        {([key, value]) => (
-                                          <Badge value={`${key}: ${value}`} />
-                                        )}
-                                      </For>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </For>
-                          </tbody>
-                        </table>
+                        <Switch fallback={<FlatFormTable forms={fs()} />}>
+                          <Match when={data().pos === 'subst'}><NounTable forms={fs()} /></Match>
+                          <Match when={data().pos === 'verb'}><VerbTable forms={fs()} /></Match>
+                          <Match when={data().pos === 'adj'}><AdjTable forms={fs()} /></Match>
+                        </Switch>
                       </Show>
                     )}
                   </Show>
