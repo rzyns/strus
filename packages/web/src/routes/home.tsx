@@ -23,7 +23,7 @@ function DashboardContent() {
         <Show when={stats()}>
           {(data) => (
             <>
-              <div class={css({ display: 'grid', gridTemplateColumns: '3', gap: '4', mb: '8' })}>
+              <div class={css({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4', mb: '8' })}>
                 <Card title="Lemmas">
                   <p class={css({ fontSize: '3xl', fontWeight: 'bold' })}>{data().lemmaCount}</p>
                 </Card>
