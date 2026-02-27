@@ -1,0 +1,24 @@
+{
+  "name": "@strus/web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepare": "panda codegen",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "solid-js": "^1.9.0",
+    "@solidjs/router": "^0.15.0",
+    "@orpc/client": "^1.13.5"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.10.0",
+    "typescript": "^5.7.0",
+    "@pandacss/dev": "^0.53.0"
+  }
+}
