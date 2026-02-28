@@ -113,7 +113,7 @@ function RatingButtons(props: RatingButtonsProps) {
   // (i.e. right after it mounts or after submitting is cleared).
   createEffect(() => {
     if (!props.disabled) {
-      defaultRef?.focus()
+      setTimeout(() => defaultRef?.focus(), 0)
     }
   })
 
@@ -185,8 +185,8 @@ export default function Quiz() {
   // createEffect runs after DOM updates, so refs are populated by the time this fires.
   createEffect(() => {
     const p = phase()
-    if (p === 'asking') inputRef?.focus()
-    else if (p === 'revealed-wrong') nextBtnRef?.focus()
+    if (p === "asking") setTimeout(() => inputRef?.focus(), 0)
+    else if (p === "revealed-wrong") setTimeout(() => nextBtnRef?.focus(), 0)
     // 'revealed-correct' and 'revealed-manual' are handled inside RatingButtons
     // via their own createEffect (triggered when disabled flips false).
   })
