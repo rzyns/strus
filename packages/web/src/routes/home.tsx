@@ -72,6 +72,7 @@ function DashboardContent() {
                   <Button variant="outline" onClick={() => navigate('/lemmas')}>Browse lemmas</Button>
                   <Button variant="outline" onClick={() => navigate('/lists')}>View lists</Button>
                   <Button variant="solid" onClick={() => navigate('/import')}>Import text</Button>
+                  <Button variant="solid" onClick={() => navigate('/quiz')}>Start quiz</Button>
                 </div>
               </Card>
             </>

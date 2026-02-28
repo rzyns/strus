@@ -9,6 +9,7 @@ const ListDetail = lazy(() => import('./routes/lists/[id]'))
 const LemmasIndex = lazy(() => import('./routes/lemmas/index'))
 const LemmaDetail = lazy(() => import('./routes/lemmas/[id]'))
 const Import = lazy(() => import('./routes/import'))
+const Quiz = lazy(() => import('./routes/quiz/index'))
 const NotFound = lazy(() => import('./routes/not-found'))
 
 export function App() {
@@ -31,6 +32,7 @@ export function App() {
       <Route path="/lemmas" component={LemmasIndex} />
       <Route path="/lemmas/:id" component={LemmaDetail} />
       <Route path="/import" component={Import} />
+      <Route path="/quiz" component={Quiz} />
       <Route path="*" component={NotFound} />
     </Router>
   )
