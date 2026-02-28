@@ -1,6 +1,6 @@
 import type { ParentProps } from 'solid-js'
 import { Show } from 'solid-js'
-import { css } from '../../styled-system/css'
+import * as ParkCard from './ui/card'
 
 interface CardProps extends ParentProps {
   title?: string
@@ -9,18 +9,15 @@ interface CardProps extends ParentProps {
 
 export function Card(props: CardProps) {
   return (
-    <div class={`${css({
-      bg: 'bg.subtle',
-      border: '1px solid',
-      borderColor: 'border',
-      borderRadius: 'lg',
-      shadow: 'md',
-      p: '4',
-    })} ${props.class ?? ''}`}>
+    <ParkCard.Root class={props.class}>
       <Show when={props.title}>
-        <h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '3' })}>{props.title}</h3>
+        <ParkCard.Header>
+          <ParkCard.Title>{props.title}</ParkCard.Title>
+        </ParkCard.Header>
       </Show>
-      {props.children}
-    </div>
+      <ParkCard.Body>
+        {props.children}
+      </ParkCard.Body>
+    </ParkCard.Root>
   )
 }

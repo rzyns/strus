@@ -10,7 +10,7 @@ interface ErrorStateProps {
 export function ErrorState(props: ErrorStateProps) {
   return (
     <div class={css({ textAlign: 'center', py: '12', px: '4' })}>
-      <p class={css({ color: 'danger', fontWeight: 'medium', mb: '2' })}>
+      <p class={css({ color: 'error', fontWeight: 'medium', mb: '2' })}>
         Something went wrong
       </p>
       <p class={css({ color: 'fg.muted', fontSize: 'sm', mb: '4' })}>{props.message}</p>

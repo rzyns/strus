@@ -1,7 +1,5 @@
 import type { JSX, ParentProps } from 'solid-js'
-import { Show } from 'solid-js'
-import { button } from '../../styled-system/recipes'
-import { Spinner } from './Spinner'
+import { Button as ParkButton } from './ui/button'
 
 type ButtonVariant = 'solid' | 'outline' | 'ghost' | 'danger'
 type ButtonSize = 'sm' | 'md' | 'lg'
@@ -16,18 +14,28 @@ interface ButtonProps extends ParentProps {
   class?: string
 }
 
+const VARIANT_MAP = {
+  solid: 'solid',
+  outline: 'outline',
+  ghost: 'plain',
+  danger: 'solid',
+} as const
+
 export function Button(props: ButtonProps) {
+  const parkVariant = () => VARIANT_MAP[props.variant ?? 'solid']
+
   return (
-    <button
+    <ParkButton
       type={props.type ?? 'button'}
-      disabled={props.disabled || props.loading}
-      onClick={props.onClick}
-      class={`${button({ variant: props.variant, size: props.size })} ${props.class ?? ''}`}
+      variant={parkVariant()}
+      {...(props.size ? { size: props.size } : {})}
+      {...(props.disabled !== undefined ? { disabled: props.disabled } : {})}
+      {...(props.loading !== undefined ? { loading: props.loading } : {})}
+      {...(props.onClick ? { onClick: props.onClick } : {})}
+      {...(props.class ? { class: props.class } : {})}
+      {...(props.variant === 'danger' ? { colorPalette: 'red' } : {})}
     >
-      <Show when={props.loading}>
-        <Spinner size="sm" />
-      </Show>
       {props.children}
-    </button>
+    </ParkButton>
   )
 }

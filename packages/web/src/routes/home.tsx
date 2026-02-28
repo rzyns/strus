@@ -8,9 +8,9 @@ import { Spinner } from '../components/Spinner'
 import { ErrorState } from '../components/ErrorState'
 
 function dueBadgeColor(count: number): string {
-  if (count === 0) return 'green.500'
-  if (count < 10) return 'amber.500'
-  return 'red.500'
+  if (count === 0) return 'green.9'
+  if (count < 10) return 'yellow.9'
+  return 'red.9'
 }
 
 function DashboardContent() {
@@ -24,17 +24,47 @@ function DashboardContent() {
           {(data) => (
             <>
               <div class={css({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4', mb: '8' })}>
-                <Card title="Lemmas">
-                  <p class={css({ fontSize: '3xl', fontWeight: 'bold' })}>{data().lemmaCount}</p>
-                </Card>
-                <Card title="Lists">
-                  <p class={css({ fontSize: '3xl', fontWeight: 'bold' })}>{data().listCount}</p>
-                </Card>
-                <Card title="Due">
+                <div class={css({
+                  bg: 'bg',
+                  border: '1px solid',
+                  borderColor: 'border',
+                  borderRadius: 'l3',
+                  p: '5',
+                  shadow: 'sm',
+                  borderLeft: '4px solid',
+                  borderLeftColor: 'blue.9',
+                })}>
+                  <p class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.muted', mb: '1' })}>Lemmas</p>
+                  <p class={css({ fontSize: '3xl', fontWeight: 'bold', color: 'fg.default' })}>{data().lemmaCount}</p>
+                </div>
+                <div class={css({
+                  bg: 'bg',
+                  border: '1px solid',
+                  borderColor: 'border',
+                  borderRadius: 'l3',
+                  p: '5',
+                  shadow: 'sm',
+                  borderLeft: '4px solid',
+                  borderLeftColor: 'green.9',
+                })}>
+                  <p class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.muted', mb: '1' })}>Lists</p>
+                  <p class={css({ fontSize: '3xl', fontWeight: 'bold', color: 'fg.default' })}>{data().listCount}</p>
+                </div>
+                <div class={css({
+                  bg: 'bg',
+                  border: '1px solid',
+                  borderColor: 'border',
+                  borderRadius: 'l3',
+                  p: '5',
+                  shadow: 'sm',
+                  borderLeft: '4px solid',
+                  borderLeftColor: dueBadgeColor(data().dueCount),
+                })}>
+                  <p class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.muted', mb: '1' })}>Due</p>
                   <p class={css({ fontSize: '3xl', fontWeight: 'bold', color: dueBadgeColor(data().dueCount) })}>
                     {data().dueCount}
                   </p>
-                </Card>
+                </div>
               </div>
 
               <Card title="Quick actions">
@@ -55,7 +85,7 @@ function DashboardContent() {
 export default function Home() {
   return (
     <div class={css({ py: '4' })}>
-      <h1 class={css({ fontSize: '2xl', fontWeight: 'bold', mb: '6' })}>Dashboard</h1>
+      <h1 class={css({ fontSize: '2xl', fontWeight: 'bold', mb: '6', color: 'fg.default' })}>Dashboard</h1>
       <DashboardContent />
     </div>
   )

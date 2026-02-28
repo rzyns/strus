@@ -11,7 +11,7 @@ interface EmptyStateProps {
 export function EmptyState(props: EmptyStateProps) {
   return (
     <div class={css({ textAlign: 'center', py: '12', px: '4' })}>
-      <h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '1' })}>{props.heading}</h3>
+      <h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '1', color: 'fg.default' })}>{props.heading}</h3>
       <Show when={props.description}>
         <p class={css({ color: 'fg.muted', mb: '4' })}>{props.description}</p>
       </Show>

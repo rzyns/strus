@@ -1,27 +1,10 @@
-import { css, cx } from '../../styled-system/css'
-
-const SIZES = { sm: '16px', md: '24px', lg: '40px' } as const
+import { Spinner as ParkSpinner } from './ui/spinner'
 
 interface SpinnerProps {
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   class?: string
 }
 
 export function Spinner(props: SpinnerProps) {
-  const s = () => SIZES[props.size ?? 'md']
-
-  return (
-    <span
-      role="status"
-      class={cx(css({
-        display: 'inline-block',
-        borderRadius: 'full',
-        border: '2px solid',
-        borderColor: 'border',
-        borderTopColor: 'primary',
-        animation: 'spin 0.6s linear infinite',
-      }), props.class)}
-      style={{ width: s(), height: s() }}
-    />
-  )
+  return <ParkSpinner size={props.size ?? 'md'} class={props.class} />
 }

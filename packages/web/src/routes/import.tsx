@@ -7,6 +7,7 @@ import { Badge } from '../components/Badge'
 import { Card } from '../components/Card'
 import { Spinner } from '../components/Spinner'
 import { ErrorState } from '../components/ErrorState'
+import * as Table from '../components/ui/table'
 
 type Step = 'input' | 'preview' | 'result'
 
@@ -87,25 +88,31 @@ export default function Import() {
     setStep('input')
   }
 
+  const inputStyle = css({
+    display: 'block', w: 'full', px: '3', py: '2', fontSize: 'sm',
+    borderRadius: 'l2', border: '1px solid', borderColor: 'border',
+    bg: 'bg', color: 'fg.default', outline: 'none',
+    _focus: { borderColor: 'blue.8', boxShadow: '0 0 0 1px {colors.blue.8}' },
+  })
+
+  const selectStyle = css({
+    px: '3', py: '2', fontSize: 'sm', borderRadius: 'l2',
+    border: '1px solid', borderColor: 'border', bg: 'bg', color: 'fg.default', w: 'full',
+  })
+
   return (
     <div class={css({ py: '4' })}>
-      <h1 class={css({ fontSize: '2xl', fontWeight: 'bold', mb: '6' })}>Import</h1>
+      <h1 class={css({ fontSize: '2xl', fontWeight: 'bold', mb: '6', color: 'fg.default' })}>Import</h1>
 
       <Switch>
         <Match when={step() === 'input'}>
           <Card>
             <div class={css({ mb: '4' })}>
-              <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1' })}>
+              <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>
                 Polish text
               </label>
               <textarea
-                class={css({
-                  display: 'block', w: 'full', px: '3', py: '2', fontSize: 'sm',
-                  borderRadius: 'md', border: '1px solid', borderColor: 'border',
-                  bg: 'bg', color: 'fg', outline: 'none', minH: '150px', resize: 'vertical',
-                  fontFamily: 'system-ui, sans-serif',
-                  _focus: { borderColor: 'primary' },
-                })}
+                class={`${inputStyle} ${css({ minH: '150px', resize: 'vertical', fontFamily: "'Inter', system-ui, sans-serif" })}`}
                 value={text()}
                 onInput={(e) => setText(e.currentTarget.value)}
                 placeholder="Paste Polish text here..."
@@ -113,23 +120,15 @@ export default function Import() {
             </div>
 
             <div class={css({ mb: '4' })}>
-              <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1' })}>
+              <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>
                 Add to list (optional)
               </label>
-              <select
-                class={css({
-                  px: '3', py: '2', fontSize: 'sm', borderRadius: 'md',
-                  border: '1px solid', borderColor: 'border', bg: 'bg', color: 'fg',
-                  w: 'full',
-                })}
-                value={listId()}
-                onChange={(e) => setListId(e.currentTarget.value)}
-              >
+              <select class={selectStyle} value={listId()} onChange={(e) => setListId(e.currentTarget.value)}>
                 <option value="">No list</option>
                 <Show when={lists()}>
                   {(data) => (
                     <For each={data()}>
-                      {(list) => <option value={list.id}>{list.name}</option>}
+                      {(list: any) => <option value={list.id}>{list.name}</option>}
                     </For>
                   )}
                 </Show>
@@ -158,40 +157,42 @@ export default function Import() {
           </div>
 
           <Show when={candidates().length > 0}>
-            <table class={css({ w: 'full', borderCollapse: 'collapse', mb: '4' })}>
-              <thead>
-                <tr class={css({ borderBottom: '2px solid', borderColor: 'border' })}>
-                  <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>Lemma</th>
-                  <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>POS</th>
-                  <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>Found as</th>
-                  <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={candidates()}>
-                  {(c) => (
-                    <tr class={css({ borderBottom: '1px solid', borderColor: 'border', _hover: { bg: 'bg.subtle' } })}>
-                      <td class={css({ p: '3', fontWeight: 'medium' })}>{c.lemma}</td>
-                      <td class={css({ p: '3' })}><Badge variant="pos" value={c.pos} /></td>
-                      <td class={css({ p: '3', color: 'fg.muted', fontSize: 'sm' })}>
-                        {c.formsFound.join(', ')}
-                      </td>
-                      <td class={css({ p: '3' })}>
-                        <div class={css({ display: 'flex', gap: '1', flexWrap: 'wrap' })}>
-                          <Show when={c.ambiguous}><Badge value="ambiguous" variant="default" /></Show>
-                          <Show when={c.alreadyExists}><Badge value="exists" variant="default" /></Show>
-                          <Show when={c.isMultiWord}><Badge value="multi-word" variant="default" /></Show>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
+            <div class={css({ mb: '4' })}>
+              <Table.Root>
+                <Table.Head>
+                  <Table.Row>
+                    <Table.Header>Lemma</Table.Header>
+                    <Table.Header>POS</Table.Header>
+                    <Table.Header>Found as</Table.Header>
+                    <Table.Header>Status</Table.Header>
+                  </Table.Row>
+                </Table.Head>
+                <Table.Body>
+                  <For each={candidates()}>
+                    {(c) => (
+                      <Table.Row>
+                        <Table.Cell class={css({ fontWeight: 'medium' })}>{c.lemma}</Table.Cell>
+                        <Table.Cell><Badge variant="pos" value={c.pos} /></Table.Cell>
+                        <Table.Cell class={css({ color: 'fg.muted', fontSize: 'sm' })}>
+                          {c.formsFound.join(', ')}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <div class={css({ display: 'flex', gap: '1', flexWrap: 'wrap' })}>
+                            <Show when={c.ambiguous}><Badge value="ambiguous" variant="default" /></Show>
+                            <Show when={c.alreadyExists}><Badge value="exists" variant="default" /></Show>
+                            <Show when={c.isMultiWord}><Badge value="multi-word" variant="default" /></Show>
+                          </div>
+                        </Table.Cell>
+                      </Table.Row>
+                    )}
+                  </For>
+                </Table.Body>
+              </Table.Root>
+            </div>
           </Show>
 
           <div class={css({ mb: '4' })}>
-            <label class={css({ display: 'flex', alignItems: 'center', gap: '2', fontSize: 'sm', cursor: 'pointer' })}>
+            <label class={css({ display: 'flex', alignItems: 'center', gap: '2', fontSize: 'sm', cursor: 'pointer', color: 'fg.default' })}>
               <input
                 type="checkbox"
                 checked={skipAmbiguous()}
@@ -218,7 +219,7 @@ export default function Import() {
             {(res) => (
               <Card>
                 <div class={css({ textAlign: 'center', py: '4' })}>
-                  <p class={css({ fontSize: 'xl', fontWeight: 'bold', mb: '2' })}>
+                  <p class={css({ fontSize: 'xl', fontWeight: 'bold', mb: '2', color: 'fg.default' })}>
                     Import complete
                   </p>
                   <p class={css({ color: 'fg.muted', mb: '4' })}>
@@ -227,7 +228,7 @@ export default function Import() {
 
                   <Show when={res().created.length > 0}>
                     <div class={css({ mb: '4', textAlign: 'left' })}>
-                      <h3 class={css({ fontSize: 'sm', fontWeight: 'semibold', mb: '2' })}>Created</h3>
+                      <h3 class={css({ fontSize: 'sm', fontWeight: 'semibold', mb: '2', color: 'fg.default' })}>Created</h3>
                       <div class={css({ display: 'flex', gap: '2', flexWrap: 'wrap' })}>
                         <For each={res().created}>
                           {(c) => (
@@ -242,7 +243,7 @@ export default function Import() {
 
                   <Show when={res().skipped.length > 0}>
                     <div class={css({ mb: '4', textAlign: 'left' })}>
-                      <h3 class={css({ fontSize: 'sm', fontWeight: 'semibold', mb: '2' })}>Skipped</h3>
+                      <h3 class={css({ fontSize: 'sm', fontWeight: 'semibold', mb: '2', color: 'fg.default' })}>Skipped</h3>
                       <div class={css({ display: 'flex', gap: '2', flexWrap: 'wrap' })}>
                         <For each={res().skipped}>
                           {(s) => <Badge value={`${s.lemma} (${s.reason})`} />}

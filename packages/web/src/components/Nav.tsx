@@ -2,23 +2,30 @@ import { A } from '@solidjs/router'
 import { createSignal } from 'solid-js'
 import { css } from '../../styled-system/css'
 
-const linkStyle = css({ color: 'fg.muted', textDecoration: 'none', fontSize: 'sm', _hover: { color: 'fg' } })
-const activeLinkStyle = css({ color: 'fg', fontWeight: 'medium' })
+const linkStyle = css({ color: 'fg.muted', textDecoration: 'none', fontSize: 'sm', _hover: { color: 'fg.default' } })
+const activeLinkStyle = css({ color: 'fg.default', fontWeight: 'medium' })
 
 export function Nav() {
   const [theme, setTheme] = createSignal(
-    document.documentElement.getAttribute('data-theme') ?? 'light'
+    document.documentElement.classList.contains('dark') ? 'dark' : 'light'
   )
 
   const toggleTheme = () => {
     const next = theme() === 'light' ? 'dark' : 'light'
-    document.documentElement.setAttribute('data-theme', next)
+    if (next === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
     localStorage.setItem('theme', next)
     setTheme(next)
   }
 
   return (
     <nav class={css({
+      position: 'sticky',
+      top: 0,
+      zIndex: 'sticky',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -26,9 +33,10 @@ export function Nav() {
       py: '3',
       borderBottom: '1px solid',
       borderColor: 'border',
-      bg: 'bg',
+      bg: 'bg/80',
+      backdropFilter: 'blur(8px)',
     })}>
-      <A href="/" class={css({ fontWeight: 'bold', fontSize: 'lg', textDecoration: 'none', color: 'fg' })}>
+      <A href="/" class={css({ fontWeight: 'bold', fontSize: 'lg', textDecoration: 'none', color: 'fg.default' })}>
         strus
       </A>
       <div class={css({ display: 'flex', gap: '4', alignItems: 'center' })}>

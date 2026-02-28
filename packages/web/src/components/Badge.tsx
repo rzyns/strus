@@ -1,4 +1,4 @@
-import { badge } from '../../styled-system/recipes'
+import { Badge as ParkBadge } from './ui/badge'
 
 type BadgeColorVariant = 'default' | 'blue' | 'green' | 'purple' | 'teal' | 'amber' | 'red' | 'slate'
 
@@ -42,8 +42,8 @@ export function Badge(props: BadgeProps) {
   }
 
   return (
-    <span class={`${badge({ variant: color() })} ${props.class ?? ''}`}>
+    <ParkBadge variant={color() === 'default' ? 'outline' : 'subtle'} class={props.class}>
       {props.value}
-    </span>
+    </ParkBadge>
   )
 }

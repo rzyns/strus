@@ -7,6 +7,7 @@ import { Spinner } from '../../components/Spinner'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorState } from '../../components/ErrorState'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import * as Table from '../../components/ui/table'
 
 export default function ListsIndex() {
   const [lists, { refetch }] = createResource(() => api.lists.list({}))
@@ -48,22 +49,22 @@ export default function ListsIndex() {
   return (
     <div class={css({ py: '4' })}>
       <div class={css({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '6' })}>
-        <h1 class={css({ fontSize: '2xl', fontWeight: 'bold' })}>Vocabulary Lists</h1>
+        <h1 class={css({ fontSize: '2xl', fontWeight: 'bold', color: 'fg.default' })}>Vocabulary Lists</h1>
         <Button variant={showForm() ? 'ghost' : 'solid'} onClick={() => setShowForm(!showForm())}>
           {showForm() ? 'Cancel' : 'New list'}
         </Button>
       </div>
 
       <Show when={showForm()}>
-        <div class={css({ mb: '6', p: '4', border: '1px solid', borderColor: 'border', borderRadius: 'lg', bg: 'bg.subtle' })}>
+        <div class={css({ mb: '6', p: '4', border: '1px solid', borderColor: 'border', borderRadius: 'l3', bg: 'bg.subtle' })}>
           <div class={css({ mb: '3' })}>
-            <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1' })}>Name</label>
+            <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>Name</label>
             <input
               class={css({
                 display: 'block', w: 'full', px: '3', py: '2', fontSize: 'sm',
-                borderRadius: 'md', border: '1px solid', borderColor: 'border',
-                bg: 'bg', color: 'fg', outline: 'none',
-                _focus: { borderColor: 'primary' },
+                borderRadius: 'l2', border: '1px solid', borderColor: 'border',
+                bg: 'bg', color: 'fg.default', outline: 'none',
+                _focus: { borderColor: 'blue.8', boxShadow: '0 0 0 1px {colors.blue.8}' },
               })}
               value={name()}
               onInput={(e) => setName(e.currentTarget.value)}
@@ -71,13 +72,13 @@ export default function ListsIndex() {
             />
           </div>
           <div class={css({ mb: '3' })}>
-            <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1' })}>Description</label>
+            <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>Description</label>
             <input
               class={css({
                 display: 'block', w: 'full', px: '3', py: '2', fontSize: 'sm',
-                borderRadius: 'md', border: '1px solid', borderColor: 'border',
-                bg: 'bg', color: 'fg', outline: 'none',
-                _focus: { borderColor: 'primary' },
+                borderRadius: 'l2', border: '1px solid', borderColor: 'border',
+                bg: 'bg', color: 'fg.default', outline: 'none',
+                _focus: { borderColor: 'blue.8', boxShadow: '0 0 0 1px {colors.blue.8}' },
               })}
               value={description()}
               onInput={(e) => setDescription(e.currentTarget.value)}
@@ -98,38 +99,38 @@ export default function ListsIndex() {
                 when={data().length > 0}
                 fallback={<EmptyState heading="No lists yet" description="Create a vocabulary list to organize your lemmas." action={{ label: 'New list', onClick: () => setShowForm(true) }} />}
               >
-                <table class={css({ w: 'full', borderCollapse: 'collapse' })}>
-                  <thead>
-                    <tr class={css({ borderBottom: '2px solid', borderColor: 'border' })}>
-                      <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>Name</th>
-                      <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>Description</th>
-                      <th class={css({ textAlign: 'left', p: '3', fontSize: 'sm', fontWeight: 'semibold' })}>Created</th>
-                      <th class={css({ p: '3', w: '1' })} />
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table.Root>
+                  <Table.Head>
+                    <Table.Row>
+                      <Table.Header>Name</Table.Header>
+                      <Table.Header>Description</Table.Header>
+                      <Table.Header>Created</Table.Header>
+                      <Table.Header class={css({ w: '1' })} />
+                    </Table.Row>
+                  </Table.Head>
+                  <Table.Body>
                     <For each={data()}>
                       {(list) => (
-                        <tr class={css({ borderBottom: '1px solid', borderColor: 'border', _hover: { bg: 'bg.subtle' } })}>
-                          <td class={css({ p: '3' })}>
-                            <A href={`/lists/${list.id}`} class={css({ color: 'primary', textDecoration: 'none', fontWeight: 'medium', _hover: { textDecoration: 'underline' } })}>
+                        <Table.Row>
+                          <Table.Cell>
+                            <A href={`/lists/${list.id}`} class={css({ color: 'blue.9', textDecoration: 'none', fontWeight: 'medium', _hover: { textDecoration: 'underline' } })}>
                               {list.name}
                             </A>
-                          </td>
-                          <td class={css({ p: '3', color: 'fg.muted', fontSize: 'sm', maxW: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>
+                          </Table.Cell>
+                          <Table.Cell class={css({ color: 'fg.muted', fontSize: 'sm', maxW: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>
                             {list.description ?? '\u2014'}
-                          </td>
-                          <td class={css({ p: '3', color: 'fg.muted', fontSize: 'sm', whiteSpace: 'nowrap' })}>
+                          </Table.Cell>
+                          <Table.Cell class={css({ color: 'fg.muted', fontSize: 'sm', whiteSpace: 'nowrap' })}>
                             {new Date(list.createdAt).toLocaleDateString()}
-                          </td>
-                          <td class={css({ p: '3' })}>
+                          </Table.Cell>
+                          <Table.Cell>
                             <Button variant="ghost" size="sm" onClick={() => setDeleteId(list.id)}>Delete</Button>
-                          </td>
-                        </tr>
+                          </Table.Cell>
+                        </Table.Row>
                       )}
                     </For>
-                  </tbody>
-                </table>
+                  </Table.Body>
+                </Table.Root>
               </Show>
             )}
           </Show>

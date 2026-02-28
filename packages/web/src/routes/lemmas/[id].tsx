@@ -42,7 +42,7 @@ export default function LemmaDetail() {
               <>
                 <div class={css({ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: '6' })}>
                   <div>
-                    <h1 class={css({ fontSize: '3xl', fontWeight: 'bold', fontFamily: 'monospace', mb: '2' })}>
+                    <h1 class={css({ fontSize: '3xl', fontWeight: 'bold', fontFamily: 'monospace', mb: '2', color: 'fg.default' })}>
                       {data().lemma}
                     </h1>
                     <div class={css({ display: 'flex', gap: '2', mb: '2', flexWrap: 'wrap' })}>
@@ -61,7 +61,7 @@ export default function LemmaDetail() {
                   <Button variant="danger" onClick={() => setShowDelete(true)}>Delete</Button>
                 </div>
 
-                <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '4' })}>Paradigm</h2>
+                <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '4', color: 'fg.default' })}>Paradigm</h2>
 
                 <Suspense fallback={<Spinner />}>
                   <Show when={forms()}>

@@ -1,6 +1,8 @@
 // Restore theme before first render to avoid flash
 const saved = localStorage.getItem('theme') ?? 'light'
-document.documentElement.setAttribute('data-theme', saved)
+if (saved === 'dark') {
+  document.documentElement.classList.add('dark')
+}
 
 import { render } from 'solid-js/web'
 import { App } from './app'
