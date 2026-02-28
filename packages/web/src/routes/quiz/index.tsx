@@ -1,5 +1,5 @@
 import {
-  createSignal, createMemo, Show, Switch, Match, For, onMount,
+  createSignal, createMemo, createEffect, Show, Switch, Match, For, onMount,
 } from 'solid-js'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -61,15 +61,12 @@ function SessionInfo(props: SessionInfoProps) {
       flexWrap: 'wrap',
     })}>
       <span>
-        <span class={css({ fontWeight: 'semibold', color: 'fg.default' })}>
-          {props.reviewed}
-        </span>
+        <span class={css({ fontWeight: 'semibold', color: 'fg.default' })}>{props.reviewed}</span>
         /{props.total} reviewed
       </span>
       <span>
-        <span class={css({ fontWeight: 'semibold', color: 'fg.default' })}>
-          {props.total - props.reviewed}
-        </span>{' '}remaining
+        <span class={css({ fontWeight: 'semibold', color: 'fg.default' })}>{props.total - props.reviewed}</span>
+        {' '}remaining
       </span>
       <span>
         Streak:{' '}
@@ -93,18 +90,39 @@ function SessionInfo(props: SessionInfoProps) {
 // Rating buttons
 // ---------------------------------------------------------------------------
 
+interface RatingOption {
+  label: string
+  desc: string
+  rating: 1 | 2 | 3 | 4
+  variant?: 'solid' | 'outline' | 'danger'
+  /** If true, this button receives focus when the set mounts */
+  defaultFocus?: boolean
+}
+
 interface RatingButtonsProps {
-  options: Array<{ label: string; desc: string; rating: 1 | 2 | 3 | 4; variant?: 'solid' | 'outline' | 'danger' }>
+  options: RatingOption[]
   onRate: (rating: 1 | 2 | 3 | 4) => void
   disabled: boolean
 }
 
 function RatingButtons(props: RatingButtonsProps) {
+  // We hold a ref to the button that should receive default focus.
+  let defaultRef: HTMLButtonElement | undefined
+
+  // Focus the default button whenever this component's disabled state flips to false
+  // (i.e. right after it mounts or after submitting is cleared).
+  createEffect(() => {
+    if (!props.disabled) {
+      defaultRef?.focus()
+    }
+  })
+
   return (
     <div class={css({ display: 'flex', gap: '3', flexWrap: 'wrap', mt: '4' })}>
       <For each={props.options}>
         {(opt) => (
           <button
+            ref={(el) => { if (opt.defaultFocus) defaultRef = el }}
             disabled={props.disabled}
             onClick={() => props.onRate(opt.rating)}
             class={css({
@@ -128,7 +146,9 @@ function RatingButtons(props: RatingButtonsProps) {
             })}
           >
             <span class={css({ fontWeight: 'semibold', fontSize: 'sm' })}>{opt.label}</span>
-            <span class={css({ fontSize: 'xs', color: opt.variant ? 'inherit' : 'fg.muted', opacity: '0.85' })}>{opt.desc}</span>
+            <span class={css({ fontSize: 'xs', color: opt.variant ? 'inherit' : 'fg.muted', opacity: '0.85' })}>
+              {opt.desc}
+            </span>
           </button>
         )}
       </For>
@@ -145,7 +165,6 @@ export default function Quiz() {
   const [cards, setCards] = createSignal<DueCard[]>([])
   const [index, setIndex] = createSignal(0)
   const [answer, setAnswer] = createSignal('')
-  const [isCorrect, setIsCorrect] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
   const [submitting, setSubmitting] = createSignal(false)
 
@@ -157,6 +176,20 @@ export default function Quiz() {
 
   const currentCard = createMemo(() => cards()[index()])
   const total = createMemo(() => cards().length)
+
+  // Refs for focus management
+  let inputRef: HTMLInputElement | undefined
+  let nextBtnRef: HTMLButtonElement | undefined
+
+  // Focus the right element whenever the phase changes.
+  // createEffect runs after DOM updates, so refs are populated by the time this fires.
+  createEffect(() => {
+    const p = phase()
+    if (p === 'asking') inputRef?.focus()
+    else if (p === 'revealed-wrong') nextBtnRef?.focus()
+    // 'revealed-correct' and 'revealed-manual' are handled inside RatingButtons
+    // via their own createEffect (triggered when disabled flips false).
+  })
 
   onMount(async () => {
     try {
@@ -180,14 +213,7 @@ export default function Quiz() {
 
     const userAnswer = answer().trim()
     const ok = card.forms.some(f => f.toLowerCase() === userAnswer.toLowerCase())
-    setIsCorrect(ok)
     setPhase(ok ? 'revealed-correct' : 'revealed-wrong')
-  }
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && phase() === 'asking') {
-      checkAnswer()
-    }
   }
 
   const submitReview = async (rating: 1 | 2 | 3 | 4) => {
@@ -299,12 +325,11 @@ export default function Quiz() {
                 />
 
                 <Card>
-                  {/* Card header: position */}
                   <div class={css({ fontSize: 'xs', color: 'fg.muted', mb: '4' })}>
                     Card {index() + 1} of {total()}
                   </div>
 
-                  {/* The prompt */}
+                  {/* Prompt */}
                   <div class={css({ mb: '6' })}>
                     <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
                       {formatTag(card().tag)}
@@ -319,16 +344,16 @@ export default function Quiz() {
                     </Show>
                   </div>
 
-                  {/* Input area — only shown during 'asking' phase */}
+                  {/* ── Asking ── */}
                   <Show when={phase() === 'asking'}>
                     <div class={css({ display: 'flex', gap: '3', alignItems: 'stretch' })}>
                       <input
-                        autofocus
+                        ref={(el) => { inputRef = el }}
                         type="text"
                         placeholder="Type the correct form…"
                         value={answer()}
                         onInput={(e) => setAnswer(e.currentTarget.value)}
-                        onKeyDown={handleKeyDown}
+                        onKeyDown={(e) => { if (e.key === 'Enter') checkAnswer() }}
                         class={css({
                           flex: '1',
                           px: '3',
@@ -350,19 +375,13 @@ export default function Quiz() {
                     </div>
                   </Show>
 
-                  {/* Correct reveal */}
+                  {/* ── Correct reveal ── */}
                   <Show when={phase() === 'revealed-correct'}>
                     <div class={css({
-                      p: '4',
-                      borderRadius: 'l2',
-                      bg: 'green.2',
-                      border: '1px solid',
-                      borderColor: 'green.6',
-                      mb: '2',
+                      p: '4', borderRadius: 'l2', bg: 'green.2',
+                      border: '1px solid', borderColor: 'green.6', mb: '2',
                     })}>
-                      <p class={css({ color: 'green.11', fontWeight: 'semibold', mb: '1' })}>
-                        ✓ Correct!
-                      </p>
+                      <p class={css({ color: 'green.11', fontWeight: 'semibold', mb: '1' })}>✓ Correct!</p>
                       <p class={css({ color: 'green.10', fontSize: 'sm' })}>
                         Your answer: <strong>{answer()}</strong>
                       </p>
@@ -373,7 +392,7 @@ export default function Quiz() {
                     <RatingButtons
                       options={[
                         { label: 'Hard', desc: 'correct, difficult', rating: 2 },
-                        { label: 'Good', desc: 'normal effort', rating: 3, variant: 'solid' },
+                        { label: 'Good', desc: 'normal effort', rating: 3, variant: 'solid', defaultFocus: true },
                         { label: 'Easy', desc: 'came right away', rating: 4 },
                       ]}
                       onRate={submitReview}
@@ -381,19 +400,13 @@ export default function Quiz() {
                     />
                   </Show>
 
-                  {/* Wrong reveal */}
+                  {/* ── Wrong reveal ── */}
                   <Show when={phase() === 'revealed-wrong'}>
                     <div class={css({
-                      p: '4',
-                      borderRadius: 'l2',
-                      bg: 'red.2',
-                      border: '1px solid',
-                      borderColor: 'red.6',
-                      mb: '4',
+                      p: '4', borderRadius: 'l2', bg: 'red.2',
+                      border: '1px solid', borderColor: 'red.6', mb: '4',
                     })}>
-                      <p class={css({ color: 'red.11', fontWeight: 'semibold', mb: '1' })}>
-                        ✗ Incorrect
-                      </p>
+                      <p class={css({ color: 'red.11', fontWeight: 'semibold', mb: '1' })}>✗ Incorrect</p>
                       <Show when={answer().trim() !== ''}>
                         <p class={css({ color: 'red.10', fontSize: 'sm', mb: '1' })}>
                           Your answer: <strong>{answer()}</strong>
@@ -404,24 +417,30 @@ export default function Quiz() {
                         <strong>{card().forms.join(' / ')}</strong>
                       </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => submitReview(1)}
+                    <button
+                      ref={(el) => { nextBtnRef = el }}
                       disabled={submitting()}
+                      onClick={() => submitReview(1)}
+                      class={css({
+                        px: '4', py: '2', borderRadius: 'l2',
+                        border: '1px solid', borderColor: 'border',
+                        bg: 'bg', color: 'fg.default', cursor: 'pointer',
+                        fontSize: 'sm', fontWeight: 'medium',
+                        transition: 'all 0.15s',
+                        _hover: { borderColor: 'fg.muted', bg: 'bg.subtle' },
+                        _disabled: { opacity: '0.5', cursor: 'not-allowed' },
+                        _focus: { outline: '2px solid', outlineColor: 'accent.9', outlineOffset: '2px' },
+                      })}
                     >
                       {submitting() ? 'Saving…' : 'Next →'}
-                    </Button>
+                    </button>
                   </Show>
 
-                  {/* Manual (no forms) reveal */}
+                  {/* ── Manual reveal ── */}
                   <Show when={phase() === 'revealed-manual'}>
                     <div class={css({
-                      p: '4',
-                      borderRadius: 'l2',
-                      bg: 'bg.subtle',
-                      border: '1px solid',
-                      borderColor: 'border',
-                      mb: '2',
+                      p: '4', borderRadius: 'l2', bg: 'bg.subtle',
+                      border: '1px solid', borderColor: 'border', mb: '2',
                     })}>
                       <p class={css({ color: 'fg.muted', fontSize: 'sm' })}>
                         No forms on record — rate your recall honestly.
@@ -431,7 +450,7 @@ export default function Quiz() {
                       options={[
                         { label: 'Again', desc: 'forgot', rating: 1, variant: 'danger' },
                         { label: 'Hard', desc: 'difficult', rating: 2 },
-                        { label: 'Good', desc: 'recalled', rating: 3, variant: 'solid' },
+                        { label: 'Good', desc: 'recalled', rating: 3, variant: 'solid', defaultFocus: true },
                         { label: 'Easy', desc: 'effortless', rating: 4 },
                       ]}
                       onRate={submitReview}
