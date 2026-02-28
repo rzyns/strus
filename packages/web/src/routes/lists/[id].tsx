@@ -8,6 +8,7 @@ import { Spinner } from '../../components/Spinner'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorState } from '../../components/ErrorState'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { JsonViewer } from '../../components/JsonViewer'
 import * as Table from '../../components/ui/table'
 
 const POS_OPTIONS = ['subst', 'verb', 'adj', 'adv'] as const
@@ -89,6 +90,7 @@ export default function ListDetail() {
                     <A href={`/import?listId=${params.id}`} class={css({ textDecoration: 'none' })}>
                       <Button variant="outline">Import text</Button>
                     </A>
+                    <JsonViewer data={list()} label="list JSON" />
                     <Button variant="danger" onClick={() => setShowDeleteList(true)}>Delete list</Button>
                   </div>
                 </div>

@@ -5,7 +5,7 @@
   "description": "Polish morphological spaced repetition system",
   "scripts": {
     "build": "pnpm -r run build",
-    "dev": "pnpm --filter @strus/api run dev",
+    "dev": "concurrently --names api,web --prefix-colors cyan,magenta \"pnpm --filter @strus/api run dev\" \"pnpm --filter @strus/web run dev\"",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@types/bun": "^1.1.0",
+    "concurrently": "^9.2.1",
     "typescript": "^5.7.0"
   },
   "engines": {

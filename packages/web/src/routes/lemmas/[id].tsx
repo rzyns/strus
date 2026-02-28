@@ -12,6 +12,7 @@ import { NounTable } from '../../components/paradigm/NounTable'
 import { VerbTable } from '../../components/paradigm/VerbTable'
 import { AdjTable } from '../../components/paradigm/AdjTable'
 import { FlatFormTable } from '../../components/paradigm/FlatFormTable'
+import { JsonViewer } from '../../components/JsonViewer'
 
 export default function LemmaDetail() {
   const params = useParams<{ id: string }>()
@@ -58,7 +59,10 @@ export default function LemmaDetail() {
                       Updated {new Date(data().updatedAt).toLocaleDateString()}
                     </p>
                   </div>
+                  <div class={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
+                  <JsonViewer data={{ lemma: data(), forms: forms() }} label="lemma JSON" />
                   <Button variant="danger" onClick={() => setShowDelete(true)}>Delete</Button>
+                </div>
                 </div>
 
                 <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '4', color: 'fg.default' })}>Paradigm</h2>
