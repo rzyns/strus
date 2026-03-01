@@ -23,13 +23,14 @@ function arraysIntersect(a: string[] | undefined, b: string[]): boolean {
 export function VerbTable(props: { forms: MorphFormData[] }) {
   const parsed = () => props.forms.map(f => ({ ...parseNKJP(f.tag), orth: f.orth }))
 
-  const findOrth = (criteria: Partial<ParsedNKJP> & { matchGenders?: string[] }): string | undefined => {
+  const findOrth = (criteria: Partial<ParsedNKJP> & { matchGenders?: string[]; matchCases?: string[] }): string | undefined => {
     for (const p of parsed()) {
       if (criteria.pos && p.pos !== criteria.pos) continue
       if (criteria.number && !arraysIntersect(p.number, criteria.number)) continue
       if (criteria.person && p.person !== criteria.person) continue
       if (criteria.aspect && p.aspect !== criteria.aspect) continue
       if (criteria.matchGenders && !arraysIntersect(p.genders, criteria.matchGenders)) continue
+      if (criteria.matchCases && !arraysIntersect(p.cases, criteria.matchCases)) continue
       return p.orth
     }
     return undefined
@@ -188,7 +189,7 @@ export function VerbTable(props: { forms: MorphFormData[] }) {
       <Show when={hasGer()}>
         <div class={sectionHeading}>Verbal Noun</div>
         <div class={css({ pl: '3', mb: '2' })}>
-          <Show when={findOrth({ pos: 'ger', number: ['sg'], matchGenders: ['n'] })}>
+          <Show when={findOrth({ pos: 'ger', number: ['sg'], matchGenders: ['n'], matchCases: ['nom'] })}>
             {(form) => (
               <span class={css({ fontFamily: 'mono', fontSize: 'sm' })}>{form()}</span>
             )}
@@ -206,7 +207,7 @@ export function VerbTable(props: { forms: MorphFormData[] }) {
             { label: 'N', genders: ['n'] },
           ]}>
             {(col) => {
-              const form = () => findOrth({ pos: 'pact', number: ['sg'], matchGenders: col.genders })
+              const form = () => findOrth({ pos: 'pact', number: ['sg'], matchGenders: col.genders, matchCases: ['nom'] })
               return (
                 <Show when={form()}>
                   {(f) => (
@@ -232,7 +233,7 @@ export function VerbTable(props: { forms: MorphFormData[] }) {
             { label: 'N', genders: ['n'] },
           ]}>
             {(col) => {
-              const form = () => findOrth({ pos: 'ppas', number: ['sg'], matchGenders: col.genders })
+              const form = () => findOrth({ pos: 'ppas', number: ['sg'], matchGenders: col.genders, matchCases: ['nom'] })
               return (
                 <Show when={form()}>
                   {(f) => (
