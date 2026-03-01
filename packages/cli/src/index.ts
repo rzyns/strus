@@ -330,7 +330,7 @@ program
 
       try {
         await apiPost("/api/session/review", {
-          learningTargetId: card.id,
+          cardId: card.id,
           rating,
         });
       } catch (err) {

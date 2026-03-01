@@ -2,12 +2,13 @@ export type {
   VocabList,
   Lemma,
   MorphFormRecord,
-  LearningTarget,
+  Note,
+  Card,
   ReviewRecord,
 } from "./types.js";
 export { CardState, Rating } from "./types.js";
 export {
   scheduleReview,
   getNextReviewDates,
-  createLearningTarget,
+  createCard,
 } from "./scheduler.js";

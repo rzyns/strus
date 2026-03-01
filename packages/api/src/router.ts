@@ -6,17 +6,18 @@ import {
   vocabLists,
   lemmas,
   morphForms,
-  learningTargets,
+  cards,
+  notes,
   reviews,
-  vocabListLemmas,
+  vocabListNotes,
 } from "@strus/db";
 import { generate, parseTag, analyseText } from "@strus/morph";
 import {
   scheduleReview,
-  createLearningTarget,
+  createCard,
   Rating,
   CardState,
-  type LearningTarget,
+  type Card,
 } from "@strus/core";
 
 // ---------------------------------------------------------------------------
@@ -58,13 +59,17 @@ const LemmaOutput = z.object({
   updatedAt: zIso.describe("When this lemma was last modified"),
 });
 
-const LearningTargetOutput = z.object({
+const CardOutput = z.object({
   id: zId,
-  lemmaId: zId.describe("ID of the parent lemma"),
+  noteId: zId.describe("ID of the parent note"),
+  kind: z
+    .enum(["morph_form", "gloss_forward", "gloss_reverse", "basic_forward"])
+    .describe("Card kind: morph_form for morphological drill, gloss/basic for other note types"),
   tag: z
     .string()
+    .nullable()
     .describe(
-      "Full NKJP morphosyntactic tag identifying the specific form being drilled, e.g. 'subst:sg:inst:m3'",
+      "Full NKJP morphosyntactic tag identifying the specific form being drilled, e.g. 'subst:sg:inst:m3'. Only set for morph_form cards.",
     ),
   state: z
     .number()
@@ -102,7 +107,7 @@ const SuccessOutput = z.object({
 const StatsOutput = z.object({
   lemmaCount: z.number().int().describe("Total number of lemmas in the database"),
   listCount: z.number().int().describe("Total number of vocabulary lists"),
-  dueCount: z.number().int().describe("Number of learning targets currently due for review"),
+  dueCount: z.number().int().describe("Number of cards currently due for review"),
 });
 
 // ---------------------------------------------------------------------------
@@ -148,11 +153,12 @@ function mapLemma(row: typeof lemmas.$inferSelect) {
   };
 }
 
-/** Maps a raw DB row from learningTargets (due/lastReview are Unix seconds). */
-function mapLearningTargetRow(row: typeof learningTargets.$inferSelect) {
+/** Maps a raw DB row from cards (due/lastReview are Unix seconds). */
+function mapCardRow(row: typeof cards.$inferSelect) {
   return {
     id: row.id,
-    lemmaId: row.lemmaId,
+    noteId: row.noteId,
+    kind: row.kind,
     tag: row.tag,
     state: row.state,
     due: new Date(row.due * 1000).toISOString(),
@@ -168,21 +174,22 @@ function mapLearningTargetRow(row: typeof learningTargets.$inferSelect) {
   };
 }
 
-/** Maps a domain LearningTarget (due/lastReview are Date objects). */
-function mapLearningTargetDomain(target: LearningTarget) {
+/** Maps a domain Card (due/lastReview are Date objects). */
+function mapCardDomain(card: Card) {
   return {
-    id: target.id,
-    lemmaId: target.lemmaId,
-    tag: target.tag,
-    state: target.state,
-    due: target.due.toISOString(),
-    stability: target.stability,
-    difficulty: target.difficulty,
-    elapsedDays: target.elapsedDays,
-    scheduledDays: target.scheduledDays,
-    reps: target.reps,
-    lapses: target.lapses,
-    lastReview: target.lastReview?.toISOString() ?? null,
+    id: card.id,
+    noteId: card.noteId,
+    kind: card.kind,
+    tag: card.tag ?? null,
+    state: card.state,
+    due: card.due.toISOString(),
+    stability: card.stability,
+    difficulty: card.difficulty,
+    elapsedDays: card.elapsedDays,
+    scheduledDays: card.scheduledDays,
+    reps: card.reps,
+    lapses: card.lapses,
+    lastReview: card.lastReview?.toISOString() ?? null,
   };
 }
 
@@ -211,7 +218,7 @@ function stripSgjpSuffix(lemma: string): string {
 }
 
 /**
- * Return true if a morph form should be excluded from learning targets.
+ * Return true if a morph form should be excluded from cards.
  * We skip negated forms (tag ending in ":neg") — they are regular and
  * predictable, and quizzing both "udostępnionym" and "nieudostępnionym"
  * as separate cards adds noise rather than value.
@@ -295,6 +302,71 @@ async function analyseImportText(
   return { candidates, unknownTokens: [] };
 }
 
+/**
+ * Create a morph note for a lemma, generate morph forms, and create morph_form cards.
+ * Returns the note ID.
+ */
+async function createMorphNoteAndCards(
+  lemmaId: string,
+  lemmaText: string,
+  now: Date,
+): Promise<string> {
+  const noteId = crypto.randomUUID();
+  await db.insert(notes).values({
+    id: noteId,
+    kind: "morph",
+    lemmaId,
+    front: null,
+    back: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  let forms: Awaited<ReturnType<typeof generate>> = [];
+  try {
+    forms = await generate(lemmaText);
+  } catch {
+    console.warn(`[morph] morfeusz2 unavailable; skipping form generation for "${lemmaText}"`);
+  }
+
+  // Skip negated forms (":neg" tag suffix) — they are regular/predictable
+  // and create confusing quiz cards (e.g. "nieudostępnionym" for udostępnić).
+  forms = forms.filter((f) => !isExcludedForm(f.tag));
+
+  for (const form of forms) {
+    const parsed = parseTag(form.tag);
+    await db.insert(morphForms).values({
+      id: crypto.randomUUID(),
+      lemmaId,
+      orth: form.orth,
+      tag: form.tag,
+      parsedTag: JSON.stringify(parsed),
+      createdAt: now,
+    });
+
+    const cardData = createCard(noteId, "morph_form", form.tag);
+    await db.insert(cards).values({
+      id: crypto.randomUUID(),
+      noteId: cardData.noteId,
+      kind: cardData.kind,
+      tag: cardData.tag ?? null,
+      state: cardData.state,
+      due: Math.floor(cardData.due.getTime() / 1000),
+      stability: cardData.stability,
+      difficulty: cardData.difficulty,
+      elapsedDays: cardData.elapsedDays,
+      scheduledDays: cardData.scheduledDays,
+      reps: cardData.reps,
+      lapses: cardData.lapses,
+      lastReview: cardData.lastReview
+        ? Math.floor(cardData.lastReview.getTime() / 1000)
+        : null,
+    });
+  }
+
+  return noteId;
+}
+
 // ---------------------------------------------------------------------------
 // Lists procedures
 // ---------------------------------------------------------------------------
@@ -358,7 +430,7 @@ const listsDelete = os
     tags: ["Lists"],
     summary: "Delete a vocabulary list",
     description:
-      "Deletes the list and removes all its lemma associations. Lemmas themselves are not deleted.",
+      "Deletes the list and removes all its note associations. Notes and lemmas themselves are not deleted.",
   })
   .input(z.object({ id: zId }))
   .output(SuccessOutput)
@@ -373,7 +445,9 @@ const listsAddLemma = os
     path: "/lists/{listId}/lemmas",
     tags: ["Lists"],
     summary: "Add a lemma to a vocabulary list",
-    description: "Associates an existing lemma with a vocabulary list. The lemma must already exist.",
+    description:
+      "Associates an existing lemma with a vocabulary list via its morph note. " +
+      "The lemma must already exist and have a morph note.",
   })
   .input(z.object({
     listId: zId.describe("ID of the vocabulary list"),
@@ -381,9 +455,22 @@ const listsAddLemma = os
   }))
   .output(SuccessOutput)
   .handler(async ({ input }) => {
-    await db.insert(vocabListLemmas).values({
+    // Find the morph note for this lemma
+    const [note] = await db
+      .select({ id: notes.id })
+      .from(notes)
+      .where(and(eq(notes.lemmaId, input.lemmaId), eq(notes.kind, "morph")))
+      .limit(1);
+
+    if (!note) {
+      throw new ORPCError("NOT_FOUND", {
+        message: `No morph note found for lemma: ${input.lemmaId}`,
+      });
+    }
+
+    await db.insert(vocabListNotes).values({
       listId: input.listId,
-      lemmaId: input.lemmaId,
+      noteId: note.id,
     });
     return { success: true as const };
   });
@@ -410,10 +497,14 @@ const lemmasList = os
         .select({ lemma: lemmas })
         .from(lemmas)
         .innerJoin(
-          vocabListLemmas,
+          notes,
+          eq(notes.lemmaId, lemmas.id),
+        )
+        .innerJoin(
+          vocabListNotes,
           and(
-            eq(vocabListLemmas.lemmaId, lemmas.id),
-            eq(vocabListLemmas.listId, input.listId),
+            eq(vocabListNotes.noteId, notes.id),
+            eq(vocabListNotes.listId, input.listId),
           ),
         )
         .all()
@@ -430,7 +521,7 @@ const lemmasCreate = os
     summary: "Create a lemma",
     description:
       "Creates a lemma and, if source is 'morfeusz' and Morfeusz2 is available, automatically " +
-      "generates all morphological word forms and seeds one FSRS learning target per form. " +
+      "generates all morphological word forms and seeds one FSRS card per form via a morph note. " +
       "Use source='manual' to supply forms yourself via POST /lemmas/{id}/forms. " +
       "Optionally associates the new lemma with a vocabulary list.",
   })
@@ -461,51 +552,25 @@ const lemmasCreate = os
       updatedAt: now,
     });
 
-    if (input.listId) {
-      await db.insert(vocabListLemmas).values({ listId: input.listId, lemmaId: id });
-    }
-
     if (input.source === "morfeusz") {
-      let forms: Awaited<ReturnType<typeof generate>> = [];
-      try {
-        forms = await generate(input.lemma);
-      } catch {
-        console.warn(`[morph] morfeusz2 unavailable; skipping form generation for "${input.lemma}"`);
+      const noteId = await createMorphNoteAndCards(id, input.lemma, now);
+
+      if (input.listId) {
+        await db.insert(vocabListNotes).values({ listId: input.listId, noteId });
       }
-
-      // Skip negated forms (":neg" tag suffix) — they are regular/predictable
-      // and create confusing quiz cards (e.g. "nieudostępnionym" for udostępnić).
-      forms = forms.filter((f) => !isExcludedForm(f.tag));
-
-      for (const form of forms) {
-        const parsed = parseTag(form.tag);
-        await db.insert(morphForms).values({
-          id: crypto.randomUUID(),
-          lemmaId: id,
-          orth: form.orth,
-          tag: form.tag,
-          parsedTag: JSON.stringify(parsed),
-          createdAt: now,
-        });
-
-        const target = createLearningTarget(id, form.tag);
-        await db.insert(learningTargets).values({
-          id: crypto.randomUUID(),
-          lemmaId: target.lemmaId,
-          tag: target.tag,
-          state: target.state,
-          due: Math.floor(target.due.getTime() / 1000),
-          stability: target.stability,
-          difficulty: target.difficulty,
-          elapsedDays: target.elapsedDays,
-          scheduledDays: target.scheduledDays,
-          reps: target.reps,
-          lapses: target.lapses,
-          lastReview: target.lastReview
-            ? Math.floor(target.lastReview.getTime() / 1000)
-            : null,
-        });
-      }
+    } else if (input.listId) {
+      // Manual source: create a morph note (with no forms) and add to list
+      const noteId = crypto.randomUUID();
+      await db.insert(notes).values({
+        id: noteId,
+        kind: "morph",
+        lemmaId: id,
+        front: null,
+        back: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(vocabListNotes).values({ listId: input.listId, noteId });
     }
 
     return mapLemma({
@@ -541,7 +606,7 @@ const lemmasDelete = os
     tags: ["Lemmas"],
     summary: "Delete a lemma",
     description:
-      "Deletes a lemma along with all its morphological forms and learning targets (cascade). " +
+      "Deletes a lemma along with all its morphological forms, notes, and cards (cascade). " +
       "Review history is also removed.",
   })
   .input(z.object({ id: zId }))
@@ -585,14 +650,15 @@ const lemmasForms = os
 // Session procedures
 // ---------------------------------------------------------------------------
 
-const DueCardOutput = LearningTargetOutput.extend({
+const DueCardOutput = CardOutput.extend({
   lemmaText: z
     .string()
-    .describe("Citation/dictionary form of the lemma, e.g. 'dom', 'iść'"),
+    .nullable()
+    .describe("Citation/dictionary form of the lemma, e.g. 'dom', 'iść'. Null for non-morph cards."),
   forms: z
     .array(z.string())
     .describe(
-      "Orthographic variants for this lemma+tag combination. " +
+      "Orthographic variants for this card's tag combination. " +
       "Empty when the lemma has source=manual or Morfeusz2 form generation was skipped.",
     ),
 });
@@ -602,20 +668,26 @@ const DueCardOutput = LearningTargetOutput.extend({
  * session are unlikely to share the same lemma (i.e. won't drill all forms
  * of one word back-to-back).
  */
-function interleaveByLemma<T extends { target: { lemmaId: string } }>(cards: T[]): T[] {
+function interleaveByLemma<T extends { lemmaId: string | null }>(items: T[]): T[] {
   // Group by lemmaId (preserve internal order within each group)
   const groups = new Map<string, T[]>();
-  for (const card of cards) {
-    const g = groups.get(card.target.lemmaId);
-    if (g !== undefined) g.push(card);
-    else groups.set(card.target.lemmaId, [card]);
+  const noLemma: T[] = [];
+  for (const item of items) {
+    if (item.lemmaId == null) {
+      noLemma.push(item);
+      continue;
+    }
+    const g = groups.get(item.lemmaId);
+    if (g !== undefined) g.push(item);
+    else groups.set(item.lemmaId, [item]);
   }
 
   // Round-robin across groups until all cards are placed
   const queues = [...groups.values()];
   const result: T[] = [];
   let round = 0;
-  while (result.length < cards.length) {
+  const total = items.length - noLemma.length;
+  while (result.length < total) {
     let advanced = false;
     for (let q = 0; q < queues.length; q++) {
       const queue = queues[q];
@@ -627,6 +699,8 @@ function interleaveByLemma<T extends { target: { lemmaId: string } }>(cards: T[]
     if (!advanced) break;
     round++;
   }
+  // Append cards with no lemmaId at the end
+  result.push(...noLemma);
   return result;
 }
 
@@ -648,7 +722,7 @@ const sessionDue = os
     tags: ["Session"],
     summary: "Get cards due for review",
     description:
-      "Returns learning targets whose due date has passed. " +
+      "Returns cards whose due date has passed. " +
       "Review cards (state ≥ 1) are always included. New cards (state = 0) " +
       "are capped at `newLimit` to pace vocabulary introduction. " +
       "When `interleave` is true (default), cards are round-robin'd by lemma " +
@@ -688,30 +762,40 @@ const sessionDue = os
   .handler(async ({ input }) => {
     const nowSecs = Math.floor(Date.now() / 1000);
 
-    // Fetch a broad pool of due targets (no SQL limit — we'll filter in app).
+    // Fetch a broad pool of due cards (no SQL limit — we'll filter in app).
     // Cap at 2× limit + 4× newLimit to avoid scanning the entire table when
     // there are thousands of new cards all due at epoch 0.
     const fetchCap = Math.max(500, input.limit * 2 + input.newLimit * 4);
     const rawDue = input.listId
       ? db
-          .select({ target: learningTargets, lemmaText: lemmas.lemma })
-          .from(learningTargets)
-          .innerJoin(lemmas, eq(lemmas.id, learningTargets.lemmaId))
+          .select({
+            card: cards,
+            lemmaId: notes.lemmaId,
+            lemmaText: lemmas.lemma,
+          })
+          .from(cards)
+          .innerJoin(notes, eq(notes.id, cards.noteId))
+          .innerJoin(lemmas, eq(lemmas.id, notes.lemmaId))
           .innerJoin(
-            vocabListLemmas,
+            vocabListNotes,
             and(
-              eq(vocabListLemmas.lemmaId, learningTargets.lemmaId),
-              eq(vocabListLemmas.listId, input.listId),
+              eq(vocabListNotes.noteId, cards.noteId),
+              eq(vocabListNotes.listId, input.listId),
             ),
           )
-          .where(lte(learningTargets.due, nowSecs))
+          .where(lte(cards.due, nowSecs))
           .limit(fetchCap)
           .all()
       : db
-          .select({ target: learningTargets, lemmaText: lemmas.lemma })
-          .from(learningTargets)
-          .innerJoin(lemmas, eq(lemmas.id, learningTargets.lemmaId))
-          .where(lte(learningTargets.due, nowSecs))
+          .select({
+            card: cards,
+            lemmaId: notes.lemmaId,
+            lemmaText: lemmas.lemma,
+          })
+          .from(cards)
+          .innerJoin(notes, eq(notes.id, cards.noteId))
+          .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
+          .where(lte(cards.due, nowSecs))
           .limit(fetchCap)
           .all();
 
@@ -722,8 +806,8 @@ const sessionDue = os
     //   - Review/Learning/Relearning cards (state > 0): always included
     //   - New cards (state = 0): capped at newLimit, shuffled for variety
     // -----------------------------------------------------------------------
-    const reviewPool = rawDue.filter((r) => r.target.state > 0);
-    const newPool = shuffle(rawDue.filter((r) => r.target.state === 0));
+    const reviewPool = rawDue.filter((r) => r.card.state > 0);
+    const newPool = shuffle(rawDue.filter((r) => r.card.state === 0));
     const newCards = newPool.slice(0, input.newLimit);
 
     // Shuffle reviews too so the order isn't purely by insertion date.
@@ -740,16 +824,18 @@ const sessionDue = os
     session = session.slice(0, input.limit);
 
     // Batch-fetch all morph forms for the lemmas in the final session set.
-    const lemmaIds = [...new Set(session.map((r) => r.target.lemmaId))];
-    const allForms = db
-      .select({
-        lemmaId: morphForms.lemmaId,
-        orth: morphForms.orth,
-        tag: morphForms.tag,
-      })
-      .from(morphForms)
-      .where(inArray(morphForms.lemmaId, lemmaIds))
-      .all();
+    const lemmaIds = [...new Set(session.map((r) => r.lemmaId).filter((id): id is string => id != null))];
+    const allForms = lemmaIds.length > 0
+      ? db
+          .select({
+            lemmaId: morphForms.lemmaId,
+            orth: morphForms.orth,
+            tag: morphForms.tag,
+          })
+          .from(morphForms)
+          .where(inArray(morphForms.lemmaId, lemmaIds))
+          .all()
+      : [];
 
     // Build a lookup: `${lemmaId}::${tag}` → orth[]
     const formsByKey = new Map<string, string[]>();
@@ -761,9 +847,11 @@ const sessionDue = os
     }
 
     return session.map((r) => ({
-      ...mapLearningTargetRow(r.target),
+      ...mapCardRow(r.card),
       lemmaText: r.lemmaText,
-      forms: formsByKey.get(`${r.target.lemmaId}::${r.target.tag}`) ?? [],
+      forms: r.lemmaId && r.card.tag
+        ? formsByKey.get(`${r.lemmaId}::${r.card.tag}`) ?? []
+        : [],
     }));
   });
 
@@ -774,12 +862,12 @@ const sessionReview = os
     tags: ["Session"],
     summary: "Record a review",
     description:
-      "Submits a review rating for a learning target. The FSRS algorithm computes the next " +
+      "Submits a review rating for a card. The FSRS algorithm computes the next " +
       "due date and updates the card's stability and difficulty. The review event is logged " +
       "for retention analytics.",
   })
   .input(z.object({
-    learningTargetId: zId.describe("ID of the learning target being reviewed"),
+    cardId: zId.describe("ID of the card being reviewed"),
     rating: z.nativeEnum(Rating).describe(
       "Review outcome: 1 = Again (forgot), 2 = Hard (correct but difficult), " +
       "3 = Good (correct), 4 = Easy (too easy)",
@@ -787,28 +875,28 @@ const sessionReview = os
   }))
   .output(z.object({
     reviewId: zId.describe("ID of the newly created review record"),
-    updated: LearningTargetOutput.describe("The learning target with its updated FSRS state"),
+    updated: CardOutput.describe("The card with its updated FSRS state"),
   }))
   .handler(async ({ input }) => {
     const [row] = await db
       .select()
-      .from(learningTargets)
-      .where(eq(learningTargets.id, input.learningTargetId))
+      .from(cards)
+      .where(eq(cards.id, input.cardId))
       .limit(1);
 
     if (!row) {
       throw new ORPCError("NOT_FOUND", {
-        message: `LearningTarget not found: ${input.learningTargetId}`,
+        message: `Card not found: ${input.cardId}`,
       });
     }
 
     const now = new Date();
     const dueDateBefore = new Date(row.due * 1000);
 
-    const target = {
+    const card: Card = {
       id: row.id,
-      lemmaId: row.lemmaId,
-      tag: row.tag,
+      noteId: row.noteId,
+      kind: row.kind as Card["kind"],
       state: row.state as CardState,
       due: dueDateBefore,
       stability: row.stability,
@@ -817,13 +905,14 @@ const sessionReview = os
       scheduledDays: row.scheduledDays,
       reps: row.reps,
       lapses: row.lapses,
+      ...(row.tag != null ? { tag: row.tag } : {}),
       ...(row.lastReview != null ? { lastReview: new Date(row.lastReview * 1000) } : {}),
     };
 
-    const updated = scheduleReview(target, input.rating, now);
+    const updated = scheduleReview(card, input.rating, now);
 
     await db
-      .update(learningTargets)
+      .update(cards)
       .set({
         state: updated.state,
         due: Math.floor(updated.due.getTime() / 1000),
@@ -837,14 +926,14 @@ const sessionReview = os
           ? Math.floor(updated.lastReview.getTime() / 1000)
           : null,
       })
-      .where(eq(learningTargets.id, input.learningTargetId));
+      .where(eq(cards.id, input.cardId));
 
     const reviewId = crypto.randomUUID();
     await db.insert(reviews).values({
       id: reviewId,
-      learningTargetId: input.learningTargetId,
+      cardId: input.cardId,
       rating: input.rating,
-      stateBefore: target.state,
+      stateBefore: card.state,
       due: Math.floor(dueDateBefore.getTime() / 1000),
       reviewedAt: Math.floor(now.getTime() / 1000),
       elapsedDays: updated.elapsedDays,
@@ -855,7 +944,7 @@ const sessionReview = os
 
     return {
       reviewId,
-      updated: mapLearningTargetDomain(updated),
+      updated: mapCardDomain(updated),
     };
   });
 
@@ -879,8 +968,8 @@ const statsOverview = os
     const [listResult] = await db.select({ value: count() }).from(vocabLists);
     const [dueResult] = await db
       .select({ value: count() })
-      .from(learningTargets)
-      .where(lte(learningTargets.due, nowSecs));
+      .from(cards)
+      .where(lte(cards.due, nowSecs));
 
     return {
       lemmaCount: lemmaResult?.value ?? 0,
@@ -1001,49 +1090,25 @@ const importCommit = os
         updatedAt: now,
       });
 
-      if (input.listId !== undefined) {
-        await db.insert(vocabListLemmas).values({ listId: input.listId, lemmaId: id });
-      }
-
-      // Generate morphological forms for non-manual lemmas
       if (source === "morfeusz") {
-        let forms: Awaited<ReturnType<typeof generate>> = [];
-        try {
-          forms = await generate(c.lemma);
-        } catch {
-          console.warn(`[morph] morfeusz2 unavailable; skipping form generation for "${c.lemma}"`);
+        const noteId = await createMorphNoteAndCards(id, c.lemma, now);
+        if (input.listId !== undefined) {
+          await db.insert(vocabListNotes).values({ listId: input.listId, noteId });
         }
-
-        forms = forms.filter((f) => !isExcludedForm(f.tag));
-
-        for (const form of forms) {
-          const parsed = parseTag(form.tag);
-          await db.insert(morphForms).values({
-            id: crypto.randomUUID(),
-            lemmaId: id,
-            orth: form.orth,
-            tag: form.tag,
-            parsedTag: JSON.stringify(parsed),
-            createdAt: now,
-          });
-
-          const target = createLearningTarget(id, form.tag);
-          await db.insert(learningTargets).values({
-            id: crypto.randomUUID(),
-            lemmaId: target.lemmaId,
-            tag: target.tag,
-            state: target.state,
-            due: Math.floor(target.due.getTime() / 1000),
-            stability: target.stability,
-            difficulty: target.difficulty,
-            elapsedDays: target.elapsedDays,
-            scheduledDays: target.scheduledDays,
-            reps: target.reps,
-            lapses: target.lapses,
-            ...(target.lastReview !== undefined
-              ? { lastReview: Math.floor(target.lastReview.getTime() / 1000) }
-              : { lastReview: null }),
-          });
+      } else {
+        // Manual source: create a morph note (with no forms)
+        const noteId = crypto.randomUUID();
+        await db.insert(notes).values({
+          id: noteId,
+          kind: "morph",
+          lemmaId: id,
+          front: null,
+          back: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+        if (input.listId !== undefined) {
+          await db.insert(vocabListNotes).values({ listId: input.listId, noteId });
         }
       }
 

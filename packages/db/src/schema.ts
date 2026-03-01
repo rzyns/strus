@@ -35,20 +35,38 @@ export const lemmas = sqliteTable("lemmas", {
 });
 
 // ---------------------------------------------------------------------------
-// vocabListLemmas  (join table)
+// notes
 // ---------------------------------------------------------------------------
 
-export const vocabListLemmas = sqliteTable(
-  "vocab_list_lemmas",
+export const notes = sqliteTable("notes", {
+  id:        text("id").primaryKey(),
+  /** 'morph' | 'gloss' | 'basic' */
+  kind:      text("kind", { enum: ["morph", "gloss", "basic"] }).notNull(),
+  /** Populated for kind='morph' and kind='gloss'; null for kind='basic' */
+  lemmaId:   text("lemma_id").references(() => lemmas.id, { onDelete: "cascade" }),
+  /** For kind='gloss' and kind='basic': the prompt text shown to the user */
+  front:     text("front"),
+  /** For kind='gloss' and kind='basic': the answer text revealed to the user */
+  back:      text("back"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// vocabListNotes  (join table)
+// ---------------------------------------------------------------------------
+
+export const vocabListNotes = sqliteTable(
+  "vocab_list_notes",
   {
-    listId:  text("list_id")
+    listId: text("list_id")
       .notNull()
       .references(() => vocabLists.id, { onDelete: "cascade" }),
-    lemmaId: text("lemma_id")
+    noteId: text("note_id")
       .notNull()
-      .references(() => lemmas.id, { onDelete: "cascade" }),
+      .references(() => notes.id, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.listId, t.lemmaId] })],
+  (t) => [primaryKey({ columns: [t.listId, t.noteId] })],
 );
 
 // ---------------------------------------------------------------------------
@@ -68,17 +86,20 @@ export const morphForms = sqliteTable("morph_forms", {
 });
 
 // ---------------------------------------------------------------------------
-// learningTargets
+// cards
 // ---------------------------------------------------------------------------
 
-export const learningTargets = sqliteTable(
-  "learning_targets",
+export const cards = sqliteTable(
+  "cards",
   {
     id:            text("id").primaryKey(),
-    lemmaId:       text("lemma_id")
+    noteId:        text("note_id")
       .notNull()
-      .references(() => lemmas.id, { onDelete: "cascade" }),
-    tag:           text("tag").notNull(),
+      .references(() => notes.id, { onDelete: "cascade" }),
+    /** 'morph_form' | 'gloss_forward' | 'gloss_reverse' | 'basic_forward' */
+    kind:          text("kind", { enum: ["morph_form", "gloss_forward", "gloss_reverse", "basic_forward"] }).notNull().default("morph_form"),
+    /** Morphosyntactic tag — only set for kind='morph_form' */
+    tag:           text("tag"),
     /** CardState enum value (0=New,1=Learning,2=Review,3=Relearning) */
     state:         integer("state").notNull().default(0),
     /** Unix timestamp (seconds) */
@@ -93,8 +114,8 @@ export const learningTargets = sqliteTable(
     lastReview:    integer("last_review"),
   },
   (t) => [
-    index("learning_targets_due_idx").on(t.due),
-    index("learning_targets_lemma_id_idx").on(t.lemmaId),
+    index("cards_due_idx").on(t.due),
+    index("cards_note_id_idx").on(t.noteId),
   ],
 );
 
@@ -106,9 +127,9 @@ export const reviews = sqliteTable(
   "reviews",
   {
     id:               text("id").primaryKey(),
-    learningTargetId: text("learning_target_id")
+    cardId:           text("card_id")
       .notNull()
-      .references(() => learningTargets.id, { onDelete: "cascade" }),
+      .references(() => cards.id, { onDelete: "cascade" }),
     /** Rating enum value (1=Again,2=Hard,3=Good,4=Easy) */
     rating:           integer("rating").notNull(),
     /** CardState before the review */
@@ -123,6 +144,6 @@ export const reviews = sqliteTable(
     difficultyAfter:  real("difficulty_after").notNull(),
   },
   (t) => [
-    index("reviews_learning_target_id_idx").on(t.learningTargetId),
+    index("reviews_card_id_idx").on(t.cardId),
   ],
 );

@@ -3,10 +3,10 @@ import {
   fsrs,
   generatorParameters,
   Rating as FsrsRating,
-  type Card,
+  type Card as FsrsCard,
   type RecordLog,
 } from "ts-fsrs";
-import { CardState, Rating, type LearningTarget } from "./types.js";
+import { CardState, Rating, type Card } from "./types.js";
 
 const params = generatorParameters();
 const f = fsrs(params);
@@ -17,23 +17,23 @@ const f = fsrs(params);
  */
 type ScoredFsrsRating = Exclude<FsrsRating, typeof FsrsRating.Manual>;
 
-/** Map our LearningTarget onto a ts-fsrs Card */
-function toFsrsCard(target: LearningTarget): Card {
+/** Map our Card onto a ts-fsrs Card */
+function toFsrsCard(card: Card): FsrsCard {
   // CardState and ts-fsrs State share the same integer values (0-3).
   // learning_steps was added in ts-fsrs v5; we don't persist it yet, so default to 0.
-  const base: Card = {
-    due: target.due,
-    stability: target.stability,
-    difficulty: target.difficulty,
-    elapsed_days: target.elapsedDays,
-    scheduled_days: target.scheduledDays,
-    reps: target.reps,
-    lapses: target.lapses,
+  const base: FsrsCard = {
+    due: card.due,
+    stability: card.stability,
+    difficulty: card.difficulty,
+    elapsed_days: card.elapsedDays,
+    scheduled_days: card.scheduledDays,
+    reps: card.reps,
+    lapses: card.lapses,
     learning_steps: 0,
-    state: target.state as unknown as Card["state"],
+    state: card.state as unknown as FsrsCard["state"],
   };
-  if (target.lastReview !== undefined) {
-    base.last_review = target.lastReview;
+  if (card.lastReview !== undefined) {
+    base.last_review = card.lastReview;
   }
   return base;
 }
@@ -48,40 +48,40 @@ function toFsrsRating(rating: Rating): ScoredFsrsRating {
   }
 }
 
-/** Apply a ts-fsrs Card result back onto a LearningTarget (pure, no mutation) */
-function applyCard(target: LearningTarget, card: Card): LearningTarget {
+/** Apply a ts-fsrs Card result back onto a Card (pure, no mutation) */
+function applyFsrsCard(card: Card, fsrsCard: FsrsCard): Card {
   return {
-    ...target,
-    state: card.state as unknown as CardState,
-    due: card.due,
-    stability: card.stability,
-    difficulty: card.difficulty,
-    elapsedDays: card.elapsed_days,
-    scheduledDays: card.scheduled_days,
-    reps: card.reps,
-    lapses: card.lapses,
+    ...card,
+    state: fsrsCard.state as unknown as CardState,
+    due: fsrsCard.due,
+    stability: fsrsCard.stability,
+    difficulty: fsrsCard.difficulty,
+    elapsedDays: fsrsCard.elapsed_days,
+    scheduledDays: fsrsCard.scheduled_days,
+    reps: fsrsCard.reps,
+    lapses: fsrsCard.lapses,
     // exactOptionalPropertyTypes: conditionally include to avoid `undefined` assignment
-    ...(card.last_review !== undefined ? { lastReview: card.last_review } : {}),
+    ...(fsrsCard.last_review !== undefined ? { lastReview: fsrsCard.last_review } : {}),
   };
 }
 
 /**
- * Schedule a review and return the updated LearningTarget.
+ * Schedule a review and return the updated Card.
  * Pure function — no side effects.
  */
 export function scheduleReview(
-  target: LearningTarget,
+  card: Card,
   rating: Rating,
   now: Date = new Date(),
-): LearningTarget {
-  const card = toFsrsCard(target);
+): Card {
+  const fsrsCard = toFsrsCard(card);
   const fsrsRating = toFsrsRating(rating);
-  const recordLog: RecordLog = f.repeat(card, now);
+  const recordLog: RecordLog = f.repeat(fsrsCard, now);
   const result = recordLog[fsrsRating];
   if (!result) {
     throw new Error(`Unexpected: no schedule result for rating ${rating}`);
   }
-  return applyCard(target, result.card);
+  return applyFsrsCard(card, result.card);
 }
 
 /**
@@ -89,11 +89,11 @@ export function scheduleReview(
  * Useful for showing the user what each button will schedule.
  */
 export function getNextReviewDates(
-  target: LearningTarget,
+  card: Card,
   now: Date = new Date(),
 ): Record<Rating, Date> {
-  const card = toFsrsCard(target);
-  const recordLog: RecordLog = f.repeat(card, now);
+  const fsrsCard = toFsrsCard(card);
+  const recordLog: RecordLog = f.repeat(fsrsCard, now);
 
   return {
     [Rating.Again]: recordLog[FsrsRating.Again]?.card.due ?? now,
@@ -104,25 +104,27 @@ export function getNextReviewDates(
 }
 
 /**
- * Create a fresh LearningTarget (never-seen card) for the given lemma + tag.
+ * Create a fresh Card (never-seen) for the given note + optional tag.
  */
-export function createLearningTarget(
-  lemmaId: string,
-  tag: string,
-): Omit<LearningTarget, "id"> {
-  const card = createEmptyCard();
+export function createCard(
+  noteId: string,
+  kind: Card["kind"],
+  tag?: string,
+): Omit<Card, "id"> {
+  const emptyCard = createEmptyCard();
   return {
-    lemmaId,
-    tag,
+    noteId,
+    kind,
     state: CardState.New,
-    due: card.due,
-    stability: card.stability,
-    difficulty: card.difficulty,
-    elapsedDays: card.elapsed_days,
-    scheduledDays: card.scheduled_days,
-    reps: card.reps,
-    lapses: card.lapses,
+    due: emptyCard.due,
+    stability: emptyCard.stability,
+    difficulty: emptyCard.difficulty,
+    elapsedDays: emptyCard.elapsed_days,
+    scheduledDays: emptyCard.scheduled_days,
+    reps: emptyCard.reps,
+    lapses: emptyCard.lapses,
     // last_review is undefined on a new card — omit to satisfy exactOptionalPropertyTypes
-    ...(card.last_review !== undefined ? { lastReview: card.last_review } : {}),
+    ...(emptyCard.last_review !== undefined ? { lastReview: emptyCard.last_review } : {}),
+    ...(tag !== undefined ? { tag } : {}),
   };
 }

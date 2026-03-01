@@ -222,7 +222,7 @@ export default function Quiz() {
     setSubmitting(true)
 
     try {
-      await api.session.review({ learningTargetId: card.id, rating })
+      await api.session.review({ cardId: card.id, rating })
     } catch (err) {
       console.error('Failed to record review:', err)
     }

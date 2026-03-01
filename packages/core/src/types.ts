@@ -28,11 +28,22 @@ export interface MorphFormRecord {
   parsedTag: ParsedTag;
 }
 
-export interface LearningTarget {
+export interface Note {
   id: string;
-  lemmaId: string;
-  /** The specific morphosyntactic tag being drilled */
-  tag: string;
+  kind: "morph" | "gloss" | "basic";
+  lemmaId?: string;
+  front?: string;
+  back?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Card {
+  id: string;
+  noteId: string;
+  kind: "morph_form" | "gloss_forward" | "gloss_reverse" | "basic_forward";
+  /** Only set for kind='morph_form' */
+  tag?: string;
   state: CardState;
   due: Date;
   stability: number;
@@ -60,7 +71,7 @@ export enum Rating {
 
 export interface ReviewRecord {
   id: string;
-  learningTargetId: string;
+  cardId: string;
   rating: Rating;
   stateBefore: CardState;
   due: Date;
