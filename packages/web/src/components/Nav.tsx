@@ -43,6 +43,7 @@ export function Nav() {
         <A href="/" end activeClass={activeLinkStyle} class={linkStyle}>Dashboard</A>
         <A href="/lists" activeClass={activeLinkStyle} class={linkStyle}>Lists</A>
         <A href="/lemmas" activeClass={activeLinkStyle} class={linkStyle}>Lemmas</A>
+        <A href="/notes" activeClass={activeLinkStyle} class={linkStyle}>Notes</A>
         <A href="/import" activeClass={activeLinkStyle} class={linkStyle}>Import</A>
         <A href="/quiz" activeClass={activeLinkStyle} class={linkStyle}>Quiz</A>
         <button

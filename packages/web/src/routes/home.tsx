@@ -1,4 +1,4 @@
-import { createResource, Suspense, ErrorBoundary, Show } from 'solid-js'
+import { createResource, createSignal, Suspense, ErrorBoundary, Show } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 import { css } from '../../styled-system/css'
 import { api } from '../api/client'
@@ -6,6 +6,7 @@ import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { Spinner } from '../components/Spinner'
 import { ErrorState } from '../components/ErrorState'
+import { CreateNoteDialog } from '../components/CreateNoteDialog'
 
 function dueBadgeColor(count: number): string {
   if (count === 0) return 'green.9'
@@ -13,7 +14,7 @@ function dueBadgeColor(count: number): string {
   return 'red.9'
 }
 
-function DashboardContent() {
+function DashboardContent(props: { onNewNote: () => void }) {
   const [stats, { refetch }] = createResource(() => api.stats.overview({}))
   const navigate = useNavigate()
 
@@ -71,6 +72,8 @@ function DashboardContent() {
                 <div class={css({ display: 'flex', gap: '3', flexWrap: 'wrap' })}>
                   <Button variant="outline" onClick={() => navigate('/lemmas')}>Browse lemmas</Button>
                   <Button variant="outline" onClick={() => navigate('/lists')}>View lists</Button>
+                  <Button variant="outline" onClick={() => navigate('/notes')}>Notes</Button>
+                  <Button variant="solid" onClick={props.onNewNote}>New basic note</Button>
                   <Button variant="solid" onClick={() => navigate('/import')}>Import text</Button>
                   <Button variant="solid" onClick={() => navigate('/quiz')}>Start quiz</Button>
                 </div>
@@ -84,10 +87,18 @@ function DashboardContent() {
 }
 
 export default function Home() {
+  const [showCreate, setShowCreate] = createSignal(false)
+  const navigate = useNavigate()
+
   return (
     <div class={css({ py: '4' })}>
       <h1 class={css({ fontSize: '2xl', fontWeight: 'bold', mb: '6', color: 'fg.default' })}>Dashboard</h1>
-      <DashboardContent />
+      <DashboardContent onNewNote={() => setShowCreate(true)} />
+      <CreateNoteDialog
+        open={showCreate()}
+        onClose={() => setShowCreate(false)}
+        onCreated={(id) => { setShowCreate(false); navigate(`/notes/${id}`) }}
+      />
     </div>
   )
 }

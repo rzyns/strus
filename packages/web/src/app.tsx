@@ -8,6 +8,8 @@ const ListsIndex = lazy(() => import('./routes/lists/index'))
 const ListDetail = lazy(() => import('./routes/lists/[id]'))
 const LemmasIndex = lazy(() => import('./routes/lemmas/index'))
 const LemmaDetail = lazy(() => import('./routes/lemmas/[id]'))
+const NotesIndex = lazy(() => import('./routes/notes/index'))
+const NoteDetail = lazy(() => import('./routes/notes/[id]'))
 const Import = lazy(() => import('./routes/import'))
 const Quiz = lazy(() => import('./routes/quiz/index'))
 const NotFound = lazy(() => import('./routes/not-found'))
@@ -31,6 +33,8 @@ export function App() {
       <Route path="/lists/:id" component={ListDetail} />
       <Route path="/lemmas" component={LemmasIndex} />
       <Route path="/lemmas/:id" component={LemmaDetail} />
+      <Route path="/notes" component={NotesIndex} />
+      <Route path="/notes/:id" component={NoteDetail} />
       <Route path="/import" component={Import} />
       <Route path="/quiz" component={Quiz} />
       <Route path="*" component={NotFound} />
