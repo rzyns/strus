@@ -54,6 +54,19 @@ async function apiDelete<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`PATCH ${path} failed (${res.status}): ${text}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 // ---------------------------------------------------------------------------
 // Readline helper for interactive quiz
 // ---------------------------------------------------------------------------
@@ -225,6 +238,98 @@ lemmaCmd
   .action(async (id: string) => {
     await apiDelete<{ success: true }>(`/api/lemmas/${encodeURIComponent(id)}`);
     console.log(`Deleted lemma ${id}`);
+  });
+
+// ---------------------------------------------------------------------------
+// strus card
+// ---------------------------------------------------------------------------
+
+const cardCmd = program.command("card").description("Basic card (flashcard) commands");
+
+cardCmd
+  .command("add <front> <back>")
+  .description("Create a basic note with a front/back card")
+  .option("-l, --list <listId>", "Add to this list")
+  .action(async (front: string, back: string, opts: { list?: string }) => {
+    const result = await apiPost<{ id: string; kind: string; front: string | null; back: string | null }>(
+      "/api/notes",
+      { front, back, listId: opts.list },
+    );
+    console.log(
+      `Created basic card (note id: ${result.id})` +
+      (opts.list ? ` in list ${opts.list}` : ""),
+    );
+  });
+
+cardCmd
+  .command("ls")
+  .description("List basic notes")
+  .action(async () => {
+    const items = await apiGet<Array<{
+      id: string; kind: string; front: string | null; back: string | null;
+    }>>("/api/notes?kind=basic");
+    if (items.length === 0) {
+      console.log("No basic cards yet. Create one with: strus card add <front> <back>");
+      return;
+    }
+    for (const n of items) {
+      const frontPreview = (n.front ?? "").substring(0, 30);
+      const backPreview = (n.back ?? "").substring(0, 30);
+      console.log(`${n.id}  ${frontPreview}  →  ${backPreview}`);
+    }
+  });
+
+cardCmd
+  .command("get <id>")
+  .description("Get a note with its cards")
+  .action(async (id: string) => {
+    const n = await apiGet<{
+      id: string; kind: string; front: string | null; back: string | null;
+      createdAt: string; updatedAt: string;
+      cards: Array<{ id: string; kind: string; state: number; due: string }>;
+    }>(`/api/notes/${encodeURIComponent(id)}`);
+    console.log(`id        : ${n.id}`);
+    console.log(`kind      : ${n.kind}`);
+    console.log(`front     : ${n.front ?? "(none)"}`);
+    console.log(`back      : ${n.back ?? "(none)"}`);
+    console.log(`createdAt : ${n.createdAt}`);
+    console.log(`updatedAt : ${n.updatedAt}`);
+    if (n.cards.length > 0) {
+      console.log(`cards     :`);
+      for (const c of n.cards) {
+        console.log(`  ${c.id}  ${c.kind}  state=${c.state}  due=${c.due}`);
+      }
+    }
+  });
+
+cardCmd
+  .command("delete <id>")
+  .description("Delete a note and its cards")
+  .action(async (id: string) => {
+    await apiDelete<{ success: true }>(`/api/notes/${encodeURIComponent(id)}`);
+    console.log(`Deleted note ${id}`);
+  });
+
+cardCmd
+  .command("edit <id>")
+  .description("Update front/back of a basic note")
+  .option("-f, --front <text>", "New front text")
+  .option("-b, --back <text>", "New back text")
+  .action(async (id: string, opts: { front?: string; back?: string }) => {
+    if (!opts.front && !opts.back) {
+      console.log("Nothing to update. Use --front and/or --back.");
+      return;
+    }
+    const body: Record<string, string> = { id };
+    if (opts.front) body.front = opts.front;
+    if (opts.back) body.back = opts.back;
+    const result = await apiPatch<{ id: string; front: string | null; back: string | null }>(
+      `/api/notes/${encodeURIComponent(id)}`,
+      body,
+    );
+    console.log(`Updated note ${result.id}`);
+    console.log(`  front: ${result.front ?? "(none)"}`);
+    console.log(`  back:  ${result.back ?? "(none)"}`);
   });
 
 // ---------------------------------------------------------------------------

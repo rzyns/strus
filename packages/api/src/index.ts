@@ -54,6 +54,12 @@ const spec = await generator.generate(router, {
         "The FSRS algorithm schedules the next review based on the rating.",
     },
     {
+      name: "Notes",
+      description:
+        "Note management. Notes wrap cards — morph notes back morphological drills, " +
+        "basic notes are custom front/back flashcards.",
+    },
+    {
       name: "Stats",
       description: "Aggregate usage statistics for dashboard display.",
     },

@@ -83,6 +83,42 @@ converter. **Do not** use `@orpc/zod/zod4`.
 
 ## Zod Schemas
 
+## API Endpoints
+
+### Lists (`/lists`)
+- `GET /lists` — list all vocabulary lists
+- `POST /lists` — create a vocabulary list
+- `GET /lists/{id}` — get a vocabulary list
+- `DELETE /lists/{id}` — delete a vocabulary list
+- `POST /lists/{listId}/lemmas` — add a lemma to a list
+
+### Notes (`/notes`)
+- `POST /notes` — create a basic note (and its basic_forward card)
+- `GET /notes` — list notes (optionally filter by kind and/or listId)
+- `GET /notes/{id}` — get a note with its cards
+- `DELETE /notes/{id}` — delete a note (cascades to cards)
+- `PATCH /notes/{id}` — update front/back of a basic note
+
+### Lemmas (`/lemmas`)
+- `GET /lemmas` — list lemmas
+- `POST /lemmas` — create a lemma (auto-generates morph forms if source=morfeusz)
+- `GET /lemmas/{id}` — get a lemma
+- `DELETE /lemmas/{id}` — delete a lemma (cascades)
+- `GET /lemmas/{id}/forms` — get morphological forms
+
+### Session (`/session`)
+- `GET /session/due` — get cards due for review (supports morph + basic cards)
+- `POST /session/review` — record a review rating
+
+### Stats (`/stats`)
+- `GET /stats` — overview statistics
+
+### Import (`/import`)
+- `POST /import/text/preview` — preview text import candidates
+- `POST /import/text` — import lemmas from text
+
+## Zod Schemas
+
 Common building blocks defined at the top of `router.ts`:
 
 ```ts

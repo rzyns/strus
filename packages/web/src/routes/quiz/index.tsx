@@ -15,10 +15,13 @@ import { formatTag } from '../../utils/tag-label'
 
 interface DueCard {
   id: string
+  kind: string
   lemmaId: string
   tag: string
   state: number
   lemmaText: string
+  front: string | null
+  back: string | null
   forms: string[]
 }
 
@@ -206,7 +209,7 @@ export default function Quiz() {
     const card = currentCard()
     if (!card) return
 
-    if (card.forms.length === 0) {
+    if (card.kind === 'basic_forward' || card.forms.length === 0) {
       setPhase('revealed-manual')
       return
     }
@@ -331,48 +334,65 @@ export default function Quiz() {
 
                   {/* Prompt */}
                   <div class={css({ mb: '6' })}>
-                    <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
-                      {formatTag(card().tag)}
-                    </p>
-                    <p class={css({ fontSize: '2xl', fontWeight: 'bold', color: 'fg.default' })}>
-                      {card().lemmaText}
-                    </p>
-                    <Show when={card().forms.length === 0}>
-                      <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1', fontStyle: 'italic' })}>
-                        (manual entry — self-assess)
+                    <Show when={card().kind !== 'basic_forward'} fallback={
+                      <>
+                        <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
+                          Basic card
+                        </p>
+                        <p class={css({ fontSize: '2xl', fontWeight: 'bold', color: 'fg.default' })}>
+                          {card().front}
+                        </p>
+                      </>
+                    }>
+                      <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
+                        {formatTag(card().tag)}
                       </p>
+                      <p class={css({ fontSize: '2xl', fontWeight: 'bold', color: 'fg.default' })}>
+                        {card().lemmaText}
+                      </p>
+                      <Show when={card().forms.length === 0}>
+                        <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1', fontStyle: 'italic' })}>
+                          (manual entry — self-assess)
+                        </p>
+                      </Show>
                     </Show>
                   </div>
 
                   {/* ── Asking ── */}
                   <Show when={phase() === 'asking'}>
-                    <div class={css({ display: 'flex', gap: '3', alignItems: 'stretch' })}>
-                      <input
-                        ref={(el) => { inputRef = el }}
-                        type="text"
-                        placeholder="Type the correct form…"
-                        value={answer()}
-                        onInput={(e) => setAnswer(e.currentTarget.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') checkAnswer() }}
-                        class={css({
-                          flex: '1',
-                          px: '3',
-                          py: '2',
-                          borderRadius: 'l2',
-                          border: '1px solid',
-                          borderColor: 'border',
-                          bg: 'bg',
-                          color: 'fg.default',
-                          fontSize: 'md',
-                          outline: 'none',
-                          _focus: { borderColor: 'accent.9', ring: '2px', ringColor: 'accent.a4' },
-                          _placeholder: { color: 'fg.subtle' },
-                        })}
-                      />
-                      <Button variant="solid" onClick={checkAnswer} disabled={answer().trim() === ''}>
-                        Submit
+                    <Show when={card().kind !== 'basic_forward'} fallback={
+                      <Button variant="solid" onClick={checkAnswer}>
+                        Reveal
                       </Button>
-                    </div>
+                    }>
+                      <div class={css({ display: 'flex', gap: '3', alignItems: 'stretch' })}>
+                        <input
+                          ref={(el) => { inputRef = el }}
+                          type="text"
+                          placeholder="Type the correct form…"
+                          value={answer()}
+                          onInput={(e) => setAnswer(e.currentTarget.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') checkAnswer() }}
+                          class={css({
+                            flex: '1',
+                            px: '3',
+                            py: '2',
+                            borderRadius: 'l2',
+                            border: '1px solid',
+                            borderColor: 'border',
+                            bg: 'bg',
+                            color: 'fg.default',
+                            fontSize: 'md',
+                            outline: 'none',
+                            _focus: { borderColor: 'accent.9', ring: '2px', ringColor: 'accent.a4' },
+                            _placeholder: { color: 'fg.subtle' },
+                          })}
+                        />
+                        <Button variant="solid" onClick={checkAnswer} disabled={answer().trim() === ''}>
+                          Submit
+                        </Button>
+                      </div>
+                    </Show>
                   </Show>
 
                   {/* ── Correct reveal ── */}
@@ -442,9 +462,15 @@ export default function Quiz() {
                       p: '4', borderRadius: 'l2', bg: 'bg.subtle',
                       border: '1px solid', borderColor: 'border', mb: '2',
                     })}>
-                      <p class={css({ color: 'fg.muted', fontSize: 'sm' })}>
-                        No forms on record — rate your recall honestly.
-                      </p>
+                      <Show when={card().kind === 'basic_forward'} fallback={
+                        <p class={css({ color: 'fg.muted', fontSize: 'sm' })}>
+                          No forms on record — rate your recall honestly.
+                        </p>
+                      }>
+                        <p class={css({ fontSize: 'lg', fontWeight: 'semibold', color: 'fg.default' })}>
+                          {card().back}
+                        </p>
+                      </Show>
                     </div>
                     <RatingButtons
                       options={[

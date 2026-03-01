@@ -110,6 +110,16 @@ const StatsOutput = z.object({
   dueCount: z.number().int().describe("Number of cards currently due for review"),
 });
 
+const NoteOutput = z.object({
+  id: zId,
+  kind: z.enum(["morph", "gloss", "basic"]).describe("Note kind: morph for morphological drill, gloss for translation, basic for custom flashcards"),
+  lemmaId: zId.nullable().describe("ID of the associated lemma; null for basic notes"),
+  front: z.string().nullable().describe("Prompt text for gloss/basic notes; null for morph notes"),
+  back: z.string().nullable().describe("Answer text for gloss/basic notes; null for morph notes"),
+  createdAt: zIso.describe("When this note was created"),
+  updatedAt: zIso.describe("When this note was last modified"),
+});
+
 // ---------------------------------------------------------------------------
 // Import schemas
 // ---------------------------------------------------------------------------
@@ -190,6 +200,18 @@ function mapCardDomain(card: Card) {
     reps: card.reps,
     lapses: card.lapses,
     lastReview: card.lastReview?.toISOString() ?? null,
+  };
+}
+
+function mapNote(row: typeof notes.$inferSelect) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    lemmaId: row.lemmaId,
+    front: row.front,
+    back: row.back,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -655,6 +677,8 @@ const DueCardOutput = CardOutput.extend({
     .string()
     .nullable()
     .describe("Citation/dictionary form of the lemma, e.g. 'dom', 'iść'. Null for non-morph cards."),
+  front: z.string().nullable().describe("Prompt text for basic/gloss cards; null for morph cards"),
+  back: z.string().nullable().describe("Answer text for basic/gloss cards; null for morph cards"),
   forms: z
     .array(z.string())
     .describe(
@@ -772,10 +796,12 @@ const sessionDue = os
             card: cards,
             lemmaId: notes.lemmaId,
             lemmaText: lemmas.lemma,
+            front: notes.front,
+            back: notes.back,
           })
           .from(cards)
           .innerJoin(notes, eq(notes.id, cards.noteId))
-          .innerJoin(lemmas, eq(lemmas.id, notes.lemmaId))
+          .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
           .innerJoin(
             vocabListNotes,
             and(
@@ -791,6 +817,8 @@ const sessionDue = os
             card: cards,
             lemmaId: notes.lemmaId,
             lemmaText: lemmas.lemma,
+            front: notes.front,
+            back: notes.back,
           })
           .from(cards)
           .innerJoin(notes, eq(notes.id, cards.noteId))
@@ -849,6 +877,8 @@ const sessionDue = os
     return session.map((r) => ({
       ...mapCardRow(r.card),
       lemmaText: r.lemmaText,
+      front: r.front,
+      back: r.back,
       forms: r.lemmaId && r.card.tag
         ? formsByKey.get(`${r.lemmaId}::${r.card.tag}`) ?? []
         : [],
@@ -1119,6 +1149,185 @@ const importCommit = os
   });
 
 // ---------------------------------------------------------------------------
+// Notes procedures
+// ---------------------------------------------------------------------------
+
+const notesCreate = os
+  .route({
+    method: "POST",
+    path: "/notes",
+    tags: ["Notes"],
+    summary: "Create a basic note",
+    description:
+      "Creates a basic note with front/back text and one basic_forward card for SRS scheduling.",
+  })
+  .input(z.object({
+    front: z.string().min(1).describe("Prompt text shown to the user"),
+    back: z.string().min(1).describe("Answer text revealed to the user"),
+    listId: z.string().uuid().optional().describe("Vocabulary list to add this note to"),
+  }))
+  .output(NoteOutput)
+  .handler(async ({ input }) => {
+    const id = crypto.randomUUID();
+    const now = new Date();
+
+    await db.insert(notes).values({
+      id,
+      kind: "basic",
+      lemmaId: null,
+      front: input.front,
+      back: input.back,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const cardData = createCard(id, "basic_forward");
+    await db.insert(cards).values({
+      id: crypto.randomUUID(),
+      noteId: cardData.noteId,
+      kind: cardData.kind,
+      tag: cardData.tag ?? null,
+      state: cardData.state,
+      due: Math.floor(cardData.due.getTime() / 1000),
+      stability: cardData.stability,
+      difficulty: cardData.difficulty,
+      elapsedDays: cardData.elapsedDays,
+      scheduledDays: cardData.scheduledDays,
+      reps: cardData.reps,
+      lapses: cardData.lapses,
+      lastReview: cardData.lastReview
+        ? Math.floor(cardData.lastReview.getTime() / 1000)
+        : null,
+    });
+
+    if (input.listId) {
+      await db.insert(vocabListNotes).values({ listId: input.listId, noteId: id });
+    }
+
+    return mapNote({
+      id,
+      kind: "basic",
+      lemmaId: null,
+      front: input.front,
+      back: input.back,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+const notesList = os
+  .route({
+    method: "GET",
+    path: "/notes",
+    tags: ["Notes"],
+    summary: "List notes",
+    description: "Returns all notes, optionally filtered by kind and/or vocabulary list.",
+  })
+  .input(z.object({
+    kind: z.enum(["morph", "gloss", "basic"]).optional().describe("Filter by note kind"),
+    listId: z.string().uuid().optional().describe("Filter to notes in this vocabulary list"),
+  }))
+  .output(z.array(NoteOutput))
+  .handler(async ({ input }) => {
+    if (input.listId) {
+      const q = db
+        .select({ note: notes })
+        .from(notes)
+        .innerJoin(
+          vocabListNotes,
+          and(
+            eq(vocabListNotes.noteId, notes.id),
+            eq(vocabListNotes.listId, input.listId),
+          ),
+        );
+      const rows = input.kind
+        ? q.where(eq(notes.kind, input.kind)).all()
+        : q.all();
+      return rows.map((r) => mapNote(r.note));
+    }
+
+    const rows = input.kind
+      ? db.select().from(notes).where(eq(notes.kind, input.kind)).all()
+      : db.select().from(notes).all();
+    return rows.map(mapNote);
+  });
+
+const notesGet = os
+  .route({
+    method: "GET",
+    path: "/notes/{id}",
+    tags: ["Notes"],
+    summary: "Get a note with its cards",
+  })
+  .input(z.object({ id: zId }))
+  .output(NoteOutput.extend({ cards: z.array(CardOutput) }))
+  .handler(async ({ input }) => {
+    const [row] = await db.select().from(notes).where(eq(notes.id, input.id)).limit(1);
+    if (!row) throw new ORPCError("NOT_FOUND", { message: `Note not found: ${input.id}` });
+
+    const noteCards = db.select().from(cards).where(eq(cards.noteId, input.id)).all();
+
+    return {
+      ...mapNote(row),
+      cards: noteCards.map(mapCardRow),
+    };
+  });
+
+const notesDelete = os
+  .route({
+    method: "DELETE",
+    path: "/notes/{id}",
+    tags: ["Notes"],
+    summary: "Delete a note",
+    description: "Deletes a note and all its cards (cascade). Review history for those cards is also removed.",
+  })
+  .input(z.object({ id: zId }))
+  .output(SuccessOutput)
+  .handler(async ({ input }) => {
+    await db.delete(notes).where(eq(notes.id, input.id));
+    return { success: true as const };
+  });
+
+const notesUpdate = os
+  .route({
+    method: "PATCH",
+    path: "/notes/{id}",
+    tags: ["Notes"],
+    summary: "Update a basic note",
+    description:
+      "Updates the front and/or back text of a basic note. Returns 400 if the note is not kind='basic'.",
+  })
+  .input(z.object({
+    id: zId,
+    front: z.string().min(1).optional().describe("New prompt text"),
+    back: z.string().min(1).optional().describe("New answer text"),
+  }))
+  .output(NoteOutput)
+  .handler(async ({ input }) => {
+    const [row] = await db.select().from(notes).where(eq(notes.id, input.id)).limit(1);
+    if (!row) throw new ORPCError("NOT_FOUND", { message: `Note not found: ${input.id}` });
+    if (row.kind !== "basic") {
+      throw new ORPCError("BAD_REQUEST", { message: "Only basic notes can be edited" });
+    }
+
+    const now = new Date();
+    const updates = {
+      updatedAt: now,
+      ...(input.front !== undefined ? { front: input.front } : {}),
+      ...(input.back !== undefined ? { back: input.back } : {}),
+    };
+
+    await db.update(notes).set(updates).where(eq(notes.id, input.id));
+
+    return mapNote({
+      ...row,
+      ...(input.front !== undefined ? { front: input.front } : {}),
+      ...(input.back !== undefined ? { back: input.back } : {}),
+      updatedAt: now,
+    });
+  });
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -1129,6 +1338,13 @@ export const router = {
     get: listsGet,
     delete: listsDelete,
     addLemma: listsAddLemma,
+  },
+  notes: {
+    list: notesList,
+    create: notesCreate,
+    get: notesGet,
+    delete: notesDelete,
+    update: notesUpdate,
   },
   lemmas: {
     list: lemmasList,
