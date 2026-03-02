@@ -334,6 +334,88 @@ cardCmd
   });
 
 // ---------------------------------------------------------------------------
+// strus gloss
+// ---------------------------------------------------------------------------
+
+const glossCmd = program.command("gloss").description("Gloss note (translation) commands");
+
+glossCmd
+  .command("add <lemmaId> <translation>")
+  .description("Create a gloss note (lemma + translation → two cards)")
+  .option("-l, --list <listId>", "Add to this list")
+  .action(async (lemmaId: string, translation: string, opts: { list?: string }) => {
+    const result = await apiPost<{ id: string; kind: string; back: string | null }>(
+      "/api/notes",
+      { kind: "gloss", lemmaId, back: translation, listId: opts.list },
+    );
+    console.log(
+      `Created gloss note (id: ${result.id}, translation: "${result.back}")` +
+      (opts.list ? ` in list ${opts.list}` : ""),
+    );
+  });
+
+glossCmd
+  .command("ls")
+  .description("List gloss notes")
+  .action(async () => {
+    const items = await apiGet<Array<{
+      id: string; kind: string; lemmaId: string | null; back: string | null;
+    }>>("/api/notes?kind=gloss");
+    if (items.length === 0) {
+      console.log("No gloss notes yet. Create one with: strus gloss add <lemmaId> <translation>");
+      return;
+    }
+    for (const n of items) {
+      const backPreview = (n.back ?? "").substring(0, 40);
+      console.log(`${n.id}  lemma:${n.lemmaId ?? "?"}  →  ${backPreview}`);
+    }
+  });
+
+glossCmd
+  .command("get <id>")
+  .description("Get a gloss note with its cards")
+  .action(async (id: string) => {
+    const n = await apiGet<{
+      id: string; kind: string; lemmaId: string | null; front: string | null; back: string | null;
+      lemma: string | null;
+      createdAt: string; updatedAt: string;
+      cards: Array<{ id: string; kind: string; state: number; due: string }>;
+    }>(`/api/notes/${encodeURIComponent(id)}`);
+    console.log(`id        : ${n.id}`);
+    console.log(`kind      : ${n.kind}`);
+    console.log(`lemma     : ${n.lemma ?? "(none)"}`);
+    console.log(`back      : ${n.back ?? "(none)"}`);
+    console.log(`createdAt : ${n.createdAt}`);
+    console.log(`updatedAt : ${n.updatedAt}`);
+    if (n.cards.length > 0) {
+      console.log(`cards     :`);
+      for (const c of n.cards) {
+        console.log(`  ${c.id}  ${c.kind}  state=${c.state}  due=${c.due}`);
+      }
+    }
+  });
+
+glossCmd
+  .command("delete <id>")
+  .description("Delete a gloss note and its cards")
+  .action(async (id: string) => {
+    await apiDelete<{ success: true }>(`/api/notes/${encodeURIComponent(id)}`);
+    console.log(`Deleted gloss note ${id}`);
+  });
+
+glossCmd
+  .command("edit <id> <newTranslation>")
+  .description("Update the translation of a gloss note")
+  .action(async (id: string, newTranslation: string) => {
+    const result = await apiPatch<{ id: string; back: string | null }>(
+      `/api/notes/${encodeURIComponent(id)}`,
+      { id, back: newTranslation },
+    );
+    console.log(`Updated gloss note ${result.id}`);
+    console.log(`  translation: ${result.back ?? "(none)"}`);
+  });
+
+// ---------------------------------------------------------------------------
 // strus quiz
 // ---------------------------------------------------------------------------
 
@@ -355,10 +437,13 @@ program
 
     interface DueCard {
       id: string;
+      kind: string;
       lemmaId: string;
       tag: string;
       state: number;
       lemmaText: string;
+      front: string | null;
+      back: string | null;
       forms: string[];
     }
 
@@ -380,17 +465,28 @@ program
     let correct = 0;
 
     for (const card of due) {
+      const isReveal = card.kind === "basic_forward" || card.kind === "gloss_forward" || card.kind === "gloss_reverse" || card.forms.length === 0;
+
       console.log(`\n[${reviewed + 1}/${due.length}]`);
-      console.log(`Lemma     : ${card.lemmaText}`);
-      console.log(`Tag       : ${card.tag}`);
+      if (isReveal && card.front) {
+        const label = card.kind === "basic_forward" ? "Basic" : card.kind === "gloss_forward" ? "Gloss (→ meaning)" : card.kind === "gloss_reverse" ? "Gloss (→ word)" : "Card";
+        console.log(`${label}    : ${card.front}`);
+      } else {
+        console.log(`Lemma     : ${card.lemmaText}`);
+        console.log(`Tag       : ${card.tag}`);
+      }
       console.log("─".repeat(40));
 
       let rating: Rating;
 
-      if (card.forms.length === 0) {
-        // No forms on record (manual lemma or form generation was skipped).
-        // Fall back to self-assessment: reveal and ask.
-        await prompt(rl, "No forms on record — press Enter to continue...");
+      if (isReveal) {
+        // Reveal flow: basic cards, gloss cards, or morph with no forms
+        await prompt(rl, "Press Enter to reveal...");
+        if (card.back) {
+          console.log(`\nAnswer: ${card.back}`);
+        } else {
+          console.log("\nNo answer on record.");
+        }
         console.log("\nRate your recall:");
         console.log("  1 = Again  (forgot)");
         console.log("  2 = Hard   (recalled with difficulty)");

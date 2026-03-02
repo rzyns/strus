@@ -208,7 +208,7 @@ export default function Quiz() {
     const card = currentCard()
     if (!card) return
 
-    if (card.kind === 'basic_forward' || card.forms.length === 0) {
+    if (card.kind === 'basic_forward' || card.kind === 'gloss_forward' || card.kind === 'gloss_reverse' || card.forms.length === 0) {
       setPhase('revealed-manual')
       return
     }
@@ -333,10 +333,10 @@ export default function Quiz() {
 
                   {/* Prompt */}
                   <div class={css({ mb: '6' })}>
-                    <Show when={card().kind !== 'basic_forward'} fallback={
+                    <Show when={card().kind !== 'basic_forward' && card().kind !== 'gloss_forward' && card().kind !== 'gloss_reverse'} fallback={
                       <>
                         <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
-                          Basic card
+                          {card().kind === 'basic_forward' ? 'Basic card' : card().kind === 'gloss_forward' ? 'Gloss — what does it mean?' : 'Gloss — what is the Polish word?'}
                         </p>
                         <p class={css({ fontSize: '2xl', fontWeight: 'bold', color: 'fg.default' })}>
                           {card().front}
@@ -359,7 +359,7 @@ export default function Quiz() {
 
                   {/* ── Asking ── */}
                   <Show when={phase() === 'asking'}>
-                    <Show when={card().kind !== 'basic_forward'} fallback={
+                    <Show when={card().kind !== 'basic_forward' && card().kind !== 'gloss_forward' && card().kind !== 'gloss_reverse'} fallback={
                       <Button variant="solid" onClick={checkAnswer}>
                         Reveal
                       </Button>
@@ -461,7 +461,7 @@ export default function Quiz() {
                       p: '4', borderRadius: 'l2', bg: 'bg.subtle',
                       border: '1px solid', borderColor: 'border', mb: '2',
                     })}>
-                      <Show when={card().kind === 'basic_forward'} fallback={
+                      <Show when={card().kind === 'basic_forward' || card().kind === 'gloss_forward' || card().kind === 'gloss_reverse'} fallback={
                         <p class={css({ color: 'fg.muted', fontSize: 'sm' })}>
                           No forms on record — rate your recall honestly.
                         </p>

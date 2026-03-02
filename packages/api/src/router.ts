@@ -874,15 +874,29 @@ const sessionDue = os
       else formsByKey.set(key, [f.orth]);
     }
 
-    return session.map((r) => ({
-      ...mapCardRow(r.card),
-      lemmaText: r.lemmaText,
-      front: r.front,
-      back: r.back,
-      forms: r.lemmaId && r.card.tag
-        ? formsByKey.get(`${r.lemmaId}::${r.card.tag}`) ?? []
-        : [],
-    }));
+    return session.map((r) => {
+      let front = r.front;
+      let back = r.back;
+
+      // For gloss cards, populate front/back from lemma text + translation
+      if (r.card.kind === "gloss_forward") {
+        front = r.lemmaText;   // Polish word
+        back = r.back;         // translation
+      } else if (r.card.kind === "gloss_reverse") {
+        front = r.back;        // translation
+        back = r.lemmaText;    // Polish word
+      }
+
+      return {
+        ...mapCardRow(r.card),
+        lemmaText: r.lemmaText,
+        front,
+        back,
+        forms: r.lemmaId && r.card.tag
+          ? formsByKey.get(`${r.lemmaId}::${r.card.tag}`) ?? []
+          : [],
+      };
+    });
   });
 
 const sessionReview = os
@@ -1152,24 +1166,99 @@ const importCommit = os
 // Notes procedures
 // ---------------------------------------------------------------------------
 
+/** Helper to insert a card row from a createCard() result. */
+function insertCardValues(cardData: Omit<import("@strus/core").Card, "id">) {
+  return {
+    id: crypto.randomUUID(),
+    noteId: cardData.noteId,
+    kind: cardData.kind,
+    tag: cardData.tag ?? null,
+    state: cardData.state,
+    due: Math.floor(cardData.due.getTime() / 1000),
+    stability: cardData.stability,
+    difficulty: cardData.difficulty,
+    elapsedDays: cardData.elapsedDays,
+    scheduledDays: cardData.scheduledDays,
+    reps: cardData.reps,
+    lapses: cardData.lapses,
+    lastReview: cardData.lastReview
+      ? Math.floor(cardData.lastReview.getTime() / 1000)
+      : null,
+  };
+}
+
 const notesCreate = os
   .route({
     method: "POST",
     path: "/notes",
     tags: ["Notes"],
-    summary: "Create a basic note",
+    summary: "Create a note",
     description:
-      "Creates a basic note with front/back text and one basic_forward card for SRS scheduling.",
+      "Creates a note. kind='basic' (default) creates a basic_forward card. " +
+      "kind='gloss' requires lemmaId + back (translation) and creates gloss_forward + gloss_reverse cards.",
   })
   .input(z.object({
-    front: z.string().min(1).describe("Prompt text shown to the user"),
-    back: z.string().min(1).describe("Answer text revealed to the user"),
+    kind: z.enum(["basic", "gloss"]).default("basic").describe("Note kind: basic (default) or gloss"),
+    front: z.string().min(1).optional().describe("Prompt text — required for basic, ignored for gloss"),
+    back: z.string().min(1).optional().describe("Answer/translation text — required for both basic and gloss"),
+    lemmaId: z.string().uuid().optional().describe("Lemma ID — required for gloss notes"),
     listId: z.string().uuid().optional().describe("Vocabulary list to add this note to"),
   }))
   .output(NoteOutput)
   .handler(async ({ input }) => {
     const id = crypto.randomUUID();
     const now = new Date();
+
+    if (input.kind === "gloss") {
+      if (!input.lemmaId) {
+        throw new ORPCError("BAD_REQUEST", { message: "lemmaId is required for gloss notes" });
+      }
+      if (!input.back) {
+        throw new ORPCError("BAD_REQUEST", { message: "back (translation) is required for gloss notes" });
+      }
+
+      // Verify lemma exists
+      const [lemmaRow] = db.select().from(lemmas).where(eq(lemmas.id, input.lemmaId)).limit(1).all();
+      if (!lemmaRow) {
+        throw new ORPCError("NOT_FOUND", { message: `Lemma not found: ${input.lemmaId}` });
+      }
+
+      await db.insert(notes).values({
+        id,
+        kind: "gloss",
+        lemmaId: input.lemmaId,
+        front: null,
+        back: input.back,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Create both gloss_forward and gloss_reverse cards
+      await db.insert(cards).values(insertCardValues(createCard(id, "gloss_forward")));
+      await db.insert(cards).values(insertCardValues(createCard(id, "gloss_reverse")));
+
+      if (input.listId) {
+        await db.insert(vocabListNotes).values({ listId: input.listId, noteId: id });
+      }
+
+      return mapNote({
+        id,
+        kind: "gloss",
+        lemmaId: input.lemmaId,
+        front: null,
+        back: input.back,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // Default: basic note
+    if (!input.front) {
+      throw new ORPCError("BAD_REQUEST", { message: "front is required for basic notes" });
+    }
+    if (!input.back) {
+      throw new ORPCError("BAD_REQUEST", { message: "back is required for basic notes" });
+    }
 
     await db.insert(notes).values({
       id,
@@ -1181,24 +1270,7 @@ const notesCreate = os
       updatedAt: now,
     });
 
-    const cardData = createCard(id, "basic_forward");
-    await db.insert(cards).values({
-      id: crypto.randomUUID(),
-      noteId: cardData.noteId,
-      kind: cardData.kind,
-      tag: cardData.tag ?? null,
-      state: cardData.state,
-      due: Math.floor(cardData.due.getTime() / 1000),
-      stability: cardData.stability,
-      difficulty: cardData.difficulty,
-      elapsedDays: cardData.elapsedDays,
-      scheduledDays: cardData.scheduledDays,
-      reps: cardData.reps,
-      lapses: cardData.lapses,
-      lastReview: cardData.lastReview
-        ? Math.floor(cardData.lastReview.getTime() / 1000)
-        : null,
-    });
+    await db.insert(cards).values(insertCardValues(createCard(id, "basic_forward")));
 
     if (input.listId) {
       await db.insert(vocabListNotes).values({ listId: input.listId, noteId: id });
@@ -1260,16 +1332,26 @@ const notesGet = os
     summary: "Get a note with its cards",
   })
   .input(z.object({ id: zId }))
-  .output(NoteOutput.extend({ cards: z.array(CardOutput) }))
+  .output(NoteOutput.extend({
+    cards: z.array(CardOutput),
+    lemma: z.string().nullable().describe("Lemma text for morph/gloss notes; null for basic notes"),
+  }))
   .handler(async ({ input }) => {
     const [row] = await db.select().from(notes).where(eq(notes.id, input.id)).limit(1);
     if (!row) throw new ORPCError("NOT_FOUND", { message: `Note not found: ${input.id}` });
 
     const noteCards = db.select().from(cards).where(eq(cards.noteId, input.id)).all();
 
+    let lemmaText: string | null = null;
+    if (row.lemmaId) {
+      const [lemmaRow] = db.select().from(lemmas).where(eq(lemmas.id, row.lemmaId)).limit(1).all();
+      if (lemmaRow) lemmaText = lemmaRow.lemma;
+    }
+
     return {
       ...mapNote(row),
       cards: noteCards.map(mapCardRow),
+      lemma: lemmaText,
     };
   });
 
@@ -1293,21 +1375,32 @@ const notesUpdate = os
     method: "PATCH",
     path: "/notes/{id}",
     tags: ["Notes"],
-    summary: "Update a basic note",
+    summary: "Update a note",
     description:
-      "Updates the front and/or back text of a basic note. Returns 400 if the note is not kind='basic'.",
+      "Updates a basic note (front and/or back) or a gloss note (back/translation only). " +
+      "Returns 400 for morph notes.",
   })
   .input(z.object({
     id: zId,
-    front: z.string().min(1).optional().describe("New prompt text"),
-    back: z.string().min(1).optional().describe("New answer text"),
+    front: z.string().min(1).optional().describe("New prompt text (basic notes only)"),
+    back: z.string().min(1).optional().describe("New answer/translation text"),
   }))
   .output(NoteOutput)
   .handler(async ({ input }) => {
     const [row] = await db.select().from(notes).where(eq(notes.id, input.id)).limit(1);
     if (!row) throw new ORPCError("NOT_FOUND", { message: `Note not found: ${input.id}` });
-    if (row.kind !== "basic") {
-      throw new ORPCError("BAD_REQUEST", { message: "Only basic notes can be edited" });
+
+    if (row.kind === "morph") {
+      throw new ORPCError("BAD_REQUEST", { message: "Morph notes cannot be edited" });
+    }
+
+    if (row.kind === "gloss") {
+      if (input.front !== undefined) {
+        throw new ORPCError("BAD_REQUEST", { message: "Cannot edit front of a gloss note — front is derived from the lemma" });
+      }
+      if (input.back === undefined) {
+        throw new ORPCError("BAD_REQUEST", { message: "Nothing to update — provide back (translation)" });
+      }
     }
 
     const now = new Date();
