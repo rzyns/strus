@@ -7,5 +7,10 @@
         { "path": "./packages/db" },
         { "path": "./packages/morph" },
         { "path": "./packages/web" },
-    ]
+    ],
+    "settings": {
+        "mise.configureExtensionsAutomatically": true,
+        "mise.updateEnvAutomaticallyIncludePath": true,
+        "mise.updateOpenTerminalsEnvAutomatically": true
+    }
 }

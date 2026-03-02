@@ -18,7 +18,7 @@ COPY packages/morph/package.json   packages/morph/
 COPY packages/web/package.json     packages/web/
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod=false
+	pnpm install --frozen-lockfile --prod=false
 
 # ─── Stage 2: build web frontend ─────────────────────────────────────────────
 FROM deps AS web-build
@@ -26,17 +26,23 @@ FROM deps AS web-build
 COPY packages/web/ packages/web/
 COPY packages/config/ packages/config/
 # Panda CSS needs its codegen output; run prepare first
-RUN pnpm --filter @strus/web run prepare
-RUN pnpm --filter @strus/web run build
+RUN <<-'EOF'
+	pnpm --filter @strus/web run prepare
+	pnpm --filter @strus/web run build
+EOF
 
 # ─── Stage 3: final runtime image (Bun) ──────────────────────────────────────
 FROM oven/bun:1 AS runtime
 
 # Install morfeusz2 (Polish morphological analyser — required by @strus/morph)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      morfeusz2 \
-      morfeusz2-dictionary-polimorf \
-    && rm -rf /var/lib/apt/lists/*
+RUN <<-'EOF'
+	wget -O - http://download.sgjp.pl/apt/sgjp.gpg.key | apt-key add -
+	apt-add-repository http://download.sgjp.pl/apt/ubuntu
+	apt-get update && apt-get install -y --no-install-recommends \
+	    morfeusz2 \
+	    morfeusz2-dictionary-polimorf \
+	&& rm -rf /var/lib/apt/lists/*
+EOF
 
 WORKDIR /app
 
