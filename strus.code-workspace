@@ -1,0 +1,11 @@
+{
+    "folders": [
+        { "path": "." },
+        { "path": "./packages/api" },
+        { "path": "./packages/cli" },
+        { "path": "./packages/core" },
+        { "path": "./packages/db" },
+        { "path": "./packages/morph" },
+        { "path": "./packages/web" },
+    ]
+}
