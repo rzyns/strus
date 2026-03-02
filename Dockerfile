@@ -17,32 +17,29 @@ COPY packages/db/package.json      packages/db/
 COPY packages/morph/package.json   packages/morph/
 COPY packages/web/package.json     packages/web/
 
+# --ignore-scripts prevents Panda CSS `prepare` from running before source is available
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-	pnpm install --frozen-lockfile --prod=false
+    pnpm install --frozen-lockfile --prod=false --ignore-scripts
 
 # ─── Stage 2: build web frontend ─────────────────────────────────────────────
 FROM deps AS web-build
 
-COPY packages/web/ packages/web/
+# Copy source now so Panda CSS codegen can find panda.config.ts etc.
+COPY packages/web/    packages/web/
 COPY packages/config/ packages/config/
-# Panda CSS needs its codegen output; run prepare first
-RUN <<-'EOF'
-	pnpm --filter @strus/web run prepare
-	pnpm --filter @strus/web run build
-EOF
+
+# Run prepare (Panda codegen) then build
+RUN pnpm --filter @strus/web run prepare && \
+    pnpm --filter @strus/web run build
 
 # ─── Stage 3: final runtime image (Bun) ──────────────────────────────────────
 FROM oven/bun:1 AS runtime
 
 # Install morfeusz2 (Polish morphological analyser — required by @strus/morph)
-RUN <<-'EOF'
-	echo 'deb http://download.sgjp.pl/apt/ubuntu ./' > /etc/apt/sources.list.d/sgjp.list
-	wget -O - http://download.sgjp.pl/apt/sgjp.gpg.key | apt-key add -
-	apt-get update && apt-get install -y --no-install-recommends \
-		morfeusz2 \
-		morfeusz2-dictionary-polimorf \
-	&& rm -rf /var/lib/apt/lists/*
-EOF
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      morfeusz2 \
+      morfeusz2-dictionary-polimorf \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -60,16 +57,16 @@ COPY packages/web/package.json     packages/web/
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy source for all packages the API depends on at runtime
-COPY packages/api/     packages/api/
-COPY packages/config/  packages/config/
-COPY packages/core/    packages/core/
-COPY packages/db/      packages/db/
-COPY packages/morph/   packages/morph/
+COPY packages/api/    packages/api/
+COPY packages/config/ packages/config/
+COPY packages/core/   packages/core/
+COPY packages/db/     packages/db/
+COPY packages/morph/  packages/morph/
 
-# Copy compiled web frontend into a location the API will serve statically
+# Copy compiled web frontend; API serves it statically when present
 COPY --from=web-build /app/packages/web/dist ./packages/web/dist
 
-# Data directory (mount a volume here to persist the SQLite DB)
+# Data directory — mount a volume here to persist the SQLite DB
 RUN mkdir -p /data
 ENV STRUS_DB_PATH=/data/strus.db
 
