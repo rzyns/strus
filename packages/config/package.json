@@ -1,6 +1,6 @@
 {
   "name": "@strus/config",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "private": true,
   "description": "Validated configuration for strus services",
   "type": "module",

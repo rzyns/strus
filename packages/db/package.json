@@ -1,6 +1,6 @@
 {
   "name": "@strus/db",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "private": true,
   "description": "Drizzle ORM schema, migrations, and query helpers for strus",
   "type": "module",
