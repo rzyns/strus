@@ -115,7 +115,7 @@ const webIndexHtml = existsSync(webDist)
 // in HTML as module imports, which throws. We handle the SPA fallback
 // ourselves with a wildcard route below.
 const webPlugin = existsSync(webDist)
-  ? staticPlugin({ assets: webDist, prefix: "/", indexHTML: false })
+  ? staticPlugin({ assets: webDist, prefix: "/", indexHTML: false, alwaysStatic: true })
   : null;
 
 export const app = new Elysia()
