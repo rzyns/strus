@@ -48,7 +48,11 @@ Package dependency order (bottom → top): `morph` → `core` → `db` → `api`
 pnpm typecheck                 # typecheck all packages
 pnpm -r exec tsc --noEmit     # same, more explicit
 
-# Dev server (from packages/api/)
+# Dev server — IMPORTANT: kill any running instance first!
+# Bun enables SO_REUSEPORT by default on Linux, so a second server silently shares
+# port 3457, causing requests to load-balance between two separate DB connections
+# (intermittent data, split-brain "not found" errors).
+pkill -f 'bun run.*src/index.ts' 2>/dev/null; sleep 1
 STRUS_DB_PATH=/absolute/path/to/strus.db PORT=3457 bun run src/index.ts
 # Or with watch mode:
 STRUS_DB_PATH=/absolute/path/to/strus.db PORT=3457 bun run --watch src/index.ts
@@ -84,12 +88,16 @@ bun run src/index.ts quiz
 ## Data Model
 
 ```
-VocabList          — named collection of lemmas
-  └─ VocabListLemma  (join table)
+VocabList          — named collection of notes
+  └─ VocabListNote   (join table: listId, noteId)
+Note               — kind = "morph" | "gloss" | "basic"
+  ├─ kind=morph:  backed by a Lemma; no front/back; generates morph_form Cards automatically
+  ├─ kind=gloss:  backed by a Lemma + back (translation); generates gloss_forward/reverse Cards
+  └─ kind=basic:  standalone; front + back text; generates one basic_forward Card
 Lemma              — citation/dictionary form; source = "morfeusz" | "manual"
   └─ MorphForm       — individual inflected form (orth + NKJP tag)
-  └─ LearningTarget  — FSRS card state per tag (one per MorphForm)
-       └─ Review       — immutable review history record
+Card               — FSRS card state; kind = morph_form | gloss_forward | gloss_reverse | basic_forward
+  └─ Review          — immutable review history record
 ```
 
 ### Lemma.source
@@ -199,7 +207,7 @@ ts-fsrs **v5** API — key points:
 
 ## Morfeusz2
 
-Morfeusz2 is invoked as a **CLI subprocess** (binary: `morfeusz2`). The `@strus/morph` package
+Morfeusz2 is invoked as a **CLI subprocess**. The `@strus/morph` package
 spawns it via `Bun.spawn`, writes the lemma to stdin, and parses tab-separated output lines:
 
 ```
