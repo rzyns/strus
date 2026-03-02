@@ -8,7 +8,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { db } from "@strus/db";
 import { router } from "./router.js";
 import { staticPlugin } from "@elysiajs/static";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 // ---------------------------------------------------------------------------
 // Migrations — applied at startup before the server binds
@@ -106,8 +106,16 @@ const SWAGGER_UI_HTML = /* html */`<!DOCTYPE html>
 
 // Serve web frontend in production (dist built alongside by CI)
 const webDist = resolve(import.meta.dir, "../../web/dist");
+const webIndexHtml = existsSync(webDist)
+  ? readFileSync(resolve(webDist, "index.html"), "utf-8")
+  : null;
+
+// Serve the Vite-built static assets (JS, CSS, etc.) from /assets/*
+// indexHTML is intentionally disabled — Bun tries to resolve asset paths
+// in HTML as module imports, which throws. We handle the SPA fallback
+// ourselves with a wildcard route below.
 const webPlugin = existsSync(webDist)
-  ? staticPlugin({ assets: webDist, prefix: "/", indexHTML: true })
+  ? staticPlugin({ assets: webDist, prefix: "/", indexHTML: false })
   : null;
 
 export const app = new Elysia()
@@ -139,6 +147,13 @@ export const app = new Elysia()
   })
 
   .use(webPlugin ?? new Elysia())
+  // SPA fallback: serve index.html for any route not matched above
+  // (catches /quiz, /lemmas/:id, etc. so client-side routing works)
+  .get("/*", () =>
+    webIndexHtml
+      ? new Response(webIndexHtml, { headers: { "Content-Type": "text/html; charset=utf-8" } })
+      : new Response("Not found", { status: 404 })
+  )
   .listen(PORT);
 
 console.log(`✓ strus API running at http://localhost:${PORT}`);
