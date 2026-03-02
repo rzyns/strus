@@ -36,10 +36,14 @@ RUN pnpm --filter @strus/web run prepare && \
 FROM oven/bun:1 AS runtime
 
 # Install morfeusz2 (Polish morphological analyser — required by @strus/morph)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      morfeusz2 \
-      morfeusz2-dictionary-polimorf \
-    && rm -rf /var/lib/apt/lists/*
+RUN <<-'EOF'
+	echo 'deb http://download.sgjp.pl/apt/ubuntu ./' > /etc/apt/sources.list.d/sgjp.list
+	wget -O - http://download.sgjp.pl/apt/sgjp.gpg.key | apt-key add -
+	apt-get update && apt-get install -y --no-install-recommends \
+		morfeusz2 \
+		morfeusz2-dictionary-polimorf \
+	&& rm -rf /var/lib/apt/lists/*
+EOF
 
 WORKDIR /app
 
