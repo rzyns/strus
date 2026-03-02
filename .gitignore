@@ -38,4 +38,4 @@ Thumbs.db
 *.swo
 
 # Bun
-bun.lockb
+# bun.lockb — using bun.lock (text format) instead
