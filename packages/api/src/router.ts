@@ -114,6 +114,7 @@ const NoteOutput = z.object({
   id: zId,
   kind: z.enum(["morph", "gloss", "basic"]).describe("Note kind: morph for morphological drill, gloss for translation, basic for custom flashcards"),
   lemmaId: zId.nullable().describe("ID of the associated lemma; null for basic notes"),
+  lemmaText: z.string().nullable().describe("Citation form of the associated lemma; null for basic notes"),
   front: z.string().nullable().describe("Prompt text for gloss/basic notes; null for morph notes"),
   back: z.string().nullable().describe("Answer text for gloss/basic notes; null for morph notes"),
   createdAt: zIso.describe("When this note was created"),
@@ -203,11 +204,12 @@ function mapCardDomain(card: Card) {
   };
 }
 
-function mapNote(row: typeof notes.$inferSelect) {
+function mapNote(row: typeof notes.$inferSelect, lemmaText: string | null = null) {
   return {
     id: row.id,
     kind: row.kind,
     lemmaId: row.lemmaId,
+    lemmaText,
     front: row.front,
     back: row.back,
     createdAt: row.createdAt.toISOString(),
@@ -1328,8 +1330,9 @@ const notesList = os
 
     if (input.listId) {
       const q = db
-        .select({ note: notes })
+        .select({ note: notes, lemmaText: lemmas.lemma })
         .from(notes)
+        .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
         .innerJoin(
           vocabListNotes,
           and(
@@ -1338,13 +1341,13 @@ const notesList = os
           ),
         );
       const rows = whereClause ? q.where(whereClause).all() : q.all();
-      return rows.map((r) => mapNote(r.note));
+      return rows.map((r) => mapNote(r.note, r.lemmaText ?? null));
     }
 
     const rows = whereClause
-      ? db.select().from(notes).where(whereClause).all()
-      : db.select().from(notes).all();
-    return rows.map(mapNote);
+      ? db.select({ note: notes, lemmaText: lemmas.lemma }).from(notes).leftJoin(lemmas, eq(lemmas.id, notes.lemmaId)).where(whereClause).all()
+      : db.select({ note: notes, lemmaText: lemmas.lemma }).from(notes).leftJoin(lemmas, eq(lemmas.id, notes.lemmaId)).all();
+    return rows.map((r) => mapNote(r.note, r.lemmaText ?? null));
   });
 
 const notesGet = os
@@ -1372,7 +1375,7 @@ const notesGet = os
     }
 
     return {
-      ...mapNote(row),
+      ...mapNote(row, lemmaText),
       cards: noteCards.map(mapCardRow),
       lemma: lemmaText,
     };

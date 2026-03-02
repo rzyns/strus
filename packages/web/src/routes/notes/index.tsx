@@ -70,7 +70,14 @@ export default function NotesIndex() {
   })
 
   function notePreview(note: any): string {
-    if (note.front) return note.front.length > 60 ? note.front.slice(0, 60) + '…' : note.front
+    const truncate = (s: string) => s.length > 60 ? s.slice(0, 60) + '…' : s
+    if (note.kind === 'morph') return note.lemmaText ? truncate(note.lemmaText) : '—'
+    if (note.kind === 'gloss') {
+      const parts = [note.lemmaText, note.back].filter(Boolean)
+      return parts.length > 0 ? truncate(parts.join(' → ')) : '—'
+    }
+    // basic
+    if (note.front) return truncate(note.front)
     return '—'
   }
 

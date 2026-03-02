@@ -59,6 +59,23 @@ export default function NoteDetail() {
   const navigate = useNavigate()
 
   const [note, { refetch }] = createResource(() => api.notes.get({ id: params.id }))
+  // Fetch morph forms so we can show the answer alongside each morph_form card
+  // Source returns undefined when no lemmaId — SolidJS skips the fetcher in that case
+  const [lemmaForms] = createResource(
+    () => note()?.lemmaId ?? undefined,
+    (lemmaId: string) => api.lemmas.forms({ id: lemmaId })
+  )
+  // Build a lookup: tag → orth[]
+  const formsByTag = () => {
+    const fs = lemmaForms() ?? []
+    const map = new Map<string, string[]>()
+    for (const f of (fs as Array<{ tag: string; orth: string }>)) {
+      const existing = map.get(f.tag)
+      if (existing) existing.push(f.orth)
+      else map.set(f.tag, [f.orth])
+    }
+    return map
+  }
 
   const [showDelete, setShowDelete] = createSignal(false)
   const [deleting, setDeleting] = createSignal(false)
@@ -226,6 +243,30 @@ export default function NoteDetail() {
                               Due {formatDue(card.due)}
                             </span>
                           </div>
+                          <Show when={card.kind === 'morph_form' && card.tag}>
+                            {(_) => {
+                              const orths = formsByTag().get(card.tag!) ?? []
+                              return (
+                                <Show when={orths.length > 0}>
+                                  <p class={css({ fontSize: 'sm', color: 'fg.default', mb: '2', fontFamily: 'monospace' })}>
+                                    {orths.join(' / ')}
+                                  </p>
+                                </Show>
+                              )
+                            }}
+                          </Show>
+                          <Show when={(card.kind === 'gloss_forward' || card.kind === 'gloss_reverse') && (data().back || data().front)}>
+                            <p class={css({ fontSize: 'sm', color: 'fg.default', mb: '2' })}>
+                              {card.kind === 'gloss_forward'
+                                ? `${data().lemmaText ?? data().lemma} → ${data().back}`
+                                : `${data().back} → ${data().lemmaText ?? data().lemma}`}
+                            </p>
+                          </Show>
+                          <Show when={card.kind === 'basic_forward'}>
+                            <p class={css({ fontSize: 'sm', color: 'fg.default', mb: '2' })}>
+                              {data().front} → {data().back}
+                            </p>
+                          </Show>
                           <div class={css({ display: 'flex', gap: '4', fontSize: 'xs', color: 'fg.muted' })}>
                             <span>Stability: {card.stability.toFixed(1)}</span>
                             <span>Difficulty: {card.difficulty.toFixed(1)}</span>
