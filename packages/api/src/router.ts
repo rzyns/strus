@@ -1311,14 +1311,21 @@ const notesList = os
     path: "/notes",
     tags: ["Notes"],
     summary: "List notes",
-    description: "Returns all notes, optionally filtered by kind and/or vocabulary list.",
+    description: "Returns all notes, optionally filtered by kind, vocabulary list, and/or lemma.",
   })
   .input(z.object({
     kind: z.enum(["morph", "gloss", "basic"]).optional().describe("Filter by note kind"),
     listId: z.string().uuid().optional().describe("Filter to notes in this vocabulary list"),
+    lemmaId: z.string().uuid().optional().describe("Filter to notes associated with this lemma"),
   }))
   .output(z.array(NoteOutput))
   .handler(async ({ input }) => {
+    // Build WHERE conditions
+    const conditions = [];
+    if (input.kind) conditions.push(eq(notes.kind, input.kind));
+    if (input.lemmaId) conditions.push(eq(notes.lemmaId, input.lemmaId));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
     if (input.listId) {
       const q = db
         .select({ note: notes })
@@ -1330,14 +1337,12 @@ const notesList = os
             eq(vocabListNotes.listId, input.listId),
           ),
         );
-      const rows = input.kind
-        ? q.where(eq(notes.kind, input.kind)).all()
-        : q.all();
+      const rows = whereClause ? q.where(whereClause).all() : q.all();
       return rows.map((r) => mapNote(r.note));
     }
 
-    const rows = input.kind
-      ? db.select().from(notes).where(eq(notes.kind, input.kind)).all()
+    const rows = whereClause
+      ? db.select().from(notes).where(whereClause).all()
       : db.select().from(notes).all();
     return rows.map(mapNote);
   });

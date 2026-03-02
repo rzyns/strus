@@ -1,4 +1,4 @@
-import { createResource, createSignal, Show, Suspense, ErrorBoundary, Switch, Match } from 'solid-js'
+import { createResource, createSignal, Show, Suspense, ErrorBoundary, Switch, Match, For } from 'solid-js'
 import { useParams, useNavigate } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -20,9 +20,22 @@ export default function LemmaDetail() {
 
   const [lemma, { refetch: refetchLemma }] = createResource(() => api.lemmas.get({ id: params.id }))
   const [forms, { refetch: refetchForms }] = createResource(() => api.lemmas.forms({ id: params.id }))
+  const [glossNotes, { refetch: refetchGlosses }] = createResource(
+    () => params.id,
+    (id) => api.notes.list({ kind: 'gloss', lemmaId: id })
+  )
 
   const [showDelete, setShowDelete] = createSignal(false)
   const [deleting, setDeleting] = createSignal(false)
+
+  // Gloss add form state
+  const [newGloss, setNewGloss] = createSignal('')
+  const [addingGloss, setAddingGloss] = createSignal(false)
+  const [glossError, setGlossError] = createSignal<string | null>(null)
+
+  // Gloss delete state
+  const [deletingGlossId, setDeletingGlossId] = createSignal<string | null>(null)
+  const [glossToDelete, setGlossToDelete] = createSignal<{ id: string; back: string } | null>(null)
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -34,9 +47,39 @@ export default function LemmaDetail() {
     }
   }
 
+  const handleAddGloss = async (e: Event) => {
+    e.preventDefault()
+    const translation = newGloss().trim()
+    if (!translation) return
+    setAddingGloss(true)
+    setGlossError(null)
+    try {
+      await api.notes.create({ kind: 'gloss', lemmaId: params.id, back: translation })
+      setNewGloss('')
+      refetchGlosses()
+    } catch (err) {
+      setGlossError(String(err))
+    } finally {
+      setAddingGloss(false)
+    }
+  }
+
+  const handleDeleteGloss = async () => {
+    const g = glossToDelete()
+    if (!g) return
+    setDeletingGlossId(g.id)
+    try {
+      await api.notes.delete({ id: g.id })
+      refetchGlosses()
+    } finally {
+      setDeletingGlossId(null)
+      setGlossToDelete(null)
+    }
+  }
+
   return (
     <div class={css({ py: '4' })}>
-      <ErrorBoundary fallback={(err) => <ErrorState message={String(err)} onRetry={() => { refetchLemma(); refetchForms() }} />}>
+      <ErrorBoundary fallback={(err) => <ErrorState message={String(err)} onRetry={() => { refetchLemma(); refetchForms(); refetchGlosses() }} />}>
         <Suspense fallback={<div class={css({ display: 'flex', justifyContent: 'center', py: '12' })}><Spinner size="lg" /></div>}>
           <Show when={lemma()}>
             {(data) => (
@@ -60,11 +103,67 @@ export default function LemmaDetail() {
                     </p>
                   </div>
                   <div class={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
-                  <JsonViewer data={{ lemma: data(), forms: forms() }} label="lemma JSON" />
-                  <Button variant="danger" onClick={() => setShowDelete(true)}>Delete</Button>
-                </div>
+                    <JsonViewer data={{ lemma: data(), forms: forms() }} label="lemma JSON" />
+                    <Button variant="danger" onClick={() => setShowDelete(true)}>Delete</Button>
+                  </div>
                 </div>
 
+                {/* ── Glosses ────────────────────────────────────────────── */}
+                <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '3', color: 'fg.default' })}>Glosses</h2>
+
+                <Suspense fallback={<Spinner />}>
+                  <div class={css({ mb: '6' })}>
+                    <Show when={(glossNotes() ?? []).length > 0}>
+                      <div class={css({ display: 'flex', flexDirection: 'column', gap: '2', mb: '4' })}>
+                        <For each={glossNotes()}>
+                          {(note) => (
+                            <div class={css({
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              px: '4', py: '3', borderRadius: 'md',
+                              bg: 'bg.subtle', border: '1px solid', borderColor: 'border.subtle',
+                            })}>
+                              <span class={css({ fontSize: 'md', color: 'fg.default' })}>{note.back}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setGlossToDelete({ id: note.id, back: note.back ?? '' })}
+                                disabled={deletingGlossId() === note.id}
+                              >
+                                {deletingGlossId() === note.id ? '…' : 'Remove'}
+                              </Button>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+
+                    {/* Add gloss form */}
+                    <form onSubmit={handleAddGloss} class={css({ display: 'flex', gap: '2', alignItems: 'flex-start' })}>
+                      <input
+                        type="text"
+                        placeholder="Add translation…"
+                        value={newGloss()}
+                        onInput={(e) => setNewGloss(e.currentTarget.value)}
+                        disabled={addingGloss()}
+                        class={css({
+                          flex: '1', px: '3', py: '2', borderRadius: 'md', fontSize: 'sm',
+                          border: '1px solid', borderColor: 'border.default',
+                          bg: 'bg.default', color: 'fg.default',
+                          _focus: { outline: '2px solid', outlineColor: 'accent.default', outlineOffset: '2px' },
+                          _disabled: { opacity: '0.5', cursor: 'not-allowed' },
+                        })}
+                      />
+                      <Button type="submit" variant="solid" size="sm" disabled={addingGloss() || newGloss().trim() === ''}>
+                        {addingGloss() ? 'Adding…' : 'Add'}
+                      </Button>
+                    </form>
+                    <Show when={glossError()}>
+                      <p class={css({ color: 'red.9', fontSize: 'sm', mt: '1' })}>{glossError()}</p>
+                    </Show>
+                  </div>
+                </Suspense>
+
+                {/* ── Paradigm ───────────────────────────────────────────── */}
                 <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '4', color: 'fg.default' })}>Paradigm</h2>
 
                 <Suspense fallback={<Spinner />}>
@@ -97,6 +196,16 @@ export default function LemmaDetail() {
                   onConfirm={handleDelete}
                   onCancel={() => setShowDelete(false)}
                   loading={deleting()}
+                />
+
+                <ConfirmDialog
+                  open={glossToDelete() !== null}
+                  title="Remove gloss"
+                  description={`Remove translation "${glossToDelete()?.back}"? The gloss_forward and gloss_reverse cards will also be deleted.`}
+                  confirmLabel="Remove"
+                  onConfirm={handleDeleteGloss}
+                  onCancel={() => setGlossToDelete(null)}
+                  loading={deletingGlossId() !== null}
                 />
               </>
             )}
