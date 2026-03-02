@@ -1,0 +1,10 @@
+.git
+node_modules
+packages/*/node_modules
+packages/web/dist
+*.db
+*.db-shm
+*.db-wal
+*.db.bak
+.env*
+strus.code-workspace

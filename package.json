@@ -10,11 +10,17 @@
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
     "db:migrate": "pnpm --filter @strus/db run migrate",
-    "db:generate": "pnpm --filter @strus/db run generate"
+    "db:generate": "pnpm --filter @strus/db run generate",
+    "version": "bumpp --recursive --commit --tag --push"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.4.2",
+    "@commitlint/config-conventional": "^20.4.2",
     "@types/bun": "^1.1.0",
+    "bumpp": "^10.4.1",
     "concurrently": "^9.2.1",
+    "conventional-changelog-cli": "^5.0.0",
+    "conventional-changelog-conventionalcommits": "^9.2.0",
     "typescript": "^5.7.0"
   },
   "engines": {

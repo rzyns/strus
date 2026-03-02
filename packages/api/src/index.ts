@@ -7,6 +7,8 @@ import { OpenAPIGenerator } from "@orpc/openapi";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { db } from "@strus/db";
 import { router } from "./router.js";
+import { staticPlugin } from "@elysiajs/static";
+import { existsSync } from "node:fs";
 
 // ---------------------------------------------------------------------------
 // Migrations — applied at startup before the server binds
@@ -102,6 +104,12 @@ const SWAGGER_UI_HTML = /* html */`<!DOCTYPE html>
 </body>
 </html>`;
 
+// Serve web frontend in production (dist built alongside by CI)
+const webDist = resolve(import.meta.dir, "../../web/dist");
+const webPlugin = existsSync(webDist)
+  ? staticPlugin({ assets: webDist, prefix: "/", indexHTML: true })
+  : null;
+
 export const app = new Elysia()
   // Health check
   .get("/", () => ({ ok: true, version: "0.0.1" }))
@@ -130,6 +138,7 @@ export const app = new Elysia()
       : new Response("No procedure matched", { status: 404 });
   })
 
+  .use(webPlugin ?? new Elysia())
   .listen(PORT);
 
 console.log(`✓ strus API running at http://localhost:${PORT}`);
