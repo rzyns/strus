@@ -1,6 +1,6 @@
 import { os, ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { count, eq, lte, and, inArray } from "drizzle-orm";
+import { count, eq, lte, ne, like, and, or, inArray } from "drizzle-orm";
 import { db } from "@strus/db";
 import {
   vocabLists,
@@ -781,6 +781,14 @@ const sessionDue = os
       .boolean()
       .default(true)
       .describe("Interleave cards by lemma to avoid back-to-back form drilling (default: true)"),
+    kinds: z
+      .array(z.enum(["morph_form", "gloss_forward", "gloss_reverse", "basic_forward"]))
+      .optional()
+      .describe("Only include cards of these kinds"),
+    tagContains: z
+      .string()
+      .optional()
+      .describe("Filter morph_form cards to those whose tag contains this substring"),
   }))
   .output(z.array(DueCardOutput))
   .handler(async ({ input }) => {
@@ -790,6 +798,16 @@ const sessionDue = os
     // Cap at 2× limit + 4× newLimit to avoid scanning the entire table when
     // there are thousands of new cards all due at epoch 0.
     const fetchCap = Math.max(500, input.limit * 2 + input.newLimit * 4);
+
+    // Build optional filter conditions for kinds / tagContains.
+    const extraFilters = [
+      lte(cards.due, nowSecs),
+      ...(input.kinds ? [inArray(cards.kind, input.kinds)] : []),
+      ...(input.tagContains
+        ? [or(ne(cards.kind, "morph_form"), like(cards.tag, `%${input.tagContains}%`))]
+        : []),
+    ];
+
     const rawDue = input.listId
       ? db
           .select({
@@ -809,7 +827,7 @@ const sessionDue = os
               eq(vocabListNotes.listId, input.listId),
             ),
           )
-          .where(lte(cards.due, nowSecs))
+          .where(and(...extraFilters))
           .limit(fetchCap)
           .all()
       : db
@@ -823,7 +841,7 @@ const sessionDue = os
           .from(cards)
           .innerJoin(notes, eq(notes.id, cards.noteId))
           .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
-          .where(lte(cards.due, nowSecs))
+          .where(and(...extraFilters))
           .limit(fetchCap)
           .all();
 

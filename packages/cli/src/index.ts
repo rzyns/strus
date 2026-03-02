@@ -426,7 +426,13 @@ program
   .option("-n, --limit <n>", "Hard cap on total session size", "100")
   .option("--new-limit <n>", "Max new (state=0) cards per session", "20")
   .option("--no-interleave", "Disable lemma interleaving (serve in order)")
-  .action(async (opts: { list?: string; limit?: string; newLimit?: string; interleave: boolean }) => {
+  .option("-k, --kind <kind>", "Card kind filter: morph | gloss | basic | all", "all")
+  .option("-d, --direction <dir>", "Gloss direction: to-english | to-polish | both", "both")
+  .option("-t, --tag <pattern>", "Filter morph_form cards by tag substring")
+  .action(async (opts: {
+    list?: string; limit?: string; newLimit?: string; interleave: boolean;
+    kind: string; direction: string; tag?: string;
+  }) => {
     const limit = Number(opts.limit ?? 100);
     const newLimit = Number(opts.newLimit ?? 20);
     const qs = new URLSearchParams();
@@ -434,6 +440,23 @@ program
     qs.set("limit", String(limit));
     qs.set("newLimit", String(newLimit));
     qs.set("interleave", String(opts.interleave));
+
+    // Resolve kinds[] from --kind and --direction flags
+    let kinds: string[] | undefined;
+    switch (opts.kind) {
+      case "morph": kinds = ["morph_form"]; break;
+      case "gloss":
+        if (opts.direction === "to-english") kinds = ["gloss_forward"];
+        else if (opts.direction === "to-polish") kinds = ["gloss_reverse"];
+        else kinds = ["gloss_forward", "gloss_reverse"];
+        break;
+      case "basic": kinds = ["basic_forward"]; break;
+      // "all" → omit kinds param
+    }
+    if (kinds) {
+      for (const k of kinds) qs.append("kinds", k);
+    }
+    if (opts.tag) qs.set("tagContains", opts.tag);
 
     interface DueCard {
       id: string;

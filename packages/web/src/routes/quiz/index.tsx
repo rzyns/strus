@@ -1,5 +1,6 @@
 import {
-  createSignal, createMemo, createEffect, Show, Switch, Match, For, onMount,
+  createSignal, createMemo, createEffect, createResource,
+  Show, Switch, Match, For, onMount,
 } from 'solid-js'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -24,7 +25,11 @@ interface DueCard {
   forms: string[]
 }
 
+type QuizType = 'all' | 'morph' | 'gloss' | 'basic'
+type GlossDirection = 'both' | 'to-english' | 'to-polish'
+
 type Phase =
+  | 'config'
   | 'loading'
   | 'asking'
   | 'revealed-correct'
@@ -32,6 +37,24 @@ type Phase =
   | 'revealed-manual'
   | 'done'
   | 'error'
+
+// ---------------------------------------------------------------------------
+// Shared styles
+// ---------------------------------------------------------------------------
+
+const labelStyle = css({
+  display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default',
+})
+const selectStyle = css({
+  px: '3', py: '2', fontSize: 'sm', borderRadius: 'l2',
+  border: '1px solid', borderColor: 'border', bg: 'bg', color: 'fg.default', w: 'full',
+})
+const inputStyle = css({
+  display: 'block', w: 'full', px: '3', py: '2', fontSize: 'sm',
+  borderRadius: 'l2', border: '1px solid', borderColor: 'border',
+  bg: 'bg', color: 'fg.default', outline: 'none',
+  _focus: { borderColor: 'blue.8', boxShadow: '0 0 0 1px {colors.blue.8}' },
+})
 
 // ---------------------------------------------------------------------------
 // Session info bar
@@ -159,11 +182,41 @@ function RatingButtons(props: RatingButtonsProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: resolve kinds[] from quiz type + direction
+// ---------------------------------------------------------------------------
+
+function resolveKinds(
+  quizType: QuizType,
+  direction: GlossDirection,
+): string[] | undefined {
+  switch (quizType) {
+    case 'morph': return ['morph_form']
+    case 'gloss':
+      if (direction === 'to-english') return ['gloss_forward']
+      if (direction === 'to-polish') return ['gloss_reverse']
+      return ['gloss_forward', 'gloss_reverse']
+    case 'basic': return ['basic_forward']
+    default: return undefined // 'all'
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main quiz component
 // ---------------------------------------------------------------------------
 
 export default function Quiz() {
-  const [phase, setPhase] = createSignal<Phase>('loading')
+  // Config form state
+  const [quizType, setQuizType] = createSignal<QuizType>('all')
+  const [direction, setDirection] = createSignal<GlossDirection>('both')
+  const [tagFilter, setTagFilter] = createSignal('')
+  const [listId, setListId] = createSignal('')
+  const [limit, setLimit] = createSignal(100)
+
+  // Fetch lists for the config form
+  const [lists] = createResource(() => api.lists.list({}) as Promise<{ id: string; name: string }[]>)
+
+  // Quiz state
+  const [phase, setPhase] = createSignal<Phase>('config')
   const [cards, setCards] = createSignal<DueCard[]>([])
   const [index, setIndex] = createSignal(0)
   const [answer, setAnswer] = createSignal('')
@@ -193,16 +246,25 @@ export default function Quiz() {
     // via their own createEffect (triggered when disabled flips false).
   })
 
-  onMount(async () => {
+  const startQuiz = async () => {
+    setPhase('loading')
     try {
-      const due = await api.session.due({}) as unknown as DueCard[]
+      const params: Record<string, unknown> = { limit: limit() }
+      const kinds = resolveKinds(quizType(), direction())
+      if (kinds) params.kinds = kinds
+      const tag = tagFilter().trim()
+      if (tag) params.tagContains = tag
+      const list = listId()
+      if (list) params.listId = list
+
+      const due = await api.session.due(params) as DueCard[]
       setCards(due)
       setPhase(due.length === 0 ? 'done' : 'asking')
     } catch (err) {
       setError(String(err))
       setPhase('error')
     }
-  })
+  }
 
   const checkAnswer = () => {
     const card = currentCard()
@@ -259,6 +321,97 @@ export default function Quiz() {
       </h1>
 
       <Switch>
+        {/* Config */}
+        <Match when={phase() === 'config'}>
+          <Card title="Quiz settings">
+            <div class={css({ display: 'flex', flexDir: 'column', gap: '4' })}>
+              {/* Quiz type */}
+              <div>
+                <label class={labelStyle}>Quiz type</label>
+                <select
+                  class={selectStyle}
+                  value={quizType()}
+                  onChange={(e) => setQuizType(e.currentTarget.value as QuizType)}
+                >
+                  <option value="all">All</option>
+                  <option value="morph">Forms only</option>
+                  <option value="gloss">Translations only</option>
+                  <option value="basic">Basic cards</option>
+                </select>
+              </div>
+
+              {/* Tag filter — only for morph */}
+              <Show when={quizType() === 'morph'}>
+                <div>
+                  <label class={labelStyle}>Tag filter</label>
+                  <input
+                    class={inputStyle}
+                    type="text"
+                    placeholder="e.g. sg:nom or inst"
+                    value={tagFilter()}
+                    onInput={(e) => setTagFilter(e.currentTarget.value)}
+                  />
+                  <p class={css({ fontSize: 'xs', color: 'fg.muted', mt: '1' })}>
+                    Only show morph cards whose tag contains this substring
+                  </p>
+                </div>
+              </Show>
+
+              {/* Direction — only for gloss */}
+              <Show when={quizType() === 'gloss'}>
+                <div>
+                  <label class={labelStyle}>Direction</label>
+                  <select
+                    class={selectStyle}
+                    value={direction()}
+                    onChange={(e) => setDirection(e.currentTarget.value as GlossDirection)}
+                  >
+                    <option value="both">Both</option>
+                    <option value="to-english">Polish → English</option>
+                    <option value="to-polish">English → Polish</option>
+                  </select>
+                </div>
+              </Show>
+
+              {/* List filter */}
+              <div>
+                <label class={labelStyle}>List</label>
+                <select
+                  class={selectStyle}
+                  value={listId()}
+                  onChange={(e) => setListId(e.currentTarget.value)}
+                >
+                  <option value="">All</option>
+                  <Show when={lists()}>
+                    {(data) => (
+                      <For each={data()}>
+                        {(list) => <option value={list.id}>{list.name}</option>}
+                      </For>
+                    )}
+                  </Show>
+                </select>
+              </div>
+
+              {/* Limit */}
+              <div>
+                <label class={labelStyle}>Limit</label>
+                <input
+                  class={inputStyle}
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={limit()}
+                  onInput={(e) => setLimit(Number(e.currentTarget.value) || 100)}
+                />
+              </div>
+
+              <Button variant="solid" onClick={startQuiz}>
+                Start Quiz
+              </Button>
+            </div>
+          </Card>
+        </Match>
+
         {/* Loading */}
         <Match when={phase() === 'loading'}>
           <div class={css({ display: 'flex', justifyContent: 'center', py: '12' })}>
