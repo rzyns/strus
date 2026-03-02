@@ -70,9 +70,11 @@ COPY packages/db/     packages/db/
 COPY packages/morph/  packages/morph/
 
 # Let Bun install its own node_modules — pnpm's symlink store is not
-# compatible with Bun's module resolution when copied across stages
+# compatible with Bun's module resolution when copied across stages.
+# --ignore-scripts skips better-sqlite3's node-gyp native build (it's a
+# drizzle-kit devDep only; the runtime uses bun:sqlite, not better-sqlite3)
 RUN --mount=type=cache,id=bun,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
+    bun install --frozen-lockfile --ignore-scripts
 
 # Copy compiled web frontend; API serves it statically when present
 COPY --from=web-build /app/packages/web/dist ./packages/web/dist
