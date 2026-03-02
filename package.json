@@ -1,6 +1,6 @@
 {
   "name": "strus",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "description": "Polish morphological spaced repetition system",
   "scripts": {
