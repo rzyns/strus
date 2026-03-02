@@ -1,6 +1,6 @@
 {
   "name": "@strus/core",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": true,
   "description": "Domain types and FSRS scheduling logic for strus",
   "type": "module",
