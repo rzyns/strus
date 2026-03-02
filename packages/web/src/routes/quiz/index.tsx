@@ -443,9 +443,14 @@ export default function Quiz() {
                       ? 'Perfect session!'
                       : `${Math.round((correct() / reviewed()) * 100)}% accuracy`}
                   </p>
-                  <Button variant="solid" onClick={() => window.location.reload()}>
-                    Start new session
-                  </Button>
+                  <div class={css({ display: 'flex', gap: '3', justifyContent: 'center', flexWrap: 'wrap' })}>
+                    <Button variant="solid" onClick={startQuiz}>
+                      Again
+                    </Button>
+                    <Button variant="outline" onClick={() => { setCards([]); setPhase('config') }}>
+                      Change settings
+                    </Button>
+                  </div>
                 </div>
               </Card>
             }
@@ -454,9 +459,14 @@ export default function Quiz() {
               <p class={css({ color: 'fg.muted', mb: '4' })}>
                 No cards are due right now. Come back later!
               </p>
-              <Button variant="outline" onClick={() => window.location.reload()}>
-                Check again
-              </Button>
+              <div class={css({ display: 'flex', gap: '3', flexWrap: 'wrap' })}>
+                <Button variant="outline" onClick={startQuiz}>
+                  Check again
+                </Button>
+                <Button variant="ghost" onClick={() => { setCards([]); setPhase('config') }}>
+                  Change settings
+                </Button>
+              </div>
             </Card>
           </Show>
         </Match>
