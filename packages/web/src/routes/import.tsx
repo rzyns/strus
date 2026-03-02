@@ -28,7 +28,7 @@ interface ImportResult {
 
 export default function Import() {
   const [searchParams] = useSearchParams()
-  const initialListId = () => searchParams.listId ?? ''
+  const initialListId = () => { const v = searchParams.listId; return typeof v === 'string' ? v : '' }
 
   const [step, setStep] = createSignal<Step>('input')
   const [text, setText] = createSignal('')

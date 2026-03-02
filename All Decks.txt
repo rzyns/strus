@@ -1,0 +1,215 @@
+#separator:tab
+#html:true
+#guid column:1
+#notetype column:2
+#deck column:3
+#tags column:14
+Iwva];cnxM	Basic	Default	Znać + biernik	"To know (someone/something)
+Example: Znam Izabellę (I know Isabella)"									ai
+x?Q8=(i?5$	Basic	Default	Wiedzieć + question word (kim, gdzie, ile, kogo, o której)	"To know (information with question words)
+Example: Wiem, gdzie mieszkasz (I know where you live)"									ai
+_Fk6r)R.1	Basic	Default	Umieć + infinitive	"To know how to do (general skill/ability)
+Example: Umiem czytać (I know how to read)"									ai
+c]5G,kXXX@	Basic	Default	Móc + infinitive	"Can (ability/permission)
+Example: Mogę czytać (I can read)"									ai
+oe;oU@dv(o	Basic	Default	Potrafić + infinitive	"To be able to do (specific skill)
+Example: Potrafię ugotować zupę pomidorową (I can cook tomato soup)"									ai
+N^E-6hq3(l	Basic	Default	Jeśli żołądek piszczy, człowiek się niszczy	if the stomach squeaks, the human gets damaged									ai
+i],m:6lkZ>	Basic	Default	ścisły&nbsp;	"strict&nbsp;<img src=""paste-b07d7b62a8ab655d7f02a7d4c2d697129ee5b812.jpg"">"									ai
+h6y+aQ.NTA	Basic	Default	zabraniać → zabronić	to forbid									ai
+OFNYc+qLH1	Basic	Default	czytaj!	Read! (imperative singular)									ai
+seEV@,;RjB	Basic	Default	ostatecznie	as a last resort									ai
+M`o4R)-egI	Basic	Default	Jest zajęte	(phone) it's busy									ai
+pHIPN`pbdE	Basic	Default	Jeśli się spóźnisz	If you are late									ai
+dvj`@u%.Cm	Basic	Default	zaczniemy bez Ciebie	we will start without you									ai
+rP7*;&-;.+	Basic	Default	Gdybym była na Twoim miejscu	If I were you (If I were in your place)									ai
+B1etV}In^?	Basic	Default	To zajęło mi więcej czasu niż myślałem/zakładałem	It took me more time than I thought/assumed									ai
+z;w$;~VzM/	Basic	Default	A co dopiero	let alone									ai
+Hm|/AQo,7?	Basic	Default	Nie chcę już się uczyć	I don't want to learn anymore									ai
+co]0glb&7q	Basic	Default	Nie chcę jeszcze się uczyć	I don't want to learn yet									ai
+A4zSN$4EM*	Basic	Default	kurczak	chicken (the part we eat)									ai
+xtr+<8yRmU	Basic	Default	być pod wrażeniem	to be impressed									ai
+"KLE:YU;#KI"	Basic	Default	nauczyłam się od kolegi	I learned from a colleague									ai
+x$5BE+^3?k	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>chleb</b><br><br><img src='https://images.pexels.com/photos/1775043/pexels-photo-1775043.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:chleb.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">bread<br><br><span style=""color: gray; font-size: 18px;"">Example: Jem chleb na śniadanie<br>(I eat bread for breakfast)</span></div>"									food noun polish
+"l!kHrhYgQ#"	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>mleko</b><br><br><img src='https://images.pexels.com/photos/248412/pexels-photo-248412.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:mleko.mp3]</div>	<div style='text-align: center; font-size: 24px;'>milk<br><br><span style='color: gray; font-size: 18px;'>Example: Piję mleko codziennie<br>(I drink milk every day)</span></div>									drink food noun polish
+gh)p}1a2d0	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>jabłko</b><br><br><img src='https://images.pexels.com/photos/102104/pexels-photo-102104.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:jablko.mp3]</div>	<div style='text-align: center; font-size: 24px;'>apple<br><br><span style='color: gray; font-size: 18px;'>Example: Czerwone jabłko jest słodkie<br>(The red apple is sweet)</span></div>									food fruit noun polish
+"p8c_m_9G#i"	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>kurczak</b><br><br><img src='https://images.pexels.com/photos/616354/pexels-photo-616354.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:kurczak.mp3]</div>	<div style='text-align: center; font-size: 24px;'>chicken (the meat)<br><br><span style='color: gray; font-size: 18px;'>Example: Kurczak z ryżem<br>(Chicken with rice)</span></div>									food meat noun polish
+K,mfV8o[Tc	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>kawa</b><br><br><img src='https://images.pexels.com/photos/312418/pexels-photo-312418.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:kawa.mp3]</div>	<div style='text-align: center; font-size: 24px;'>coffee<br><br><span style='color: gray; font-size: 18px;'>Example: Piję kawę rano<br>(I drink coffee in the morning)</span></div>									beverage drink noun polish
+p+$+bR-t@+	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>herbata</b><br><br><img src='https://images.pexels.com/photos/1417945/pexels-photo-1417945.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:herbata.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">tea<br><br><span style=""color: gray; font-size: 18px;"">Example: Herbata z cytryną<br>(Tea with lemon)</span></div>"									beverage drink noun polish
+N+O_&ja5~*	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>ser</b><br><br><img src='https://images.pexels.com/photos/821365/pexels-photo-821365.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:ser.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">cheese<br><br><span style=""color: gray; font-size: 18px;"">Example: Żółty ser<br>(yellow cheese)</span></div>"									dairy food noun polish
+s-^ltdtZUR	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>dom</b><br><br><img src='https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:dom.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">house/home<br><br><span style=""color: gray; font-size: 18px;"">Example: Mój dom jest duży<br>(My house is big)</span></div>"									noun place polish
+L!Z?m-c0u0	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>samochód</b><br><br><img src='https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:samochod.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">car<br><br><span style=""color: gray; font-size: 18px;"">Example: Nowy samochód<br>(A new car)</span></div>"									noun polish transport
+ND3tsAJlgY	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>pies</b><br><br><img src='https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=400' style='max-width: 300px; border-radius: 8px;'><br><br>[sound:pies.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">dog<br><br><span style=""color: gray; font-size: 18px;"">Example: Duży pies<br>(A big dog)</span></div>"									animal noun polish
+IH<oq_xVGn	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Czy mogę pożyczyć ładowarkę?</b><br><br><img src='https://cdn-icons-png.flaticon.com/512/3103/3103446.png' style='max-width: 200px;'><br><br>[sound:czy_moge_ladowarke_v2.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">Can I borrow a charger?<br><br><span style=""color: gray; font-size: 18px;"">Polite request form<br>Answer: Tak, proszę bardzo! (Yes, here you go!)</span></div>"									charger modern_life polish polite question updated
+"zoqCQPPQ,#"	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Napisz do mnie</b><br><br><img src='https://cdn-icons-png.flaticon.com/512/1076/1076892.png' style='max-width: 200px;'><br><br>[sound:napisz_do_mnie_v2.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">Text me / Write to me<br><br><span style=""color: gray; font-size: 18px;"">Casual way to ask someone to message you<br>Napisać = to write (perfective)</span></div>"									communication imperative messaging modern_life polish updated
+fZKnm>mHLB	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Rozładował mi się telefon</b><br><br><img src='https://img.icons8.com/ios-filled/200/FA5252/low-battery.png' style='max-width: 200px;'><br><br>[sound:rozladowal_mi_sie_telefon_v2.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">My phone died / My phone ran out of battery<br><br><span style=""color: gray; font-size: 18px;"">Literal: The phone discharged itself to me<br>Response: Mam ładowarkę! (I have a charger!)</span></div>"									battery modern_life phone phrase polish v2
+CqlVRNEH>t	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Jakie jest hasło do WiFi?</b><br><br><img src='https://img.icons8.com/ios-filled/200/4A90E2/wifi--v1.png' style='max-width: 150px;'> <img src='https://img.icons8.com/ios-filled/200/FFB800/lock--v1.png' style='max-width: 150px;'><br><br>[sound:jakie_jest_haslo_do_wifi_v2.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">What's the WiFi password?<br><br><span style=""color: gray; font-size: 18px;"">Essential for cafes, hotels, offices<br>WiFi is pronounced 'wee-fee' in Polish</span></div>"									internet modern_life polish question v2 wifi
+C&3z/lLqD%	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Nie mam zasięgu</b><br><br><img src='https://img.icons8.com/ios-filled/200/E74C3C/no-connection.png' style='max-width: 200px;'><br><br>[sound:nie_mam_zasiegu_v2.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">I don't have signal / coverage<br><br><span style=""color: gray; font-size: 18px;"">Zasięg = range, coverage, signal<br>Also: Słaby zasięg (Weak signal)</span></div>"									modern_life phone polish problem signal v2
+jqF|`Xj~9k	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Napisz do mnie</b><br><br><img src='https://img.icons8.com/ios-filled/200/4CAF50/speech-bubble.png' style='max-width: 200px;'><br><br>[sound:napisz_do_mnie_v2.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">Text me / Write to me<br><br><span style=""color: gray; font-size: 18px;"">Casual way to ask someone to message you<br>Napisać = to write (perfective)</span></div>"									communication imperative messaging modern_life polish v2
+IlqQ5OfRlW	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Telefon mi się zawiesił</b><br><br><img src='https://img.icons8.com/ios-filled/200/9E9E9E/spinner-frame-5.png' style='max-width: 200px;'><br><br>[sound:telefon_mi_sie_zawiesil_v2.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">My phone froze / hung<br><br><span style=""color: gray; font-size: 18px;"">Zawiesić się = to hang/freeze (for devices)<br>Solution: Zrestartuj telefon (Restart your phone)</span></div>"									modern_life phone polish problem tech_issue v2
+H1wbOhN_t_	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Nie działa mi internet</b><br><br><img src='https://img.icons8.com/ios-filled/200/FF9800/wifi-off.png' style='max-width: 200px;'><br><br>[sound:nie_dziala_mi_internet_v2.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">My internet isn't working<br><br><span style=""color: gray; font-size: 18px;"">Działać = to work/function<br>Also: Internet pada (Internet is down)</span></div>"									internet modern_life polish problem tech_issue v2
+k1[do1d:ly	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>zrobić screena</b><br><br><img src='https://img.icons8.com/ios-filled/200/9C27B0/screenshot.png' style='max-width: 200px;'><br><br>[sound:zrobic_screena_v2.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">to take a screenshot<br><br><span style=""color: gray; font-size: 18px;"">Colloquial: from English 'screen'<br>Also: zrzut ekranu (formal)<br>Zrób screena! = Take a screenshot!</span></div>"									action colloquial modern_life phone polish v2
+quP]pv>t6V	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Włącz Bluetooth</b><br><br><img src='https://img.icons8.com/ios-filled/200/3F51B5/bluetooth.png' style='max-width: 200px;'><br><br>[sound:wlacz_bluetooth.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">Turn on Bluetooth<br><br><span style=""color: gray; font-size: 18px;"">Włączyć = to turn on<br>Wyłączyć = to turn off<br>Bluetooth is pronounced the same in Polish</span></div>"									connection imperative modern_life polish tech v2
+q-{Z@x^Z8b	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Dostępna aktualizacja</b><br><br><img src='https://img.icons8.com/ios-filled/200/00BCD4/downloading-updates.png' style='max-width: 200px;'><br><br>[sound:dostepna_aktualizacja.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">Update available<br><br><span style=""color: gray; font-size: 18px;"">Dostępny = available<br>Aktualizacja = update<br>Zainstaluj aktualizację = Install update</span></div>"									modern_life notification polish software update v2
+FJmFl-AsdQ	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>tryb samolotowy</b><br><br><img src='https://img.icons8.com/ios-filled/200/607D8B/airplane-mode-on.png' style='max-width: 200px;'><br><br>[sound:tryb_samolotowy.mp3]</div>	"<div style=""text-align: center; font-size: 24px;"">airplane mode<br><br><span style=""color: gray; font-size: 18px;"">Tryb = mode<br>Samolotowy = airplane (adjective)<br>Włącz tryb samolotowy = Turn on airplane mode</span></div>"									modern_life phone polish settings travel v2
+gHGszr-K%>	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>udostępnij</b><br><br><img src='https://img.icons8.com/ios-filled/200/4CAF50/share.png' style='max-width: 200px;'><br><br>[sound:udostepnij.mp3]</div>	<div style='text-align: center; font-size: 24px;'>share (imperative)<br><br><span style='color: gray; font-size: 18px;'>Udostępnić = to share<br>Udostępnij mi zdjęcie = Share the photo with me<br>Also: wysłać (to send)</span></div>									action modern_life polish social_media
+Q?-;*ZB`ad	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>usuń</b><br><br><img src='https://img.icons8.com/ios-filled/200/F44336/trash.png' style='max-width: 200px;'><br><br>[sound:usun.mp3]</div>	<div style='text-align: center; font-size: 24px;'>delete (imperative)<br><br><span style='color: gray; font-size: 18px;'>Usunąć = to delete/remove<br>Usuń aplikację = Delete the app<br>Also: skasować (more colloquial)</span></div>									action computer modern_life polish
+hv;@iUb.Nr	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>zapisz</b><br><br><img src='https://img.icons8.com/ios-filled/200/4CAF50/save.png' style='max-width: 200px;'><br><br>[sound:zapisz.mp3]</div>	<div style='text-align: center; font-size: 24px;'>save (imperative)<br><br><span style='color: gray; font-size: 18px;'>Zapisać = to save<br>Zapisz dokument = Save the document<br>Czy zapisałeś? = Did you save it?</span></div>									action computer modern_life polish
+Eya]?R6WQZ	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>wyszukaj</b><br><br><img src='https://img.icons8.com/ios-filled/200/2196F3/search.png' style='max-width: 200px;'><br><br>[sound:wyszukaj.mp3]</div>	<div style='text-align: center; font-size: 24px;'>search (imperative)<br><br><span style='color: gray; font-size: 18px;'>Wyszukać = to search/look up<br>Also: szukać (to look for)<br>Wyszukiwarka = search engine</span></div>									action internet modern_life polish
+"h[?J#_]c+>"	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>pełna bateria</b><br><br><img src='https://img.icons8.com/ios-filled/200/4CAF50/full-battery.png' style='max-width: 200px;'><br><br>[sound:pelna_bateria.mp3]</div>	<div style='text-align: center; font-size: 24px;'>full battery<br><br><span style='color: gray; font-size: 18px;'>Pełny = full<br>Bateria jest pełna = The battery is full<br>Naładowany = fully charged</span></div>									battery modern_life phone polish
+M4MtT2DT.9	Basic	Default	<div style='text-align: center; font-size: 28px;'><b>ustawienia</b><br><br><img src='https://img.icons8.com/ios-filled/200/607D8B/settings.png' style='max-width: 200px;'><br><br>[sound:ustawienia.mp3]</div>	<div style='text-align: center; font-size: 24px;'>settings<br><br><span style='color: gray; font-size: 18px;'>From ustawić = to set<br>Wejdź w ustawienia = Go to settings<br>Zmienić ustawienia = Change settings</span></div>									computer modern_life noun phone polish
+"yor#,:P2KE"	Basic	Default	<div style='text-align: center; font-size: 26px;'><b>Skończył mi się internet</b><br><br><span style='font-size: 80px;'>📊</span><br><br>[sound:skonczyl_mi_sie_internet.mp3]</div>	<div style='text-align: center; font-size: 24px;'>I ran out of data / My data is finished<br><br><span style='color: gray; font-size: 18px;'>Skończyć się = to run out, to finish<br>Common problem at end of month<br>Muszę kupić pakiet = I need to buy a data package</span></div>									internet modern_life phrase polish problem
+"u}D^q40#dZ"	Basic	Default	gazik	gauze pad									
+dWl89ad&vT	Basic	Default	powikłanie	complication (e.g., medical)									
+jikXX8($2q	Basic	Default	pogarszać się	degrade, decline, degenerate (nd.)									
+t1|6s^)`k`	Basic	Default	gwałtownie	violently, fiercely, rapidly									
+FBAfv6k(mH	Polish Audio Cards	Polish Expressions and Idioms	Kto pod kim dołki kopie, ten sam w nie wpada	He who digs a pit for others falls into it himself	Marek chciał oszukać kolegę, ale sam stracił pieniądze. Kto pod kim dołki kopie, ten sam w nie wpada.	Marek wanted to cheat his colleague, but he lost the money himself. He who digs a pit for others falls into it himself.	[sound:polish_phrase_dołki_kopie.mp3]	[sound:polish_example_dołki_kopie.mp3]					idiom proverb
+vG+%:8?Z=&	Polish Audio Cards	Polish Expressions and Idioms	proszek do pieczenia	baking powder	Potrzebuję proszku do pieczenia, żeby upiec ciasto.	I need baking powder to bake a cake.	[sound:polish_proszek_do_pieczenia_phrase.mp3]	[sound:polish_proszek_do_pieczenia_example.mp3]					
+"Y#DU&5gl7"	Polish Audio Cards	Polish Expressions and Idioms	efekciarski	fancy, showy, flashy	Ta restauracja jest bardzo efekciarska, ale jedzenie nie jest warte tej ceny.	This restaurant is very fancy, but the food isn't worth the price.	[sound:polish_efekciarski_phrase.mp3]	[sound:polish_efekciarski_example.mp3]					
+ezW|%6;fj)	Polish Audio Cards	Polish Expressions and Idioms	przeterminowany	expired (food, documents, etc.)	Nie jedz tego jogurtu, jest przeterminowany od tygodnia.	Don't eat this yogurt, it's been expired for a week.	[sound:polish_przeterminowany_phrase.mp3]	[sound:polish_przeterminowany_example.mp3]					
+P!>=|O*%gO	Polish Audio Cards	Polish Expressions and Idioms	wybredny	"finicky, picky, selective, fussy<br><img src=""2f6c224b-e023-4356-ab4a-bf01869bc09b-md.jpeg"">"	"Mój kot jest bardzo wybredny i je tylko jedną markę karmy.<br><img src=""2f6c224b-e023-4356-ab4a-bf01869bc09b-md.jpeg"">"	My cat is very picky and only eats one brand of food.	[sound:polish_wybredny_phrase.mp3]	[sound:polish_wybredny_example.mp3]					
+"r#hp{`Mo4I"	Polish Audio Cards	Polish Expressions and Idioms	curry z kurczakiem	curry with chicken (chicken is an addition to the curry)	Zamówiłam curry z kurczakiem, bo lubię, gdy kurczak jest dodatkiem do sosu.	I ordered curry with chicken because I like when chicken is an addition to the sauce.	[sound:polish_curry_z_kurczakiem_phrase.mp3]	[sound:polish_curry_z_kurczakiem_example.mp3]					grammar instrumental-case
+gk5:6}e./M	Polish Audio Cards	Polish Expressions and Idioms	curry z kurczaka	curry made from chicken (chicken transformed into the dish)	To curry z kurczaka ma intensywny smak, bo kurczak został zmiksowany z przyprawami.	This chicken curry has an intense flavor because the chicken was blended with spices.	[sound:polish_curry_z_kurczaka_phrase.mp3]	[sound:polish_curry_z_kurczaka_example.mp3]					genitive-case grammar
+dr@nm9,4N[	Polish Audio Cards	Polish Expressions and Idioms	musiałem	I had to, I was forced to (= byłem zmuszony)	Musiałem wcześniej wyjść z pracy, bo byłem zmuszony odebrać dziecko ze szkoły.	I had to leave work early because I was forced to pick up my child from school.	[sound:polish_musialem_phrase.mp3]	[sound:polish_musialem_example.mp3]					synonym
+G`NYgi<?Sj	Polish Audio Cards	Polish Expressions and Idioms	charakter / werwa / energia / zapał	spirit (enthusiasm, energy, drive)	Ona ma niesamowitą werwę i zapał do pracy.	She has incredible spirit and enthusiasm for work.	[sound:polish_spirit_phrase.mp3]	[sound:polish_spirit_example.mp3]					synonym
+J&lBc&DVep	Polish Audio Cards	Polish Expressions and Idioms	I o to chodzi! / Tak ma być! / Zuch z ciebie!	That's the spirit! (encouragement)	Widzę, że w końcu zacząłeś ćwiczyć codziennie. I o to chodzi! Zuch z ciebie!	I see you finally started exercising every day. That's the spirit! Good for you!	[sound:polish_thats_the_spirit_phrase.mp3]	[sound:polish_thats_the_spirit_example.mp3]					encouragement idiom
+m@ilNech~U	Polish Audio Cards	Polish Expressions and Idioms	Klepać biedę	to live in poverty, to be dirt poor	Po stracie pracy klepaliśmy biedę przez kilka miesięcy.	After losing the job, we lived in poverty for a few months.	[sound:polish_klepac_biede_phrase.mp3]	[sound:polish_klepac_biede_example.mp3]					
+wpom85PpU/	Polish Audio Cards	Polish Expressions and Idioms	Bez ogródek	directly, bluntly, without beating around the bush	Powiedziała mu bez ogródek, że jego pomysł jest zły.	She told him bluntly that his idea was bad.	[sound:polish_bez_ogrodek_phrase.mp3]	[sound:polish_bez_ogrodek_example.mp3]					
+eZxw|A.Js|	Polish Audio Cards	Polish Expressions and Idioms	Owijać w bawełnę	to beat around the bush, to sugarcoat	Nie owijaj w bawełnę, powiedz mi prawdę.	Don't beat around the bush, tell me the truth.	[sound:polish_owijac_w_bawelne_phrase.mp3]	[sound:polish_owijac_w_bawelne_example.mp3]					
+FwP.:)^m}B	Polish Audio Cards	Polish Expressions and Idioms	Lew salonowy	socialite, social butterfly	On jest typowym lwem salonowym, zna wszystkich w mieście.	He's a typical socialite, he knows everyone in town.	[sound:polish_lew_salonowy_phrase.mp3]	[sound:polish_lew_salonowy_example.mp3]					
+DA>?X|E*!R	Polish Audio Cards	Polish Expressions and Idioms	Imprezowicz	party animal	Mój brat to prawdziwy imprezowicz, co weekend gdzieś wychodzi.	My brother is a real party animal, he goes out somewhere every weekend.	[sound:polish_imprezowicz_phrase.mp3]	[sound:polish_imprezowicz_example.mp3]					
+H(05TqvvHU	Polish Audio Cards	Polish Expressions and Idioms	Bezpośredni	direct, straightforward	Lubię ją, bo jest bardzo bezpośrednia i zawsze mówi co myśli.	I like her because she's very direct and always says what she thinks.	[sound:polish_bezposredni_phrase.mp3]	[sound:polish_bezposredni_example.mp3]					
+pR)$c9>;iQ	Polish Audio Cards	Polish Expressions and Idioms	Ocalić	to save (rescue someone/something from danger)	Strażacy ocalili rodzinę z płonącego domu.	The firefighters saved the family from the burning house.	[sound:polish_ocalic_phrase.mp3]	[sound:polish_ocalic_example.mp3]					
+hnx93cb+U=	Polish Audio Cards	Polish Expressions and Idioms	Oszczędzić	to save (money) / to spare	Oszczędzam pieniądze na wakacje w Grecji.	I'm saving money for a vacation in Greece.	[sound:polish_oszczedzic_phrase.mp3]	[sound:polish_oszczedzic_example.mp3]					
+k~PPBg-o.n	Polish Audio Cards	Polish Expressions and Idioms	Zatrzymać	to keep / to stop	Czy mogę zatrzymać tę książkę na dłużej?	Can I keep this book for longer?	[sound:polish_zatrzymac_phrase.mp3]	[sound:polish_zatrzymac_example.mp3]					
+n/U`~kHE)w	Polish Audio Cards	Polish Expressions and Idioms	Zachować	to preserve / to keep (memories, traditions)	Chcę zachować te wspomnienia na całe życie.	I want to keep these memories for my whole life.	[sound:polish_zachowac_phrase.mp3]	[sound:polish_zachowac_example.mp3]					
+c?Eh}_vv@`	Polish Audio Cards	Polish Expressions and Idioms	Wyczerpywać się	to run out / to be exhausted	Moja cierpliwość powoli się wyczerpuje.	My patience is slowly running out.	[sound:polish_wyczerpywac_sie_phrase.mp3]	[sound:polish_wyczerpywac_sie_example.mp3]					
+r/y43tX+G$	Polish Audio Cards	Polish Expressions and Idioms	Naśladować	to imitate / to emulate / to follow	Dzieci często naśladują zachowanie rodziców.	Children often imitate their parents' behavior.	[sound:polish_nasladowac_phrase.mp3]	[sound:polish_nasladowac_example.mp3]					
+vJU%ycV?dw	Polish Audio Cards	Polish Expressions and Idioms	Oczekiwać	to expect	Oczekuję od ciebie lepszych wyników w przyszłości.	I expect better results from you in the future.	[sound:polish_oczekiwac_phrase.mp3]	[sound:polish_oczekiwac_example.mp3]					
+o!.,+Kx7VO	Polish Audio Cards	Polish Expressions and Idioms	Czytelny	readable / legible / clear	Twój kod jest bardzo czytelny i łatwy do zrozumienia.	Your code is very readable and easy to understand.	[sound:polish_czytelny_phrase.mp3]	[sound:polish_czytelny_example.mp3]					
+cCw;.-Q]e.	Polish Audio Cards	Polish Expressions and Idioms	Bujny	exuberant / lush / luxuriant	W ogrodzie rosły bujne krzewy róż.	Lush rose bushes grew in the garden.	[sound:polish_bujny_phrase.mp3]	[sound:polish_bujny_example.mp3]					
+tA8H:f2;3h	Polish Audio Cards	Polish Expressions and Idioms	Waleczny	gallant / brave / combative	Waleczni żołnierze bronili miasta do końca.	The brave soldiers defended the city until the end.	[sound:polish_waleczny_phrase.mp3]	[sound:polish_waleczny_example.mp3]					
+l$0Ir|h4Q`	Polish Audio Cards	Polish Expressions and Idioms	Rozkoszny	delightful / blissful / charming	To był rozkoszny wieczór przy kominku.	It was a delightful evening by the fireplace.	[sound:polish_rozkoszny_phrase.mp3]	[sound:polish_rozkoszny_example.mp3]					
+t)4p(fL!+@	Polish Audio Cards	Polish Expressions and Idioms	Wykwintny	exquisite / refined / elegant	Restauracja serwuje wykwintne dania kuchni francuskiej.	The restaurant serves exquisite French cuisine dishes.	[sound:polish_wykwintny_phrase.mp3]	[sound:polish_wykwintny_example.mp3]					
+e2P!cVI&vp	Polish (from notes)	Polish Expressions and Idioms	Polish	English	PartOfSpeech	Aspect	VerbPair	Gender	CaseGovernance	Frequency	MinimalPair	Example	
+v!L*A,=}}k	Polish (from notes)	Polish Expressions and Idioms	efekciarski	flashy	adjective					b1-mid		To był efekciarski pokaz.	
+b@*B&]>{zA	Polish (from notes)	Polish Expressions and Idioms	kontrowersyjny	controversial	adjective					b1-mid		To był kontrowersyjny temat.	
+bcHf4_]n.@	Polish (from notes)	Polish Expressions and Idioms	przeterminowany	expired	adjective					a2-mid		Produkt był przeterminowany.	
+mGO/A%E{FB	Polish (from notes)	Polish Expressions and Idioms	rozstrzepany	scatterbrained	adjective					b2-low		Był dziś zupełnie rozstrzepany.	
+tLL1$+]zB5	Polish (from notes)	Polish Expressions and Idioms	rześki	fresh / brisk	adjective					b2-low		Poranek był rześki.	
+zZU{yJzW:l	Polish (from notes)	Polish Expressions and Idioms	wybredny	picky	adjective					b1-mid		Jest bardzo wybredny.	
+k{%D}cO+HG	Polish (from notes)	Polish Expressions and Idioms	wyjątkowy	unique	adjective					a2-mid		To było wyjątkowe doświadczenie.	
+d-m}a<z<,t	Polish (from notes)	Polish Expressions and Idioms	wysportowany	athletic	adjective					b1-mid		Wygląda mi na wysportowaną.	
+c%atsysNpq	Polish (from notes)	Polish Expressions and Idioms	ścisły	strict / precise	adjective					b1-mid		To są ścisłe zasady.	
+B?c|.kJQaj	Polish (from notes)	Polish Expressions and Idioms	jednocześnie	at the same time	adverb					a1-high		Mówił i pisał jednocześnie.	
+r|TFoq+GY[	Polish (from notes)	Polish Expressions and Idioms	aż się nie chce wierzyć	hard to believe	idiom					b2-low		Aż się nie chce wierzyć, że to prawda.	
+FUk8=cf9+Z	Polish (from notes)	Polish Expressions and Idioms	bez ogródek	directly	idiom					b1-mid		Powiedział to bez ogródek.	
+Q^v(HZzj.(	Polish (from notes)	Polish Expressions and Idioms	bujać w obłokach	to daydream	idiom					b1-mid		Znowu buja w obłokach.	
+"Mr!^IIdx#`"	Polish (from notes)	Polish Expressions and Idioms	mieć dużo na głowie	to have a lot on one’s plate	idiom					b1-mid		Mam teraz dużo na głowie.	
+O)@VBkXmld	Polish (from notes)	Polish Expressions and Idioms	mieć olej w głowie	to be smart	idiom					b1-mid		On naprawdę ma olej w głowie.	
+"xz#UPN/J@H"	Polish (from notes)	Polish Expressions and Idioms	o wilku mowa	speak of the devil	idiom					b2-low		O wilku mowa — właśnie dzwoni!	
+muqKR4G)Nl	Polish (from notes)	Polish Expressions and Idioms	owijać w bawełnę	to beat around the bush	idiom					b1-mid		Nie owijaj w bawełnę.	
+BGV<fGD`/	Polish (from notes)	Polish Expressions and Idioms	pogoda dopisała	the weather was nice	idiom					b1-mid		Pogoda dopisała w weekend.	
+g?7a6$df=3	Polish (from notes)	Polish Expressions and Idioms	póki co	so far / for now	idiom					a2-mid		Póki co wszystko jest w porządku.	
+e;[)i1/bpg	Polish (from notes)	Polish Expressions and Idioms	ze względu na	because of	idiom				ACC	a2-mid		Został w domu ze względu na chorobę.	
+cDhEn$)ZT!	Polish (from notes)	Polish Expressions and Idioms	burżuj	bourgeois person	noun			masculine		b2-low		Nazywali go burżujem.	
+df2V.2h/>T	Polish (from notes)	Polish Expressions and Idioms	doświadczenie	experience	noun			neuter		a1-high		Mam duże doświadczenie zawodowe.	
+gR2@|/3MHj	Polish (from notes)	Polish Expressions and Idioms	dziecko	child	noun			neuter		a1-high		Dziecko bawiło się w ogrodzie.	
+z5{y90ZpK/	Polish (from notes)	Polish Expressions and Idioms	film	film	noun			masculine		a1-high		Obejrzałam film do końca.	
+OSSSu7jzX6	Polish (from notes)	Polish Expressions and Idioms	garnitur	suit	noun			masculine		a2-mid		Założył nowy garnitur.	
+Oc]g712_nP	Polish (from notes)	Polish Expressions and Idioms	kobieta	woman	noun			feminine		a1-high		Kobieta nosząca płaszcz stoi na lotnisku.	
+IBZ1DVDqCA	Polish (from notes)	Polish Expressions and Idioms	media	media	noun			plural		a1-high		Media społecznościowe są popularne.	
+A%;1oPHV6o	Polish (from notes)	Polish Expressions and Idioms	miecz	sword	noun			masculine		b2-low		To miecz obosieczny.	
+ACz9Xjo/z%	Polish (from notes)	Polish Expressions and Idioms	obowiązek	duty / obligation	noun			masculine		b1-mid		Mam obowiązek to zrobić.	
+iS0WA^HUZ-	Polish (from notes)	Polish Expressions and Idioms	okazja	occasion	noun			feminine		a2-mid		To dobra okazja.	
+E4/y/gngk&	Polish (from notes)	Polish Expressions and Idioms	pieśń	solemn song	noun			feminine		b2-low		Pieśń miała charakter podniosły.	
+rjdcv(lLxP	Polish (from notes)	Polish Expressions and Idioms	piosenka	song	noun			feminine		a1-high		To popularna piosenka.	
+g_`=cSb(Z+	Polish (from notes)	Polish Expressions and Idioms	prawa	rights	noun			plural		a2-mid		Prawa autorskie są chronione.	
+o*7KC_ekqC	Polish (from notes)	Polish Expressions and Idioms	regulamin	rules / regulations	noun			masculine		a2-mid		Musisz przeczytać regulamin.	
+Cwr[utdj+o	Polish (from notes)	Polish Expressions and Idioms	temperatura	temperature	noun			feminine		a2-mid		Temperatura spadła poniżej zera.	
+dU,5Ffhv8<	Polish (from notes)	Polish Expressions and Idioms	uczta	feast	noun			feminine		b2-low		Byliśmy na wielkiej uczcie.	
+F$xK|},iL%	Polish (from notes)	Polish Expressions and Idioms	zdrowie	health	noun			neuter		a1-high		Stan zdrowia jest dobry.	
+N&Sl<eZ-YP	Polish (from notes)	Polish Expressions and Idioms	bać się	to be afraid	verb	imperfective	—		GEN	a1-high	obawiać się	Boję się ciemności.	
+NzJDxOwSk2	Polish (from notes)	Polish Expressions and Idioms	bałaganić	to make a mess	verb	imperfective	—			b1-mid	broić	Nie lubię, gdy dzieci bałaganią.	
+"RbJoGJKJn#"	Polish (from notes)	Polish Expressions and Idioms	broić	to cause trouble	verb	imperfective	—			b2-low	bałaganić	Znowu broił na lekcji.	
+g6c3/m+[8}	Polish (from notes)	Polish Expressions and Idioms	buszować	to rummage / prowl	verb	imperfective	—		LOC	b2-low	grasować	Buszował po domu i zrobił bałagan.	
+gs%-r0Kdl;	Polish (from notes)	Polish Expressions and Idioms	chodzić	to go (habitually, on foot)	verb	imperfective	—			a1-high	iść	Chodzę do pracy pieszo.	
+"q)yM#9`*c`"	Polish (from notes)	Polish Expressions and Idioms	czuć się	to feel	verb	imperfective	—		ADV	a1-high	—	Czuję się dobrze.	
+vTpR.~n3<b	Polish (from notes)	Polish Expressions and Idioms	dowiedzieć się	to find out	verb	perfective	dowiadywać się		o+LOC	a2-mid	dowiadywać się	Dowiedziałem się o katastrofie.	
+LyS1tSmQQ+	Polish (from notes)	Polish Expressions and Idioms	grasować	to rampage	verb	imperfective	—		LOC	b2-low	buszować	Dzieci grasowały po ogrodzie.	
+z-RsSe.)a]	Polish (from notes)	Polish Expressions and Idioms	iść	to go (on foot, single instance)	verb	imperfective	pójść			a1-high	pójść	Idę do sklepu.	
+w8t<im39bB	Polish (from notes)	Polish Expressions and Idioms	jechać	to go (by transport, single instance)	verb	imperfective	pojechać			a1-high	pojechać	Jadę do lekarza.	
+cb&L;-75]s	Polish (from notes)	Polish Expressions and Idioms	nabierać	to gain / acquire	verb	imperfective	nabrać		GEN	b1-mid	nabrać	Nabiera doświadczenia zawodowego.	
+sT,9ZA)~xA	Polish (from notes)	Polish Expressions and Idioms	nabrać	to gain (completed)	verb	perfective	nabierać		GEN	b1-mid	nabierać	Nabrał doświadczenia.	
+BC)&tamek]	Polish (from notes)	Polish Expressions and Idioms	obawiać się	to fear / worry	verb	imperfective	—		GEN	b1-mid	bać się	Obawiam się konsekwencji.	
+f1R?F<KO+Z	Polish (from notes)	Polish Expressions and Idioms	osiągać	to achieve (process)	verb	imperfective	osiągnąć		ACC	b1-mid	osiągnąć	Osiągam dobre wyniki.	
+t:zO@!<.t@	Polish (from notes)	Polish Expressions and Idioms	osiągnąć	to achieve	verb	perfective	osiągać		ACC	b1-mid	osiągać	Osiągnąłem sukces.	
+OhmH=FAFTl	Polish (from notes)	Polish Expressions and Idioms	pojechać	to go (by transport, completed)	verb	perfective	jechać			a1-high	jechać	Pojechałem do lekarza.	
+"h&W#X:wM`B"	Polish (from notes)	Polish Expressions and Idioms	pomagać	to help	verb	imperfective	pomóc		DAT	a1-high	pomóc	Pomagam ludziom.	
+zIUa)r[JxM	Polish (from notes)	Polish Expressions and Idioms	pomóc	to help (once)	verb	perfective	pomagać		DAT	a1-high	pomagać	Pomogłem koledze.	
+x2L!`!MT!U	Polish (from notes)	Polish Expressions and Idioms	poświęcić	to devote	verb	perfective	poświęcać		DAT	b1-mid	poświęcać	Poświęcił życie pomaganiu ludziom.	
+rhvz/(P.%?	Polish (from notes)	Polish Expressions and Idioms	pójść	to go (on foot, completed)	verb	perfective	iść			a1-high	iść	Poszedłem na zakupy.	
+k[!+~2H`(U	Polish (from notes)	Polish Expressions and Idioms	robić	to do / make	verb	imperfective	zrobić		ACC	a1-high	zrobić	Robię kolację codziennie.	
+fA._hx~ul:	Polish (from notes)	Polish Expressions and Idioms	unikać	to avoid	verb	imperfective	uniknąć		GEN	b1-mid	uniknąć	Unikam tego tematu.	
+AhF6r]WP(z	Polish (from notes)	Polish Expressions and Idioms	uniknąć	to avoid successfully	verb	perfective	unikać		GEN	b1-mid	unikać	Udało mi się uniknąć problemu.	
+j/|$MM~7{n	Polish (from notes)	Polish Expressions and Idioms	wiedzieć	to know (a fact)	verb	imperfective	—		ACC / o+LOC	a1-high	znać	Wiem, gdzie mieszkasz.	
+i`F_%X=NeT	Polish (from notes)	Polish Expressions and Idioms	zachować	to preserve / keep	verb	perfective	zachowywać		ACC	b1-mid	zachowywać	Zachował spokój.	
+"Qs{#HSiP8{"	Polish (from notes)	Polish Expressions and Idioms	zachowywać	to behave / preserve	verb	imperfective	zachować		ACC	b1-mid	zachować	Zachowuje się spokojnie.	
+gWXTRT57KN	Polish (from notes)	Polish Expressions and Idioms	zaczynać	to start	verb	imperfective	zacząć		ACC	a1-high	zacząć	Zaczynam pracę.	
+e4.+DQPvTN	Polish (from notes)	Polish Expressions and Idioms	zacząć	to start (completed)	verb	perfective	zaczynać		ACC	a1-high	zaczynać	Zacząłem projekt.	
+D-SHX>L1>v	Polish (from notes)	Polish Expressions and Idioms	zatrzymać	to stop / keep	verb	perfective	zatrzymywać		ACC	a2-mid	zatrzymywać	Zatrzymał samochód.	
+vR7aG&v!p,	Polish (from notes)	Polish Expressions and Idioms	zatrzymywać	to be stopping / keeping	verb	imperfective	zatrzymać		ACC	a2-mid	zatrzymać	Zatrzymuję samochód.	
+i%VQZAGwCX	Polish (from notes)	Polish Expressions and Idioms	znać	to know (a person / thing)	verb	imperfective	—		ACC	a1-high	wiedzieć	Znam tę kobietę.	
+iEiyn>|(!E	Polish (from notes)	Polish Expressions and Idioms	zrobić	to do / make (completed)	verb	perfective	robić		ACC	a1-high	robić	Zrobiłem kolację w godzinę.	
+G=<oRXcNS<	Polish Months (roman numeral)	Polish Expressions and Idioms	I	Styczeń									
+b[SaWl!?A@	Polish Months (roman numeral)	Polish Expressions and Idioms	||	Luty									
+"Gk3$H#t]!f"	Polish Months (roman numeral)	Polish Expressions and Idioms	III	Marzec									
+p6fy6NO.^D	Polish Months (roman numeral)	Polish Expressions and Idioms	IV	Kwiecień									
+"O#F&h1^9;h"	Polish Months (roman numeral)	Polish Expressions and Idioms	V	Maj									
+Jc3J$FgySN	Polish Months (roman numeral)	Polish Expressions and Idioms	VI	Czerwiec									
+A=E_$]^tiE	Polish Months (roman numeral)	Polish Expressions and Idioms	VII	Lipiec									
+p;a?_*;lMm	Polish Months (roman numeral)	Polish Expressions and Idioms	VIII	Sierpień									
+i$PiRNA5`0	Polish Months (roman numeral)	Polish Expressions and Idioms	IX	Wrzesień									
+wds2aSA0IF	Polish Months (roman numeral)	Polish Expressions and Idioms	X	Pażdziernik									
+"tlbLq#(-fe"	Polish Months (roman numeral)	Polish Expressions and Idioms	XI	Listopad									
+N?5&+YU+$E	Polish Months (roman numeral)	Polish Expressions and Idioms	XII	Grudzień									
+dcUxUPA|29	Polish Dates	Polish Dates	16 XII 1773	szesnastego grudnia tysiąc siedemset siedemdziesiątego trzeciego roku	1773-12-16								
+qZc_2[rBAN	Polish Dates	Polish Dates	5 IX–18 X 1774	od piątego września do osiemnastego października tysiąc siedemset siedemdziesiątego czwartego roku	1774-09-05								
+"r;q0%SnV!#"	Polish Dates	Polish Dates	19 IV 1775	dziewiętnastego kwietnia tysiąc siedemset siedemdziesiątego piątego roku	1775-04-19								
+"JQ{n&#EvoD"	Polish Dates	Polish Dates	10 V 1775	dziesiątego maja tysiąc siedemset siedemdziesiątego piątego roku	1775-05-10								
+NN0aKMO5Lx	Polish Dates	Polish Dates	4 VII 1776	czwartego lipca tysiąc siedemset siedemdziesiątego szóstego roku	1776-07-04								
+"DYc#JRY&5Q"	Polish Dates	Polish Dates	15 XI 1777	piętnastego listopada tysiąc siedemset siedemdziesiątego siódmego roku	1777-11-15								
+LH5II3QwA^	Polish Dates	Polish Dates	3 IX 1783	trzeciego września tysiąc siedemset osiemdziesiątego trzeciego roku	1783-09-03								
+DqmtwDlvv%	Polish Dates	Polish Dates	17 IX 1787	siedemnastego września tysiąc siedemset osiemdziesiątego siódmego roku	1787-09-17								
+fw~GhZ)~oD	Polish Dates	Polish Dates	30 IV 1789	trzydziestego kwietnia tysiąc siedemset osiemdziesiątego dziewiątego roku	1789-04-30								
+CbrFbj?JJH	Polish Dates	Polish Dates	2 XII 1791	drugiego grudnia tysiąc siedemset dziewięćdziesiątego pierwszego roku	1791-12-02								
+"KX54+6S5#?"	Polish Dates	Polish Dates	16 VII 1790	szesnastego lipca tysiąc siedemset dziewięćdziesiątego roku	1790-07-16								
+Ihh{EVj$lA	Polish Dates	Polish Dates	9 IX 1791	dziewiątego września tysiąc siedemset dziewięćdziesiątego pierwszego roku	1791-09-09								
+szb7}mNYRA	Polish Dates	Polish Dates	2 IV 1792	drugiego kwietnia tysiąc siedemset dziewięćdziesiątego drugiego roku	1792-04-02								
+Hk@C3pApdd	Polish Dates	Polish Dates	18 VI 1812	osiemnastego czerwca tysiąc osiemset dwunastego roku	1812-06-18								
+B*(nKPA&:<	Polish Dates	Polish Dates	24 XII 1814	dwudziestego czwartego grudnia tysiąc osiemset czternastego roku	1814-12-24								
+tKY,Ve[rC~	Polish Dates	Polish Dates	22 II 1819	dwudziestego drugiego lutego tysiąc osiemset dziewiętnastego roku	1819-02-22								
+Djh;gpSyk[	Polish Dates	Polish Dates	3 III 1820	trzeciego marca tysiąc osiemset dwudziestego roku	1820-03-03								
+e,U[:a~QVa	Polish Dates	Polish Dates	2 XII 1823	drugiego grudnia tysiąc osiemset dwudziestego trzeciego roku	1823-12-02								
+mmr:Y9XZ/u	Polish Dates	Polish Dates	29 XII 1845	dwudziestego dziewiątego grudnia tysiąc osiemset czterdziestego piątego roku	1845-12-29								
+BT{lQv8v]c	Polish Dates	Polish Dates	2 II 1848	drugiego lutego tysiąc osiemset czterdziestego ósmego roku	1848-02-02								
+AiD,@3CFs)	Polish Dates	Polish Dates	15 VI 1846	piętnastego czerwca tysiąc osiemset czterdziestego szóstego roku	1846-06-15								
+fvlE,I,5FE	Polish Dates	Polish Dates	1 I 1863	pierwszego stycznia tysiąc osiemset sześćdziesiątego trzeciego roku	1863-01-01								
+zC5=y<my{,	Polish Dates	Polish Dates	1–3 VII 1863	od pierwszego do trzeciego lipca tysiąc osiemset sześćdziesiątego trzeciego roku	1863-07-01								
+KLDM9X|B3)	Polish Dates	Polish Dates	15 IV 1865	piętnastego kwietnia tysiąc osiemset sześćdziesiątego piątego roku	1865-04-15								
+JL@oOZ]QOm	Polish Dates	Polish Dates	30 III 1867	trzydziestego marca tysiąc osiemset sześćdziesiątego siódmego roku	1867-03-30								
+"PKMDX#Cs3<"	Polish Dates	Polish Dates	9 VII 1868	dziewiątego lipca tysiąc osiemset sześćdziesiątego ósmego roku	1868-07-09								
+yWo58.69Kg	Polish Dates	Polish Dates	3 II 1870	trzeciego lutego tysiąc osiemset siedemdziesiątego roku	1870-02-03								
+OzIu8dG,S<	Polish Dates	Polish Dates	25 VI 1876	dwudziestego piątego czerwca tysiąc osiemset siedemdziesiątego szóstego roku	1876-06-25								
+g}A@rpLMQD	Polish Dates	Polish Dates	17 XI 1881	siedemnastego listopada tysiąc osiemset osiemdziesiątego pierwszego roku	1881-11-17								
+eHh2h8:I4F	Polish Dates	Polish Dates	5 IX 1887	piątego września tysiąc osiemset osiemdziesiątego siódmego roku	1887-09-05								
+EH2gA+~R$A	Polish Dates	Polish Dates	2 X 1889–27 IV 1890	od drugiego października tysiąc osiemset osiemdziesiątego dziewiątego roku do dwudziestego siódmego kwietnia tysiąc osiemset dziewięćdziesiątego roku	1889-10-02								
+"OU>#Zn?/3+"	Polish Dates	Polish Dates	21 IV 1898	dwudziestego pierwszego kwietnia tysiąc osiemset dziewięćdziesiątego ósmego roku	1898-04-21								
+lqd/O;h{&B	Polish Dates	Polish Dates	7 VII 1898	siódmego lipca tysiąc osiemset dziewięćdziesiątego ósmego roku	1898-07-07								
+"kWb.O&<0#h"	Polish Dates	Polish Dates	6 IX 1899	szóstego września tysiąc osiemset dziewięćdziesiątego dziewiątego roku	1899-09-06								
+gr&8U+@2M_	Polish Dates	Polish Dates	2 IX 1901	drugiego września tysiąc dziewięćset pierwszego roku	1901-09-02								
+H,oPL6CTYi	Polish Dates	Polish Dates	3 XI 1903	trzeciego listopada tysiąc dziewięćset trzeciego roku	1903-11-03								
+A,V1`^o+6M	Polish Dates	Polish Dates	26 VII 1908	dwudziestego szóstego lipca tysiąc dziewięćset ósmego roku	1908-07-26								
+c?=:!h6yaL	Polish Dates	Polish Dates	3 X 1913	trzeciego października tysiąc dziewięćset trzynastego roku	1913-10-03								
+hT9hV2!FwN	Polish Dates	Polish Dates	23 XII 1913	dwudziestego trzeciego grudnia tysiąc dziewięćset trzynastego roku	1913-12-23								
+"gJ#5)Wx/|,"	Polish Dates	Polish Dates	2 IV 1917	drugiego kwietnia tysiąc dziewięćset siedemnastego roku	1917-04-02								

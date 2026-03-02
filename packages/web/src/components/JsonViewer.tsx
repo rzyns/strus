@@ -15,42 +15,75 @@ function tokenize(json: string): Token[] {
   let i = 0
 
   while (i < json.length) {
+    const ch = json[i]
+    if (ch === undefined) break
+
     // Whitespace (preserve newlines / indentation)
-    if (/\s/.test(json[i])) {
+    if (/\s/.test(ch)) {
       let t = ''
-      while (i < json.length && /\s/.test(json[i])) t += json[i++]
+      while (i < json.length) {
+        const c = json[i]
+        if (c === undefined || !/\s/.test(c)) break
+        t += c
+        i++
+      }
       tokens.push({ kind: 'ws', text: t })
       continue
     }
+
     // String — could be a key or a value; we decide after
-    if (json[i] === '"') {
+    if (ch === '"') {
       let t = '"'
       i++
       while (i < json.length) {
-        if (json[i] === '\\') { t += json[i] + json[i + 1]; i += 2 }
-        else if (json[i] === '"') { t += '"'; i++; break }
-        else { t += json[i++] }
+        const c = json[i]
+        if (c === undefined) break
+        if (c === '\\') {
+          const next = json[i + 1] ?? ''
+          t += c + next
+          i += 2
+        } else if (c === '"') {
+          t += '"'
+          i++
+          break
+        } else {
+          t += c
+          i++
+        }
       }
       // Look ahead past whitespace for ':'
       let j = i
-      while (j < json.length && /[ \t]/.test(json[j])) j++
+      while (j < json.length) {
+        const c = json[j]
+        if (c === undefined || !/[ \t]/.test(c)) break
+        j++
+      }
       const isKey = json[j] === ':'
       tokens.push({ kind: isKey ? 'key' : 'string', text: t })
       continue
     }
+
     // Number
-    if (/[-\d]/.test(json[i])) {
+    if (/[-\d]/.test(ch)) {
       let t = ''
-      while (i < json.length && /[-\d.eE+]/.test(json[i])) t += json[i++]
+      while (i < json.length) {
+        const c = json[i]
+        if (c === undefined || !/[-\d.eE+]/.test(c)) break
+        t += c
+        i++
+      }
       tokens.push({ kind: 'number', text: t })
       continue
     }
+
     // true / false / null
     if (json.startsWith('true', i))  { tokens.push({ kind: 'boolean', text: 'true' });  i += 4; continue }
     if (json.startsWith('false', i)) { tokens.push({ kind: 'boolean', text: 'false' }); i += 5; continue }
     if (json.startsWith('null', i))  { tokens.push({ kind: 'null',    text: 'null' });  i += 4; continue }
+
     // Punctuation: { } [ ] : ,
-    tokens.push({ kind: 'punct', text: json[i++] })
+    tokens.push({ kind: 'punct', text: ch })
+    i++
   }
   return tokens
 }

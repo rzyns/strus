@@ -141,7 +141,6 @@ export default function LemmasIndex() {
       <ErrorBoundary fallback={(err) => <ErrorState message={String(err)} onRetry={refetch} />}>
         <Suspense fallback={<div class={css({ display: 'flex', justifyContent: 'center', py: '12' })}><Spinner size="lg" /></div>}>
           <Show when={lemmas()}>
-            {() => (
               <Show
                 when={filtered().length > 0}
                 fallback={
@@ -185,7 +184,6 @@ export default function LemmasIndex() {
                   </Table.Body>
                 </Table.Root>
               </Show>
-            )}
           </Show>
         </Suspense>
       </ErrorBoundary>

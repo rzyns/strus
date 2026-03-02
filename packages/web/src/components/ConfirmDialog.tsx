@@ -67,10 +67,10 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             {props.description ?? 'This action cannot be undone.'}
           </DialogDescription>
           <div class={css({ display: 'flex', justifyContent: 'flex-end', gap: '3' })}>
-            <Button variant="ghost" onClick={props.onCancel} disabled={props.loading}>
+            <Button variant="ghost" onClick={props.onCancel} disabled={props.loading === true}>
               Cancel
             </Button>
-            <Button variant="danger" onClick={props.onConfirm} loading={props.loading}>
+            <Button variant="danger" onClick={props.onConfirm} loading={props.loading === true}>
               {props.confirmLabel ?? 'Confirm'}
             </Button>
           </div>

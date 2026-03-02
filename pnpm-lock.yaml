@@ -161,9 +161,15 @@ importers:
         specifier: ^1.9.0
         version: 1.9.11
     devDependencies:
+      '@orpc/server':
+        specifier: ^1.13.5
+        version: 1.13.5
       '@pandacss/dev':
         specifier: ^0.53.0
         version: 0.53.7(typescript@5.9.3)
+      '@strus/api':
+        specifier: workspace:*
+        version: link:../api
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

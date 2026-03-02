@@ -16,10 +16,9 @@ import { formatTag } from '../../utils/tag-label'
 interface DueCard {
   id: string
   kind: string
-  lemmaId: string
-  tag: string
+  tag: string | null
   state: number
-  lemmaText: string
+  lemmaText: string | null
   front: string | null
   back: string | null
   forms: string[]
@@ -196,7 +195,7 @@ export default function Quiz() {
 
   onMount(async () => {
     try {
-      const due = await api.session.due({}) as DueCard[]
+      const due = await api.session.due({}) as unknown as DueCard[]
       setCards(due)
       setPhase(due.length === 0 ? 'done' : 'asking')
     } catch (err) {
@@ -345,7 +344,7 @@ export default function Quiz() {
                       </>
                     }>
                       <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
-                        {formatTag(card().tag)}
+                        {formatTag(card().tag ?? '')}
                       </p>
                       <p class={css({ fontSize: '2xl', fontWeight: 'bold', color: 'fg.default' })}>
                         {card().lemmaText}
