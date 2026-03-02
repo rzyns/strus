@@ -1,6 +1,6 @@
 {
   "name": "@strus/cli",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "private": true,
   "description": "Commander.js CLI for strus",
   "type": "module",
