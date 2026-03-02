@@ -48,6 +48,8 @@ export const notes = sqliteTable("notes", {
   front:     text("front"),
   /** For kind='gloss' and kind='basic': the answer text revealed to the user */
   back:      text("back"),
+  /** Unix timestamp (seconds) — last time any card under this note was reviewed */
+  lastReviewedAt: integer("last_reviewed_at"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
