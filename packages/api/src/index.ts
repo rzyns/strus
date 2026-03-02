@@ -112,7 +112,7 @@ const webPlugin = existsSync(webDist)
 
 export const app = new Elysia()
   // Health check
-  .get("/", () => ({ ok: true, version: "0.0.1" }))
+  .get("/health", () => ({ ok: true, version: "0.0.1" }))
 
   // OpenAPI spec (generated from oRPC router + Zod schemas)
   .get("/openapi.json", () => spec)
