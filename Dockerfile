@@ -39,12 +39,19 @@ FROM oven/bun:1 AS runtime
 
 # Install morfeusz2 (Polish morphological analyser — required by @strus/morph)
 RUN <<-'EOF'
-	echo 'deb http://download.sgjp.pl/apt/ubuntu ./' > /etc/apt/sources.list.d/sgjp.list
-	wget -O - http://download.sgjp.pl/apt/sgjp.gpg.key | apt-key add -
+	set -euo pipefail
 	apt-get update && apt-get install -y --no-install-recommends \
+		ca-certificates \
+		wget
+
+	mkdir -p /etc/apt/keyrings
+	wget -O /etc/apt/keyrings/sgjp.asc http://download.sgjp.pl/apt/sgjp.gpg.key
+	echo 'deb [trusted=yes] http://download.sgjp.pl/apt/ubuntu noble main' > /etc/apt/sources.list.d/sgjp.list
+	apt-get -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowUnsigned=true update
+	apt-get install -y --no-install-recommends \
 		morfeusz2 \
-		morfeusz2-dictionary-polimorf \
-	&& rm -rf /var/lib/apt/lists/*
+		morfeusz2-dictionary-polimorf
+	apt-get clean && rm -rf /var/lib/apt/lists/*
 EOF
 
 WORKDIR /app
