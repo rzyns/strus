@@ -1,6 +1,6 @@
 {
   "name": "@strus/api",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "private": true,
   "description": "Elysia + oRPC HTTP server for strus",
   "type": "module",
