@@ -25,8 +25,10 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 FROM deps AS web-build
 
 # Copy source now so Panda CSS codegen can find panda.config.ts etc.
-COPY packages/web/    packages/web/
-COPY packages/config/ packages/config/
+# tsconfig.base.json must be at the root so packages/web/tsconfig.json can extend it
+COPY tsconfig.base.json  ./
+COPY packages/web/       packages/web/
+COPY packages/config/    packages/config/
 
 # Run prepare (Panda codegen) then build
 RUN pnpm --filter @strus/web run prepare && \
