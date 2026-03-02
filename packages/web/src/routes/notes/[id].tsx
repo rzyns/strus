@@ -1,4 +1,4 @@
-import { createResource, createSignal, For, Show, Suspense, ErrorBoundary } from 'solid-js'
+import { createResource, createSignal, createMemo, For, Show, Suspense, ErrorBoundary } from 'solid-js'
 import { useParams, useNavigate, A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -65,8 +65,8 @@ export default function NoteDetail() {
     () => note()?.lemmaId ?? undefined,
     (lemmaId: string) => api.lemmas.forms({ id: lemmaId })
   )
-  // Build a lookup: tag → orth[]
-  const formsByTag = () => {
+  // Build a lookup: tag → orth[] — createMemo ensures reactive tracking
+  const formsByTag = createMemo(() => {
     const fs = lemmaForms() ?? []
     const map = new Map<string, string[]>()
     for (const f of (fs as Array<{ tag: string; orth: string }>)) {
@@ -75,7 +75,7 @@ export default function NoteDetail() {
       else map.set(f.tag, [f.orth])
     }
     return map
-  }
+  })
 
   const [showDelete, setShowDelete] = createSignal(false)
   const [deleting, setDeleting] = createSignal(false)
@@ -243,17 +243,10 @@ export default function NoteDetail() {
                               Due {formatDue(card.due)}
                             </span>
                           </div>
-                          <Show when={card.kind === 'morph_form' && card.tag}>
-                            {(_) => {
-                              const orths = formsByTag().get(card.tag!) ?? []
-                              return (
-                                <Show when={orths.length > 0}>
-                                  <p class={css({ fontSize: 'sm', color: 'fg.default', mb: '2', fontFamily: 'monospace' })}>
-                                    {orths.join(' / ')}
-                                  </p>
-                                </Show>
-                              )
-                            }}
+                          <Show when={card.kind === 'morph_form' && card.tag && (formsByTag().get(card.tag) ?? []).length > 0}>
+                            <p class={css({ fontSize: 'sm', color: 'fg.default', mb: '2', fontFamily: 'monospace' })}>
+                              {(formsByTag().get(card.tag!) ?? []).join(' / ')}
+                            </p>
                           </Show>
                           <Show when={(card.kind === 'gloss_forward' || card.kind === 'gloss_reverse') && (data().back || data().front)}>
                             <p class={css({ fontSize: 'sm', color: 'fg.default', mb: '2' })}>
