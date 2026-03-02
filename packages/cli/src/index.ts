@@ -17,7 +17,8 @@ import { Command } from "commander";
 import * as readline from "readline";
 import { Rating } from "@strus/core";
 
-const API_URL = process.env["STRUS_API_URL"] ?? "http://localhost:3457";
+import { getCliConfig } from "@strus/config";
+const { STRUS_API_URL: API_URL } = getCliConfig();
 
 // ---------------------------------------------------------------------------
 // HTTP helpers

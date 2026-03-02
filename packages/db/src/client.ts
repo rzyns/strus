@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
+import { getDbConfig } from "@strus/config";
 import * as schema from "./schema.js";
 
 export type DbClient = ReturnType<typeof createDb>;
@@ -22,10 +23,10 @@ export function createDb(path: string) {
   return drizzle(sqlite, { schema });
 }
 
-const dbPath = process.env["STRUS_DB_PATH"] ?? "./strus.db";
+const { STRUS_DB_PATH } = getDbConfig();
 
 /**
  * Default singleton database client.
- * Uses the `STRUS_DB_PATH` environment variable or `./strus.db`.
+ * Uses the `STRUS_DB_PATH` environment variable (required — no default).
  */
-export const db = createDb(dbPath);
+export const db = createDb(STRUS_DB_PATH);

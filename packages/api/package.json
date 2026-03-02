@@ -26,7 +26,8 @@
     "@strus/morph": "workspace:*",
     "drizzle-orm": "^0.45.1",
     "elysia": "^1.4.25",
-    "zod": "^3.23.0"
+    "zod": "^3.23.0",
+    "@strus/config": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "^1.1.0",

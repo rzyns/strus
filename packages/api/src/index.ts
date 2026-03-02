@@ -77,7 +77,8 @@ const rpcHandler = new RPCHandler(router);
 // Elysia app
 // ---------------------------------------------------------------------------
 
-const PORT = Number(process.env["PORT"] ?? 3457);
+import { getApiConfig } from "@strus/config";
+const { PORT } = getApiConfig();
 
 // Minimal Swagger UI (CDN) — points at our generated spec
 const SWAGGER_UI_HTML = /* html */`<!DOCTYPE html>

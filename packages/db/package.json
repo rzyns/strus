@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@strus/core": "workspace:*",
-    "drizzle-orm": "^0.45.1"
+    "drizzle-orm": "^0.45.1",
+    "@strus/config": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "^1.1.0",
