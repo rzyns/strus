@@ -2,12 +2,14 @@ import {
   createSignal, createMemo, createEffect, createResource,
   Show, Switch, Match, For, onMount,
 } from 'solid-js'
+import { A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { Spinner } from '../../components/Spinner'
 import { ErrorState } from '../../components/ErrorState'
+import { StateBadge } from '../../components/FsrsStateBadge'
 import { formatTag } from '../../utils/tag-label'
 
 // ---------------------------------------------------------------------------
@@ -23,6 +25,13 @@ interface DueCard {
   front: string | null
   back: string | null
   forms: string[]
+  noteId: string
+  due: string
+  stability: number
+  difficulty: number
+  reps: number
+  lapses: number
+  lastReview: string | null
 }
 
 type QuizType = 'all' | 'morph' | 'gloss' | 'basic'
@@ -210,6 +219,9 @@ export default function Quiz() {
   const [direction, setDirection] = createSignal<GlossDirection>('both')
   const [tagFilter, setTagFilter] = createSignal('')
   const [listId, setListId] = createSignal('')
+  const [mode, setMode] = createSignal<'card-first' | 'note-first'>('card-first')
+  const [noteLimit, setNoteLimit] = createSignal(10)
+  const [cardsPerNote, setCardsPerNote] = createSignal(5)
   const [limit, setLimit] = createSignal(100)
 
   // Fetch lists for the config form
@@ -228,6 +240,7 @@ export default function Quiz() {
   const [correct, setCorrect] = createSignal(0)
   const [streak, setStreak] = createSignal(0)
   const [lastResult, setLastResult] = createSignal<'correct' | 'incorrect' | null>(null)
+  const [reviewedByKind, setReviewedByKind] = createSignal<Record<string, number>>({})
 
   const currentCard = createMemo(() => cards()[index()])
   const total = createMemo(() => cards().length)
@@ -256,6 +269,11 @@ export default function Quiz() {
       if (tag) params.tagContains = tag
       const list = listId()
       if (list) params.listId = list
+      params.mode = mode()
+      if (mode() === 'note-first') {
+        params.noteLimit = noteLimit()
+        params.cardsPerNote = cardsPerNote()
+      }
 
       const due = await api.session.due(params) as DueCard[]
       setCards(due)
@@ -293,6 +311,7 @@ export default function Quiz() {
 
     const wasCorrect = rating >= 2
     setReviewed(r => r + 1)
+    setReviewedByKind(prev => ({ ...prev, [card.kind]: (prev[card.kind] ?? 0) + 1 }))
     if (wasCorrect) {
       setCorrect(c => c + 1)
       setStreak(s => s + 1)
@@ -392,6 +411,47 @@ export default function Quiz() {
                 </select>
               </div>
 
+              {/* Session strategy */}
+              <div>
+                <label class={labelStyle}>Session strategy</label>
+                <select
+                  class={selectStyle}
+                  value={mode()}
+                  onChange={(e) => setMode(e.currentTarget.value as 'card-first' | 'note-first')}
+                >
+                  <option value="card-first">Card-first (default)</option>
+                  <option value="note-first">Note-first (word-based)</option>
+                </select>
+              </div>
+
+              <Show when={mode() === 'note-first'}>
+                <div>
+                  <label class={labelStyle}>Notes to select</label>
+                  <input
+                    class={inputStyle}
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={noteLimit()}
+                    onInput={(e) => setNoteLimit(Number(e.currentTarget.value) || 10)}
+                  />
+                </div>
+                <div>
+                  <label class={labelStyle}>Cards per note</label>
+                  <input
+                    class={inputStyle}
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={cardsPerNote()}
+                    onInput={(e) => setCardsPerNote(Number(e.currentTarget.value) || 5)}
+                  />
+                </div>
+                <p class={css({ fontSize: 'xs', color: 'fg.muted', mt: '-2' })}>
+                  Selects words with the longest gap since last review, then picks cards within each word.
+                </p>
+              </Show>
+
               {/* Limit */}
               <div>
                 <label class={labelStyle}>Limit</label>
@@ -438,11 +498,28 @@ export default function Quiz() {
                   <p class={css({ fontSize: 'xl', fontWeight: 'semibold', color: 'fg.default', mb: '4' })}>
                     {correct()}/{reviewed()} correct
                   </p>
-                  <p class={css({ color: 'fg.muted', mb: '6' })}>
+                  <p class={css({ color: 'fg.muted', mb: '2' })}>
                     {correct() === reviewed()
                       ? 'Perfect session!'
                       : `${Math.round((correct() / reviewed()) * 100)}% accuracy`}
                   </p>
+                  {(() => {
+                    const kindLabels: Record<string, string> = {
+                      morph_form: 'morph forms',
+                      gloss_forward: 'gloss (\u2192EN)',
+                      gloss_reverse: 'gloss (\u2192PL)',
+                      basic_forward: 'basic',
+                    }
+                    const byKind = reviewedByKind()
+                    const entries = Object.entries(byKind).filter(([, v]) => v > 0)
+                    if (entries.length <= 1) return null
+                    return (
+                      <p class={css({ color: 'fg.muted', fontSize: 'sm' })}>
+                        {entries.map(([k, v]) => `${v} ${kindLabels[k] ?? k}`).join(' \u00B7 ')}
+                      </p>
+                    )
+                  })()}
+                  <div class={css({ mb: '4' })} />
                   <div class={css({ display: 'flex', gap: '3', justifyContent: 'center', flexWrap: 'wrap' })}>
                     <Button variant="solid" onClick={startQuiz}>
                       Again
@@ -492,6 +569,30 @@ export default function Quiz() {
                 <Card>
                   <div class={css({ fontSize: 'xs', color: 'fg.muted', mb: '4' })}>
                     Card {index() + 1} of {total()}
+                  </div>
+
+                  {/* FSRS state info strip */}
+                  <div class={css({ display: 'flex', gap: '3', fontSize: 'xs', color: 'fg.muted', mb: '3', flexWrap: 'wrap', alignItems: 'center' })}>
+                    <StateBadge state={card().state} />
+                    <span>{card().reps} reps</span>
+                    <span>{(() => {
+                      const lr = card().lastReview
+                      if (!lr) return 'never seen'
+                      const diffMs = Date.now() - new Date(lr).getTime()
+                      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+                      if (diffDays === 0) return 'today'
+                      if (diffDays === 1) return 'yesterday'
+                      return `${diffDays}d ago`
+                    })()}</span>
+                    {(() => {
+                      const diffMs = new Date(card().due).getTime() - Date.now()
+                      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+                      if (diffDays < 0) return (
+                        <span class={css({ color: 'red.9' })}>{Math.abs(diffDays)}d overdue</span>
+                      )
+                      if (diffDays === 0) return <span>due today</span>
+                      return null
+                    })()}
                   </div>
 
                   {/* Prompt */}
@@ -599,6 +700,15 @@ export default function Quiz() {
                         <strong>{card().forms.join(' / ')}</strong>
                       </p>
                     </div>
+                    <A
+                      href={`/notes/${card().noteId}`}
+                      class={css({
+                        fontSize: 'xs', color: 'blue.9', display: 'inline-block', mt: '1',
+                        _hover: { textDecoration: 'underline' }, textDecoration: 'none',
+                      })}
+                    >
+                      View note →
+                    </A>
                     <button
                       ref={(el) => { nextBtnRef = el }}
                       disabled={submitting()}
@@ -634,6 +744,15 @@ export default function Quiz() {
                         </p>
                       </Show>
                     </div>
+                    <A
+                      href={`/notes/${card().noteId}`}
+                      class={css({
+                        fontSize: 'xs', color: 'blue.9', display: 'inline-block', mt: '1',
+                        _hover: { textDecoration: 'underline' }, textDecoration: 'none',
+                      })}
+                    >
+                      View note →
+                    </A>
                     <RatingButtons
                       options={[
                         { label: 'Again', desc: 'forgot', rating: 1, variant: 'danger' },
