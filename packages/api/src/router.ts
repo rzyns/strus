@@ -15,6 +15,7 @@ import { generate, parseTag, analyseText } from "@strus/morph";
 import {
   scheduleReview,
   createCard,
+  getNextReviewDates,
   Rating,
   CardState,
   type Card,
@@ -674,6 +675,13 @@ const lemmasForms = os
 // Session procedures
 // ---------------------------------------------------------------------------
 
+const NextDatesOutput = z.object({
+  again: zIso,
+  hard: zIso,
+  good: zIso,
+  easy: zIso,
+}).describe("Projected due dates for each rating, computed at session load time");
+
 const DueCardOutput = CardOutput.extend({
   lemmaText: z
     .string()
@@ -687,6 +695,7 @@ const DueCardOutput = CardOutput.extend({
       "Orthographic variants for this card's tag combination. " +
       "Empty when the lemma has source=manual or Morfeusz2 form generation was skipped.",
     ),
+  nextDates: NextDatesOutput,
 });
 
 /**
@@ -1032,6 +1041,8 @@ const sessionDue = os
       else formsByKey.set(key, [f.orth]);
     }
 
+    const now = new Date(nowSecs * 1000);
+
     return session.map((r) => {
       let front = r.front;
       let back = r.back;
@@ -1045,6 +1056,24 @@ const sessionDue = os
         back = r.lemmaText;    // Polish word
       }
 
+      // Compute projected next-due dates for each rating
+      const domainCard: Card = {
+        id: r.card.id,
+        noteId: r.card.noteId,
+        kind: r.card.kind as Card["kind"],
+        state: r.card.state as CardState,
+        due: new Date(r.card.due * 1000),
+        stability: r.card.stability,
+        difficulty: r.card.difficulty,
+        elapsedDays: r.card.elapsedDays,
+        scheduledDays: r.card.scheduledDays,
+        reps: r.card.reps,
+        lapses: r.card.lapses,
+        ...(r.card.tag != null ? { tag: r.card.tag } : {}),
+        ...(r.card.lastReview != null ? { lastReview: new Date(r.card.lastReview * 1000) } : {}),
+      };
+      const dates = getNextReviewDates(domainCard, now);
+
       return {
         ...mapCardRow(r.card),
         lemmaText: r.lemmaText,
@@ -1053,6 +1082,12 @@ const sessionDue = os
         forms: r.lemmaId && r.card.tag
           ? formsByKey.get(`${r.lemmaId}::${r.card.tag}`) ?? []
           : [],
+        nextDates: {
+          again: dates[Rating.Again].toISOString(),
+          hard: dates[Rating.Hard].toISOString(),
+          good: dates[Rating.Good].toISOString(),
+          easy: dates[Rating.Easy].toISOString(),
+        },
       };
     });
   });
@@ -1595,6 +1630,72 @@ const notesUpdate = os
   });
 
 // ---------------------------------------------------------------------------
+// Cards procedures
+// ---------------------------------------------------------------------------
+
+const ReviewOutput = z.object({
+  id: zId,
+  rating: z.number().int().describe("Review rating: 1=Again, 2=Hard, 3=Good, 4=Easy"),
+  stateBefore: z.number().int().describe("Card state before the review: 0=New, 1=Learning, 2=Review, 3=Relearning"),
+  reviewedAt: zIso.describe("When this review was recorded"),
+  due: zIso.describe("When the card was due at time of review"),
+  elapsedDays: z.number().int().describe("Days elapsed since the previous review"),
+  scheduledDays: z.number().int().describe("Days the card was scheduled ahead"),
+  stabilityAfter: z.number().describe("FSRS stability after the review"),
+  difficultyAfter: z.number().describe("FSRS difficulty after the review"),
+});
+
+const cardsGet = os
+  .route({
+    method: "GET",
+    path: "/cards/{id}",
+    tags: ["Cards"],
+    summary: "Get a card",
+  })
+  .input(z.object({ id: zId }))
+  .output(CardOutput)
+  .handler(async ({ input }) => {
+    const [row] = await db.select().from(cards).where(eq(cards.id, input.id)).limit(1);
+    if (!row) throw new ORPCError("NOT_FOUND", { message: `Card not found: ${input.id}` });
+    return mapCardRow(row);
+  });
+
+const cardsReviews = os
+  .route({
+    method: "GET",
+    path: "/cards/{id}/reviews",
+    tags: ["Cards"],
+    summary: "Get review history for a card",
+    description: "Returns review records for a card, newest first.",
+  })
+  .input(z.object({
+    id: zId.describe("ID of the card"),
+    limit: z.coerce.number().int().min(1).max(100).default(20).describe("Maximum number of reviews to return (default: 20)"),
+  }))
+  .output(z.array(ReviewOutput))
+  .handler(async ({ input }) => {
+    const rows = db
+      .select()
+      .from(reviews)
+      .where(eq(reviews.cardId, input.id))
+      .orderBy(sql`${reviews.reviewedAt} DESC`)
+      .limit(input.limit)
+      .all();
+
+    return rows.map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      stateBefore: r.stateBefore,
+      reviewedAt: new Date(r.reviewedAt * 1000).toISOString(),
+      due: new Date(r.due * 1000).toISOString(),
+      elapsedDays: r.elapsedDays,
+      scheduledDays: r.scheduledDays,
+      stabilityAfter: r.stabilityAfter,
+      difficultyAfter: r.difficultyAfter,
+    }));
+  });
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -1619,6 +1720,10 @@ export const router = {
     get: lemmasGet,
     delete: lemmasDelete,
     forms: lemmasForms,
+  },
+  cards: {
+    get: cardsGet,
+    reviews: cardsReviews,
   },
   session: {
     due: sessionDue,

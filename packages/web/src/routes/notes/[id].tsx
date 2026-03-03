@@ -9,6 +9,14 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { StateBadge, formatDue } from '../../components/FsrsStateBadge'
 import { formatTag } from '../../utils/tag-label'
 
+// Rating label and color for review history
+const ratingMeta: Record<number, { label: string; color: string; bg: string }> = {
+  1: { label: 'Again', color: 'red.11', bg: 'red.3' },
+  2: { label: 'Hard', color: 'orange.11', bg: 'orange.3' },
+  3: { label: 'Good', color: 'green.11', bg: 'green.3' },
+  4: { label: 'Easy', color: 'teal.11', bg: 'teal.3' },
+}
+
 export default function NoteDetail() {
   const params = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -20,6 +28,40 @@ export default function NoteDetail() {
     () => note()?.lemmaId ?? undefined,
     (lemmaId: string) => api.lemmas.forms({ id: lemmaId })
   )
+
+  // Review history expansion state
+  const [expandedCards, setExpandedCards] = createSignal<Set<string>>(new Set())
+  const [reviewCache, setReviewCache] = createSignal<Record<string, any[]>>({})
+  const [loadingReviews, setLoadingReviews] = createSignal<Set<string>>(new Set())
+
+  const toggleCardReviews = async (cardId: string) => {
+    const expanded = expandedCards()
+    if (expanded.has(cardId)) {
+      const next = new Set(expanded)
+      next.delete(cardId)
+      setExpandedCards(next)
+      return
+    }
+
+    // Expand
+    const next = new Set(expanded)
+    next.add(cardId)
+    setExpandedCards(next)
+
+    // Fetch if not cached
+    if (reviewCache()[cardId] === undefined) {
+      setLoadingReviews(prev => { const s = new Set(prev); s.add(cardId); return s })
+      try {
+        const revs = await api.cards.reviews({ id: cardId })
+        setReviewCache(prev => ({ ...prev, [cardId]: revs as any[] }))
+      } catch (err) {
+        console.error('Failed to fetch reviews:', err)
+        setReviewCache(prev => ({ ...prev, [cardId]: [] }))
+      } finally {
+        setLoadingReviews(prev => { const s = new Set(prev); s.delete(cardId); return s })
+      }
+    }
+  }
   // Build a lookup: tag → orth[] — createMemo ensures reactive tracking
   const formsByTag = createMemo(() => {
     const fs = lemmaForms() ?? []
@@ -194,9 +236,23 @@ export default function NoteDetail() {
                                 </span>
                               </Show>
                             </div>
-                            <span class={css({ fontSize: 'xs', color: 'fg.subtle', whiteSpace: 'nowrap' })}>
-                              Due {formatDue(card.due)}
-                            </span>
+                            <div class={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
+                              <span class={css({ fontSize: 'xs', color: 'fg.subtle', whiteSpace: 'nowrap' })}>
+                                Due {formatDue(card.due)}
+                              </span>
+                              <button
+                                onClick={() => toggleCardReviews(card.id)}
+                                class={css({
+                                  bg: 'transparent', border: 'none', cursor: 'pointer',
+                                  fontSize: 'xs', color: 'fg.muted', p: '1', borderRadius: 'l1',
+                                  _hover: { color: 'fg.default', bg: 'bg.subtle' },
+                                  transition: 'all 0.15s',
+                                })}
+                                title="Toggle review history"
+                              >
+                                {expandedCards().has(card.id) ? '\u25BC' : '\u25B6'}
+                              </button>
+                            </div>
                           </div>
                           <Show when={card.kind === 'morph_form' && card.tag && (formsByTag().get(card.tag) ?? []).length > 0}>
                             <p class={css({ fontSize: 'sm', color: 'fg.default', mb: '2', fontFamily: 'monospace' })}>
@@ -221,6 +277,51 @@ export default function NoteDetail() {
                             <span>Reps: {card.reps}</span>
                             <span>Lapses: {card.lapses}</span>
                           </div>
+
+                          {/* Expandable review history */}
+                          <Show when={expandedCards().has(card.id)}>
+                            <div class={css({ mt: '3', pt: '3', borderTop: '1px solid', borderColor: 'border' })}>
+                              <Show when={loadingReviews().has(card.id)}>
+                                <div class={css({ display: 'flex', justifyContent: 'center', py: '2' })}>
+                                  <Spinner size="sm" />
+                                </div>
+                              </Show>
+                              <Show when={!loadingReviews().has(card.id) && reviewCache()[card.id] !== undefined}>
+                                <Show
+                                  when={(reviewCache()[card.id] ?? []).length > 0}
+                                  fallback={<p class={css({ fontSize: 'xs', color: 'fg.muted', fontStyle: 'italic' })}>No reviews yet</p>}
+                                >
+                                  <div class={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
+                                    <For each={reviewCache()[card.id]}>
+                                      {(rev: any) => {
+                                        const meta = ratingMeta[rev.rating as number] ?? { label: '?', color: 'fg.muted', bg: 'gray.3' }
+                                        return (
+                                          <div class={css({ display: 'flex', gap: '3', alignItems: 'center', fontSize: 'xs', py: '1' })}>
+                                            <span class={css({ color: 'fg.muted', minW: '50px' })}>
+                                              {new Date(rev.reviewedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                            </span>
+                                            <span class={css({
+                                              display: 'inline-block', px: '1.5', py: '0.5', borderRadius: 'l1',
+                                              fontSize: 'xs', fontWeight: 'medium', bg: meta.bg, color: meta.color, minW: '40px',
+                                              textAlign: 'center',
+                                            })}>
+                                              {meta.label}
+                                            </span>
+                                            <span class={css({ color: 'fg.muted' })}>
+                                              S: {rev.stabilityAfter.toFixed(1)}d
+                                            </span>
+                                            <span class={css({ color: 'fg.muted' })}>
+                                              +{rev.scheduledDays}d
+                                            </span>
+                                          </div>
+                                        )
+                                      }}
+                                    </For>
+                                  </div>
+                                </Show>
+                              </Show>
+                            </div>
+                          </Show>
                         </div>
                       )}
                     </For>
