@@ -1,6 +1,6 @@
 import { os, ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { count, eq, lte, ne, like, and, or, inArray } from "drizzle-orm";
+import { count, eq, lte, ne, like, and, or, inArray, asc, sql } from "drizzle-orm";
 import { db } from "@strus/db";
 import {
   vocabLists,
@@ -791,15 +791,31 @@ const sessionDue = os
       .string()
       .optional()
       .describe("Filter morph_form cards to those whose tag contains this substring"),
+    mode: z
+      .enum(["card-first", "note-first"])
+      .default("card-first")
+      .describe(
+        "Session selection strategy. card-first (default) picks cards directly. " +
+        "note-first selects notes that need attention, then picks cards within each note.",
+      ),
+    noteLimit: z
+      .coerce
+      .number()
+      .int()
+      .positive()
+      .default(10)
+      .describe("Maximum notes to include in a note-first session (default: 10)"),
+    cardsPerNote: z
+      .coerce
+      .number()
+      .int()
+      .positive()
+      .default(5)
+      .describe("Maximum cards per note in note-first mode (default: 5)"),
   }))
   .output(z.array(DueCardOutput))
   .handler(async ({ input }) => {
     const nowSecs = Math.floor(Date.now() / 1000);
-
-    // Fetch a broad pool of due cards (no SQL limit — we'll filter in app).
-    // Cap at 2× limit + 4× newLimit to avoid scanning the entire table when
-    // there are thousands of new cards all due at epoch 0.
-    const fetchCap = Math.max(500, input.limit * 2 + input.newLimit * 4);
 
     // Build optional filter conditions for kinds / tagContains.
     const extraFilters = [
@@ -810,66 +826,188 @@ const sessionDue = os
         : []),
     ];
 
-    const rawDue = input.listId
-      ? db
-          .select({
-            card: cards,
-            lemmaId: notes.lemmaId,
-            lemmaText: lemmas.lemma,
-            front: notes.front,
-            back: notes.back,
-          })
-          .from(cards)
-          .innerJoin(notes, eq(notes.id, cards.noteId))
-          .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
-          .innerJoin(
-            vocabListNotes,
-            and(
-              eq(vocabListNotes.noteId, cards.noteId),
-              eq(vocabListNotes.listId, input.listId),
-            ),
-          )
-          .where(and(...extraFilters))
-          .limit(fetchCap)
-          .all()
-      : db
-          .select({
-            card: cards,
-            lemmaId: notes.lemmaId,
-            lemmaText: lemmas.lemma,
-            front: notes.front,
-            back: notes.back,
-          })
-          .from(cards)
-          .innerJoin(notes, eq(notes.id, cards.noteId))
-          .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
-          .where(and(...extraFilters))
-          .limit(fetchCap)
-          .all();
+    type RawRow = {
+      card: typeof cards.$inferSelect;
+      lemmaId: string | null;
+      lemmaText: string | null;
+      front: string | null;
+      back: string | null;
+    };
 
-    if (rawDue.length === 0) return [];
+    let session: RawRow[];
 
-    // -----------------------------------------------------------------------
-    // Session composition:
-    //   - Review/Learning/Relearning cards (state > 0): always included
-    //   - New cards (state = 0): capped at newLimit, shuffled for variety
-    // -----------------------------------------------------------------------
-    const reviewPool = rawDue.filter((r) => r.card.state > 0);
-    const newPool = shuffle(rawDue.filter((r) => r.card.state === 0));
-    const newCards = newPool.slice(0, input.newLimit);
+    if (input.mode === "note-first") {
+      // -----------------------------------------------------------------
+      // Note-first mode
+      // Step 1: select notes that have at least one due card.
+      // -----------------------------------------------------------------
+      const baseNoteQ = input.listId
+        ? db
+            .selectDistinct({ noteId: notes.id, lastReviewedAt: notes.lastReviewedAt })
+            .from(notes)
+            .innerJoin(cards, and(eq(cards.noteId, notes.id), ...extraFilters))
+            .innerJoin(
+              vocabListNotes,
+              and(
+                eq(vocabListNotes.noteId, notes.id),
+                eq(vocabListNotes.listId, input.listId),
+              ),
+            )
+        : db
+            .selectDistinct({ noteId: notes.id, lastReviewedAt: notes.lastReviewedAt })
+            .from(notes)
+            .innerJoin(cards, and(eq(cards.noteId, notes.id), ...extraFilters));
 
-    // Shuffle reviews too so the order isn't purely by insertion date.
-    shuffle(reviewPool);
+      const selectedNotes = baseNoteQ
+        // SQLite has no NULLS FIRST syntax; `IS NOT NULL` evaluates to 0 for NULLs
+        // and 1 for non-nulls, so sorting ASC puts never-reviewed notes first.
+        .orderBy(sql`${notes.lastReviewedAt} IS NOT NULL`, asc(notes.lastReviewedAt))
+        .limit(input.noteLimit)
+        .all();
 
-    let session = [...reviewPool, ...newCards];
+      if (selectedNotes.length === 0) return [];
 
-    // Interleave by lemma: round-robin so forms of the same word are spread out.
-    if (input.interleave && session.length > 1) {
-      session = interleaveByLemma(session);
+      const noteIds = selectedNotes.map((n) => n.noteId);
+
+      // Step 2: fetch due cards for those notes.
+      const rawDue = input.listId
+        ? db
+            .select({
+              card: cards,
+              lemmaId: notes.lemmaId,
+              lemmaText: lemmas.lemma,
+              front: notes.front,
+              back: notes.back,
+            })
+            .from(cards)
+            .innerJoin(notes, eq(notes.id, cards.noteId))
+            .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
+            .innerJoin(
+              vocabListNotes,
+              and(
+                eq(vocabListNotes.noteId, cards.noteId),
+                eq(vocabListNotes.listId, input.listId),
+              ),
+            )
+            .where(and(inArray(cards.noteId, noteIds), ...extraFilters))
+            .all()
+        : db
+            .select({
+              card: cards,
+              lemmaId: notes.lemmaId,
+              lemmaText: lemmas.lemma,
+              front: notes.front,
+              back: notes.back,
+            })
+            .from(cards)
+            .innerJoin(notes, eq(notes.id, cards.noteId))
+            .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
+            .where(and(inArray(cards.noteId, noteIds), ...extraFilters))
+            .all();
+
+      // Step 2b: group by note, cap cardsPerNote, enforce newLimit across session.
+      const byNote = new Map<string, RawRow[]>();
+      for (const r of rawDue) {
+        const g = byNote.get(r.card.noteId);
+        if (g !== undefined) g.push(r);
+        else byNote.set(r.card.noteId, [r]);
+      }
+
+      let newCount = 0;
+      const collected: RawRow[] = [];
+      // Iterate in the same order as selectedNotes to preserve priority.
+      for (const { noteId } of selectedNotes) {
+        const noteCards = byNote.get(noteId);
+        if (!noteCards) continue;
+
+        const reviewCards = noteCards.filter((r) => r.card.state > 0);
+        const newCards = noteCards.filter((r) => r.card.state === 0);
+        shuffle(reviewCards);
+        shuffle(newCards);
+
+        let taken = 0;
+        for (const r of reviewCards) {
+          if (taken >= input.cardsPerNote) break;
+          collected.push(r);
+          taken++;
+        }
+        for (const r of newCards) {
+          if (taken >= input.cardsPerNote) break;
+          if (newCount >= input.newLimit) break;
+          collected.push(r);
+          taken++;
+          newCount++;
+        }
+      }
+
+      // Step 3: flatten and cap.
+      session = collected.slice(0, input.limit);
+    } else {
+      // -----------------------------------------------------------------
+      // Card-first mode (existing behaviour)
+      // -----------------------------------------------------------------
+      const fetchCap = Math.max(500, input.limit * 2 + input.newLimit * 4);
+
+      const rawDue = input.listId
+        ? db
+            .select({
+              card: cards,
+              lemmaId: notes.lemmaId,
+              lemmaText: lemmas.lemma,
+              front: notes.front,
+              back: notes.back,
+            })
+            .from(cards)
+            .innerJoin(notes, eq(notes.id, cards.noteId))
+            .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
+            .innerJoin(
+              vocabListNotes,
+              and(
+                eq(vocabListNotes.noteId, cards.noteId),
+                eq(vocabListNotes.listId, input.listId),
+              ),
+            )
+            .where(and(...extraFilters))
+            .limit(fetchCap)
+            .all()
+        : db
+            .select({
+              card: cards,
+              lemmaId: notes.lemmaId,
+              lemmaText: lemmas.lemma,
+              front: notes.front,
+              back: notes.back,
+            })
+            .from(cards)
+            .innerJoin(notes, eq(notes.id, cards.noteId))
+            .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
+            .where(and(...extraFilters))
+            .limit(fetchCap)
+            .all();
+
+      if (rawDue.length === 0) return [];
+
+      // Session composition:
+      //   - Review/Learning/Relearning cards (state > 0): always included
+      //   - New cards (state = 0): capped at newLimit, shuffled for variety
+      const reviewPool = rawDue.filter((r) => r.card.state > 0);
+      const newPool = shuffle(rawDue.filter((r) => r.card.state === 0));
+      const newCards = newPool.slice(0, input.newLimit);
+
+      // Shuffle reviews too so the order isn't purely by insertion date.
+      shuffle(reviewPool);
+
+      let combined = [...reviewPool, ...newCards];
+
+      // Interleave by lemma: round-robin so forms of the same word are spread out.
+      if (input.interleave && combined.length > 1) {
+        combined = interleaveByLemma(combined);
+      }
+
+      session = combined.slice(0, input.limit);
     }
 
-    // Apply hard session cap.
-    session = session.slice(0, input.limit);
+    if (session.length === 0) return [];
 
     // Batch-fetch all morph forms for the lemmas in the final session set.
     const lemmaIds = [...new Set(session.map((r) => r.lemmaId).filter((id): id is string => id != null))];
@@ -992,6 +1130,8 @@ const sessionReview = os
       })
       .where(eq(cards.id, input.cardId));
 
+    const nowSecs = Math.floor(now.getTime() / 1000);
+
     const reviewId = crypto.randomUUID();
     await db.insert(reviews).values({
       id: reviewId,
@@ -999,12 +1139,18 @@ const sessionReview = os
       rating: input.rating,
       stateBefore: card.state,
       due: Math.floor(dueDateBefore.getTime() / 1000),
-      reviewedAt: Math.floor(now.getTime() / 1000),
+      reviewedAt: nowSecs,
       elapsedDays: updated.elapsedDays,
       scheduledDays: updated.scheduledDays,
       stabilityAfter: updated.stability,
       difficultyAfter: updated.difficulty,
     });
+
+    // Update the parent note's last-reviewed timestamp.
+    await db
+      .update(notes)
+      .set({ lastReviewedAt: nowSecs })
+      .where(eq(notes.id, row.noteId));
 
     return {
       reviewId,
@@ -1267,6 +1413,7 @@ const notesCreate = os
         lemmaId: input.lemmaId,
         front: null,
         back: input.back,
+        lastReviewedAt: null,
         createdAt: now,
         updatedAt: now,
       });
@@ -1302,6 +1449,7 @@ const notesCreate = os
       lemmaId: null,
       front: input.front,
       back: input.back,
+      lastReviewedAt: null,
       createdAt: now,
       updatedAt: now,
     });
