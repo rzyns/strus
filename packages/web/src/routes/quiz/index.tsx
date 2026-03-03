@@ -32,6 +32,15 @@ interface DueCard {
   reps: number
   lapses: number
   lastReview: string | null
+  nextDates: { again: string; hard: string; good: string; easy: string }
+}
+
+function formatNextDate(iso: string): string {
+  const diff = new Date(iso).getTime() - Date.now()
+  const days = Math.round(diff / (1000 * 60 * 60 * 24))
+  if (days <= 0) return 'today'
+  if (days < 30) return `${days}d`
+  return `${Math.round(days / 30)}mo`
 }
 
 type QuizType = 'all' | 'morph' | 'gloss' | 'basic'
@@ -674,9 +683,9 @@ export default function Quiz() {
                     </p>
                     <RatingButtons
                       options={[
-                        { label: 'Hard', desc: 'correct, difficult', rating: 2 },
-                        { label: 'Good', desc: 'normal effort', rating: 3, variant: 'solid', defaultFocus: true },
-                        { label: 'Easy', desc: 'came right away', rating: 4 },
+                        { label: 'Hard', desc: formatNextDate(card().nextDates.hard), rating: 2 },
+                        { label: 'Good', desc: formatNextDate(card().nextDates.good), rating: 3, variant: 'solid', defaultFocus: true },
+                        { label: 'Easy', desc: formatNextDate(card().nextDates.easy), rating: 4 },
                       ]}
                       onRate={submitReview}
                       disabled={submitting()}
@@ -700,6 +709,9 @@ export default function Quiz() {
                         <strong>{card().forms.join(' / ')}</strong>
                       </p>
                     </div>
+                    <p class={css({ fontSize: 'xs', color: 'fg.muted', mt: '2' })}>
+                      Again → {formatNextDate(card().nextDates.again)}
+                    </p>
                     <A
                       href={`/notes/${card().noteId}`}
                       class={css({
@@ -755,10 +767,10 @@ export default function Quiz() {
                     </A>
                     <RatingButtons
                       options={[
-                        { label: 'Again', desc: 'forgot', rating: 1, variant: 'danger' },
-                        { label: 'Hard', desc: 'difficult', rating: 2 },
-                        { label: 'Good', desc: 'recalled', rating: 3, variant: 'solid', defaultFocus: true },
-                        { label: 'Easy', desc: 'effortless', rating: 4 },
+                        { label: 'Again', desc: formatNextDate(card().nextDates.again), rating: 1, variant: 'danger' },
+                        { label: 'Hard', desc: formatNextDate(card().nextDates.hard), rating: 2 },
+                        { label: 'Good', desc: formatNextDate(card().nextDates.good), rating: 3, variant: 'solid', defaultFocus: true },
+                        { label: 'Easy', desc: formatNextDate(card().nextDates.easy), rating: 4 },
                       ]}
                       onRate={submitReview}
                       disabled={submitting()}
