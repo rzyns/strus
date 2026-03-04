@@ -822,6 +822,9 @@ const DueCardOutput = CardOutput.extend({
       "Orthographic variants for this card's tag combination. " +
       "Empty when the lemma has source=manual or Morfeusz2 form generation was skipped.",
     ),
+  formId: z.string().nullable().describe("morph_forms row ID for the card's specific form; needed to call generateAudio"),
+  lemmaFormId: z.string().nullable().describe("morph_forms row ID for the citation form; needed to generate lemmaAudioUrl"),
+  lemmaId: z.string().nullable().describe("ID of the associated lemma; null for basic cards"),
   audioUrl: z.string().nullable().describe("URL to TTS audio for this form; null if not yet generated"),
   lemmaAudioUrl: z.string().nullable().describe("URL to citation-form TTS audio; null if not generated"),
   imageUrl: z.string().nullable().describe("URL to mnemonic image for the lemma; null if not yet generated"),
@@ -1181,6 +1184,7 @@ const sessionDue = os
     // Batch-fetch lemma image paths + lemma text (for citation-form audio lookup)
     const lemmaImagePaths = new Map<string, string | null>();
     const lemmaAudioByLemmaId = new Map<string, string | null>();
+    const lemmaFormIdByLemmaId = new Map<string, string | null>();
     if (lemmaIds.length > 0) {
       const lemmaRows = db
         .select({ id: lemmas.id, imagePath: lemmas.imagePath, lemma: lemmas.lemma })
@@ -1189,6 +1193,11 @@ const sessionDue = os
         .all();
       for (const row of lemmaRows) {
         lemmaImagePaths.set(row.id, row.imagePath);
+        // Find the first morph form whose orth matches the citation form (for ID, regardless of audio)
+        const citationFormForId = allForms.find(
+          (f) => f.lemmaId === row.id && f.orth === row.lemma,
+        );
+        lemmaFormIdByLemmaId.set(row.id, citationFormForId?.id ?? null);
         // Find the first morph form whose orth matches the citation form and has audio
         const citationForm = allForms.find(
           (f) => f.lemmaId === row.id && f.orth === row.lemma && f.audioPath != null,
@@ -1271,6 +1280,9 @@ const sessionDue = os
 
       return {
         ...mapCardRow(r.card),
+        formId: formInfo?.id ?? null,
+        lemmaFormId: r.lemmaId ? (lemmaFormIdByLemmaId.get(r.lemmaId) ?? null) : null,
+        lemmaId: r.lemmaId ?? null,
         lemmaText: r.lemmaText,
         front,
         back,

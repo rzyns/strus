@@ -25,6 +25,9 @@ interface DueCard {
   front: string | null
   back: string | null
   forms: string[]
+  formId: string | null
+  lemmaFormId: string | null
+  lemmaId: string | null
   audioUrl: string | null
   imageUrl: string | null
   lemmaAudioUrl: string | null
@@ -203,6 +206,43 @@ function RatingButtons(props: RatingButtonsProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Generate button (for missing audio/image)
+// ---------------------------------------------------------------------------
+
+function GenerateButton(props: { label: string; onGenerate: () => Promise<void> }) {
+  const [loading, setLoading] = createSignal(false)
+  const [error, setError] = createSignal<string | null>(null)
+  return (
+    <div>
+      <button
+        disabled={loading()}
+        onClick={async () => {
+          setLoading(true)
+          setError(null)
+          try { await props.onGenerate() }
+          catch (e) { setError(e instanceof Error ? e.message : "Failed") }
+          finally { setLoading(false) }
+        }}
+        class={css({
+          fontSize: "xs", px: "3", py: "1.5", borderRadius: "l2",
+          border: "1px dashed", borderColor: "border",
+          bg: "transparent", cursor: "pointer", color: "fg.muted",
+          _hover: { color: "fg.default", borderColor: "fg.muted" },
+          _disabled: { opacity: 0.5, cursor: "not-allowed" },
+        })}
+      >
+        {loading() ? "Generating\u2026" : props.label}
+      </button>
+      <Show when={error()}>
+        {(err) => (
+          <p class={css({ fontSize: 'xs', color: 'red.9', mt: '1' })}>{err()}</p>
+        )}
+      </Show>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Helper: resolve kinds[] from quiz type + direction
 // ---------------------------------------------------------------------------
 
@@ -262,6 +302,23 @@ export default function Quiz() {
   let nextBtnRef: HTMLButtonElement | undefined
   let audioRef: HTMLAudioElement | undefined
 
+  // Local override signals for generated media (reset when card changes)
+  const [localImageUrl, setLocalImageUrl] = createSignal<string | null>(null)
+  const [localLemmaAudioUrl, setLocalLemmaAudioUrl] = createSignal<string | null>(null)
+  const [localAudioUrl, setLocalAudioUrl] = createSignal<string | null>(null)
+
+  createEffect(() => {
+    // Reset local overrides when card changes
+    const _id = currentCard()?.id
+    setLocalImageUrl(null)
+    setLocalLemmaAudioUrl(null)
+    setLocalAudioUrl(null)
+  })
+
+  const effectiveImageUrl = () => localImageUrl() ?? currentCard()?.imageUrl ?? null
+  const effectiveLemmaAudioUrl = () => localLemmaAudioUrl() ?? currentCard()?.lemmaAudioUrl ?? null
+  const effectiveAudioUrl = () => localAudioUrl() ?? currentCard()?.audioUrl ?? null
+
   // Focus the right element whenever the phase changes.
   // createEffect runs after DOM updates, so refs are populated by the time this fires.
   createEffect(() => {
@@ -272,22 +329,25 @@ export default function Quiz() {
     // via their own createEffect (triggered when disabled flips false).
   })
 
-  // Auto-play audio on phase transitions
+  // Auto-play audio on phase transitions or when local audio signals update
   createEffect(() => {
     const p = phase()
     const card = currentCard()
+    // Track local signals so effect re-runs when they change
+    const lemmaAudio = effectiveLemmaAudioUrl()
+    const formAudio = effectiveAudioUrl()
     if (!audioRef || !card) return
 
     let url: string | null = null
     if (p === 'asking') {
       if (card.kind === 'morph_form' || card.kind === 'gloss_forward') {
-        url = card.lemmaAudioUrl
+        url = lemmaAudio
       }
     } else if (p === 'revealed-correct' || p === 'revealed-wrong' || p === 'revealed-manual') {
       if (card.kind === 'morph_form') {
-        url = card.audioUrl
+        url = formAudio
       } else if (card.kind === 'gloss_reverse') {
-        url = card.lemmaAudioUrl
+        url = lemmaAudio
       }
     }
 
@@ -660,7 +720,19 @@ export default function Quiz() {
                   </div>
 
                   {/* Mnemonic image */}
-                  <Show when={card().imageUrl}>
+                  <Show when={effectiveImageUrl()} fallback={
+                    <Show when={card().lemmaId}>
+                      <div class={css({ mb: '4' })}>
+                        <GenerateButton
+                          label="Generate image"
+                          onGenerate={async () => {
+                            const result = await api.lemmas.generateImage({ id: card().lemmaId! }) as { imageUrl?: string | null }
+                            if (result.imageUrl) setLocalImageUrl(result.imageUrl)
+                          }}
+                        />
+                      </div>
+                    </Show>
+                  }>
                     {(url) => (
                       <img
                         src={url()}
@@ -673,6 +745,19 @@ export default function Quiz() {
                         })}
                       />
                     )}
+                  </Show>
+
+                  {/* Generate citation audio button (question side) */}
+                  <Show when={!effectiveLemmaAudioUrl() && card().lemmaFormId}>
+                    <div class={css({ mb: '4' })}>
+                      <GenerateButton
+                        label="Generate audio"
+                        onGenerate={async () => {
+                          const result = await api.forms.generateAudio({ id: card().lemmaFormId! })
+                          if (result.audioUrl) setLocalLemmaAudioUrl(result.audioUrl)
+                        }}
+                      />
+                    </div>
                   </Show>
 
                   {/* ── Asking ── */}
@@ -820,6 +905,22 @@ export default function Quiz() {
                       onRate={submitReview}
                       disabled={submitting()}
                     />
+                  </Show>
+
+                  {/* Generate form audio button (answer side, morph_form only) */}
+                  <Show when={
+                    (phase() === 'revealed-correct' || phase() === 'revealed-wrong' || phase() === 'revealed-manual') &&
+                    card().kind === 'morph_form' && !effectiveAudioUrl() && card().formId
+                  }>
+                    <div class={css({ mt: '3' })}>
+                      <GenerateButton
+                        label="Generate audio"
+                        onGenerate={async () => {
+                          const result = await api.forms.generateAudio({ id: card().formId! })
+                          if (result.audioUrl) setLocalAudioUrl(result.audioUrl)
+                        }}
+                      />
+                    </div>
                   </Show>
 
                   <audio ref={(el) => { audioRef = el }} style={{ display: "none" }} />
