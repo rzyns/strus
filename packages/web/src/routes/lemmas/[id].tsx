@@ -102,9 +102,23 @@ export default function LemmaDetail() {
                       Updated {new Date(data().updatedAt).toLocaleDateString()}
                     </p>
                   </div>
-                  <div class={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
-                    <JsonViewer data={{ lemma: data(), forms: forms() }} label="lemma JSON" />
-                    <Button variant="danger" onClick={() => setShowDelete(true)}>Delete</Button>
+                  <div class={css({ display: 'flex', gap: '4', alignItems: 'flex-start' })}>
+                    <Show when={data().imageUrl}>
+                      {(url) => (
+                        <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'center' })}>
+                          <img
+                            src={url()}
+                            alt={`Mnemonic for ${data().lemma}`}
+                            class={css({ maxW: '200px', maxH: '200px', borderRadius: 'lg', border: '1px solid', borderColor: 'border.subtle' })}
+                          />
+                          <span class={css({ fontSize: 'xs', color: 'fg.muted', mt: '1' })}>Mnemonic</span>
+                        </div>
+                      )}
+                    </Show>
+                    <div class={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
+                      <JsonViewer data={{ lemma: data(), forms: forms() }} label="lemma JSON" />
+                      <Button variant="danger" onClick={() => setShowDelete(true)}>Delete</Button>
+                    </div>
                   </div>
                 </div>
 

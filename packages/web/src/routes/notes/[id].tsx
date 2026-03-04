@@ -150,7 +150,7 @@ export default function NoteDetail() {
                         <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
                           Lemma:{' '}
                           <A href={`/lemmas/${lemmaId()}`} class={css({ color: 'blue.9', textDecoration: 'none', _hover: { textDecoration: 'underline' } })}>
-                            {lemmaId()}
+                            {data().lemmaText ?? lemmaId()}
                           </A>
                         </p>
                       )}
