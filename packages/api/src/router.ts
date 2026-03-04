@@ -1,5 +1,6 @@
 import { os, ORPCError } from "@orpc/server";
 import { z } from "zod";
+import pkg from "../package.json" with { type: "json" };
 import { count, eq, lte, ne, like, and, or, inArray, asc, sql } from "drizzle-orm";
 import { db } from "@strus/db";
 import {
@@ -392,6 +393,29 @@ async function createMorphNoteAndCards(
 
   return noteId;
 }
+
+// ---------------------------------------------------------------------------
+// About
+// ---------------------------------------------------------------------------
+
+const AboutOutput = z.object({
+  name: z.string(),
+  version: z.string(),
+});
+
+const about = os
+  .route({
+    method: "GET",
+    path: "/about",
+    tags: ["Meta"],
+    summary: "Version and build information",
+  })
+  .input(z.object({}))
+  .output(AboutOutput)
+  .handler(() => ({
+    name: pkg.name,
+    version: pkg.version,
+  }));
 
 // ---------------------------------------------------------------------------
 // Lists procedures
@@ -1784,6 +1808,7 @@ const cardsReviews = os
 // ---------------------------------------------------------------------------
 
 export const router = {
+  about,
   lists: {
     list: listsList,
     create: listsCreate,

@@ -161,19 +161,37 @@ export const app = new Elysia()
   })
 
   // oRPC RPC handler — used by the web client
-  .all("/rpc/*", async ({ request }) => {
+  // NOTE: use per-method helpers, not .all() — Elysia 1.4 .get("/*") beats .all("/rpc/*") for GETs
+  .get("/rpc/*", async ({ request }) => {
     const result = await rpcHandler.handle(request, { prefix: "/rpc" });
-    return result.matched
-      ? result.response
-      : new Response("No procedure matched", { status: 404 });
+    return result.matched ? result.response : new Response("No procedure matched", { status: 404 });
+  })
+  .post("/rpc/*", async ({ request }) => {
+    const result = await rpcHandler.handle(request, { prefix: "/rpc" });
+    return result.matched ? result.response : new Response("No procedure matched", { status: 404 });
   })
 
   // oRPC OpenAPI handler — REST routes for Swagger/external consumers
-  .all("/api/*", async ({ request }) => {
+  // NOTE: same Elysia quirk — must use per-method routes instead of .all()
+  .get("/api/*", async ({ request }) => {
     const result = await orpcHandler.handle(request, { prefix: "/api" });
-    return result.matched
-      ? result.response
-      : new Response("No procedure matched", { status: 404 });
+    return result.matched ? result.response : new Response("No procedure matched", { status: 404 });
+  })
+  .post("/api/*", async ({ request }) => {
+    const result = await orpcHandler.handle(request, { prefix: "/api" });
+    return result.matched ? result.response : new Response("No procedure matched", { status: 404 });
+  })
+  .put("/api/*", async ({ request }) => {
+    const result = await orpcHandler.handle(request, { prefix: "/api" });
+    return result.matched ? result.response : new Response("No procedure matched", { status: 404 });
+  })
+  .patch("/api/*", async ({ request }) => {
+    const result = await orpcHandler.handle(request, { prefix: "/api" });
+    return result.matched ? result.response : new Response("No procedure matched", { status: 404 });
+  })
+  .delete("/api/*", async ({ request }) => {
+    const result = await orpcHandler.handle(request, { prefix: "/api" });
+    return result.matched ? result.response : new Response("No procedure matched", { status: 404 });
   })
 
   .use(webPlugin ?? new Elysia())
