@@ -58,6 +58,7 @@ const LemmaOutput = z.object({
     ),
   source: zSource,
   notes: z.string().nullable().describe("Free-form notes about this lemma; null if not set"),
+  imageUrl: z.string().url().nullable().describe("URL to mnemonic image; null if not yet generated"),
   createdAt: zIso.describe("When this lemma was added"),
   updatedAt: zIso.describe("When this lemma was last modified"),
 });
@@ -156,12 +157,14 @@ function mapVocabList(row: typeof vocabLists.$inferSelect) {
 }
 
 function mapLemma(row: typeof lemmas.$inferSelect) {
+  const baseUrl = getMediaBaseUrl();
   return {
     id: row.id,
     lemma: row.lemma,
     pos: row.pos,
     source: row.source,
     notes: row.notes,
+    imageUrl: row.imagePath ? `${baseUrl}/${row.imagePath}` : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
