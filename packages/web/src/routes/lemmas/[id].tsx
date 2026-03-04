@@ -27,6 +27,9 @@ export default function LemmaDetail() {
 
   const [showDelete, setShowDelete] = createSignal(false)
   const [deleting, setDeleting] = createSignal(false)
+  const [generatingImage, setGeneratingImage] = createSignal(false)
+  const [imageError, setImageError] = createSignal<string | null>(null)
+  const [generatingAudio, setGeneratingAudio] = createSignal<Set<string>>(new Set())
 
   // Gloss add form state
   const [newGloss, setNewGloss] = createSignal('')
@@ -103,7 +106,35 @@ export default function LemmaDetail() {
                     </p>
                   </div>
                   <div class={css({ display: 'flex', gap: '4', alignItems: 'flex-start' })}>
-                    <Show when={data().imageUrl}>
+                    <Show
+                      when={data().imageUrl}
+                      fallback={
+                        <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'center' })}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={generatingImage()}
+                            onClick={async () => {
+                              setGeneratingImage(true)
+                              setImageError(null)
+                              try {
+                                await api.lemmas.generateImage({ id: params.id })
+                                refetchLemma()
+                              } catch (err) {
+                                setImageError(String(err))
+                              } finally {
+                                setGeneratingImage(false)
+                              }
+                            }}
+                          >
+                            {generatingImage() ? 'Generating…' : 'Generate image'}
+                          </Button>
+                          <Show when={imageError()}>
+                            <span class={css({ fontSize: 'xs', color: 'red.9', mt: '1' })}>{imageError()}</span>
+                          </Show>
+                        </div>
+                      }
+                    >
                       {(url) => (
                         <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'center' })}>
                           <img
@@ -199,6 +230,68 @@ export default function LemmaDetail() {
                         </Switch>
                       </Show>
                     )}
+                  </Show>
+                </Suspense>
+
+                {/* ── Audio ────────────────────────────────────────────── */}
+                <Suspense fallback={<Spinner />}>
+                  <Show when={forms()}>
+                    {(fs) => {
+                      // Deduplicate by orth — show one row per unique surface form
+                      type FormEntry = ReturnType<typeof fs>[number]
+                      const uniqueForms = () => {
+                        const seen = new Map<string, FormEntry>()
+                        for (const f of fs()) {
+                          if (!seen.has(f.orth)) seen.set(f.orth, f)
+                        }
+                        return [...seen.values()].sort((a, b) => a.orth.localeCompare(b.orth, 'pl'))
+                      }
+                      return (
+                        <Show when={uniqueForms().length > 0}>
+                          <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '3', mt: '6', color: 'fg.default' })}>Audio</h2>
+                          <div class={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+                            <For each={uniqueForms()}>
+                              {(form) => (
+                                <div class={css({
+                                  display: 'flex', alignItems: 'center', gap: '3',
+                                  px: '4', py: '2', borderRadius: 'md',
+                                  bg: 'bg.subtle', border: '1px solid', borderColor: 'border.subtle',
+                                })}>
+                                  <span class={css({ fontFamily: 'monospace', fontSize: 'sm', minW: '120px' })}>{form.orth}</span>
+                                  <Show
+                                    when={form.audioUrl}
+                                    fallback={
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={generatingAudio().has(form.id)}
+                                        onClick={async () => {
+                                          setGeneratingAudio((prev) => new Set([...prev, form.id]))
+                                          try {
+                                            await api.forms.generateAudio({ id: form.id })
+                                            refetchForms()
+                                          } finally {
+                                            setGeneratingAudio((prev) => {
+                                              const next = new Set(prev)
+                                              next.delete(form.id)
+                                              return next
+                                            })
+                                          }
+                                        }}
+                                      >
+                                        {generatingAudio().has(form.id) ? 'Generating…' : 'Generate'}
+                                      </Button>
+                                    }
+                                  >
+                                    {(url) => <audio controls preload="none" src={url()} class={css({ h: '32px' })} />}
+                                  </Show>
+                                </div>
+                              )}
+                            </For>
+                          </div>
+                        </Show>
+                      )
+                    }}
                   </Show>
                 </Suspense>
 

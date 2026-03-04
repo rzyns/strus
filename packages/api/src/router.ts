@@ -101,6 +101,7 @@ const MorphFormOutput = z.object({
   orth: z.string().describe("Orthographic surface form, e.g. 'domem', 'domowi'"),
   tag: z.string().describe("Full NKJP morphosyntactic tag, e.g. 'subst:sg:inst:m3'"),
   parsedTag: z.string().describe("JSON-serialised parsed tag object"),
+  audioUrl: z.string().url().nullable().describe("URL to TTS audio; null if not yet generated"),
   createdAt: zIso.describe("When this form was created"),
 });
 
@@ -694,6 +695,7 @@ const lemmasForms = os
     const [row] = await db.select({ id: lemmas.id }).from(lemmas).where(eq(lemmas.id, input.id)).limit(1);
     if (!row) throw new ORPCError("NOT_FOUND", { message: `Lemma not found: ${input.id}` });
 
+    const baseUrl = getMediaBaseUrl();
     return db
       .select()
       .from(morphForms)
@@ -705,8 +707,95 @@ const lemmasForms = os
         orth: f.orth,
         tag: f.tag,
         parsedTag: f.parsedTag,
+        audioUrl: f.audioPath ? `${baseUrl}/${f.audioPath}` : null,
         createdAt: f.createdAt.toISOString(),
       }));
+  });
+
+// ---------------------------------------------------------------------------
+// Media generation procedures
+// ---------------------------------------------------------------------------
+
+const lemmasGenerateImage = os
+  .route({
+    method: "POST",
+    path: "/lemmas/{id}/generate-image",
+    tags: ["Lemmas"],
+    summary: "Generate a mnemonic image for a lemma",
+    description:
+      "Generates a mnemonic image via Gemini and stores it. Returns the updated lemma with imageUrl populated.",
+  })
+  .input(z.object({ id: zId }))
+  .output(LemmaOutput)
+  .handler(async ({ input }) => {
+    const [row] = db
+      .select()
+      .from(lemmas)
+      .where(eq(lemmas.id, input.id))
+      .limit(1)
+      .all();
+    if (!row)
+      throw new ORPCError("NOT_FOUND", {
+        message: `Lemma not found: ${input.id}`,
+      });
+
+    const relativePath = await generateImage(row.lemma);
+    if (relativePath) {
+      db.update(lemmas)
+        .set({ imagePath: relativePath })
+        .where(eq(lemmas.id, input.id))
+        .run();
+    }
+
+    const [updated] = db
+      .select()
+      .from(lemmas)
+      .where(eq(lemmas.id, input.id))
+      .limit(1)
+      .all();
+    return mapLemma(updated!);
+  });
+
+const formsGenerateAudio = os
+  .route({
+    method: "POST",
+    path: "/forms/{id}/generate-audio",
+    tags: ["Forms"],
+    summary: "Generate TTS audio for a morphological form",
+    description:
+      "Generates TTS audio via ElevenLabs and stores it. Returns the audio URL.",
+  })
+  .input(z.object({ id: zId }))
+  .output(z.object({ audioUrl: z.string().url().nullable() }))
+  .handler(async ({ input }) => {
+    const [row] = db
+      .select({
+        id: morphForms.id,
+        orth: morphForms.orth,
+        tag: morphForms.tag,
+        audioPath: morphForms.audioPath,
+      })
+      .from(morphForms)
+      .where(eq(morphForms.id, input.id))
+      .limit(1)
+      .all();
+    if (!row)
+      throw new ORPCError("NOT_FOUND", {
+        message: `Form not found: ${input.id}`,
+      });
+
+    const relativePath = await generateAudio(row.orth, row.tag, tagGender(row.tag));
+    if (relativePath) {
+      db.update(morphForms)
+        .set({ audioPath: relativePath })
+        .where(eq(morphForms.id, input.id))
+        .run();
+    }
+
+    const baseUrl = getMediaBaseUrl();
+    return {
+      audioUrl: relativePath ? `${baseUrl}/${relativePath}` : null,
+    };
   });
 
 // ---------------------------------------------------------------------------
@@ -1832,6 +1921,10 @@ export const router = {
     get: lemmasGet,
     delete: lemmasDelete,
     forms: lemmasForms,
+    generateImage: lemmasGenerateImage,
+  },
+  forms: {
+    generateAudio: formsGenerateAudio,
   },
   cards: {
     get: cardsGet,
