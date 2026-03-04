@@ -17,7 +17,7 @@
     },
     "packages/api": {
       "name": "@strus/api",
-      "version": "0.9.6",
+      "version": "0.10.2",
       "dependencies": {
         "@elysiajs/static": "^1.4.7",
         "@orpc/openapi": "^1.13.5",
@@ -38,7 +38,7 @@
     },
     "packages/cli": {
       "name": "@strus/cli",
-      "version": "0.9.6",
+      "version": "0.10.2",
       "bin": {
         "strus": "./src/index.ts",
       },
@@ -56,7 +56,7 @@
     },
     "packages/config": {
       "name": "@strus/config",
-      "version": "0.9.6",
+      "version": "0.10.2",
       "dependencies": {
         "zod": "^3.23.0",
       },
@@ -67,7 +67,7 @@
     },
     "packages/core": {
       "name": "@strus/core",
-      "version": "0.9.6",
+      "version": "0.10.2",
       "dependencies": {
         "@strus/morph": "workspace:*",
         "ts-fsrs": "^5.2.3",
@@ -79,7 +79,7 @@
     },
     "packages/db": {
       "name": "@strus/db",
-      "version": "0.9.6",
+      "version": "0.10.2",
       "dependencies": {
         "@strus/config": "workspace:*",
         "@strus/core": "workspace:*",
@@ -94,7 +94,7 @@
     },
     "packages/morph": {
       "name": "@strus/morph",
-      "version": "0.9.6",
+      "version": "0.10.2",
       "devDependencies": {
         "@types/bun": "^1.1.0",
         "typescript": "^5.7.0",
@@ -102,7 +102,7 @@
     },
     "packages/web": {
       "name": "@strus/web",
-      "version": "0.9.6",
+      "version": "0.10.2",
       "dependencies": {
         "@ark-ui/solid": "^5.34.0",
         "@orpc/client": "^1.13.5",

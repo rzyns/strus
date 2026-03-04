@@ -4,13 +4,13 @@
   "private": true,
   "description": "Polish morphological spaced repetition system",
   "scripts": {
-    "build": "pnpm -r run build",
-    "dev": "concurrently --names api,web --prefix-colors cyan,magenta \"pnpm --filter @strus/api run dev\" \"pnpm --filter @strus/web run dev\"",
-    "test": "pnpm -r run test",
-    "lint": "pnpm -r run lint",
-    "typecheck": "pnpm -r run typecheck",
-    "db:migrate": "pnpm --filter @strus/db run migrate",
-    "db:generate": "pnpm --filter @strus/db run generate",
+    "build": "bun run --filter '*' build",
+    "dev": "concurrently --names api,web --prefix-colors cyan,magenta \"bun run --filter @strus/api dev\" \"bun run --filter @strus/web dev\"",
+    "test": "bun run --filter '*' test",
+    "lint": "bun run --filter '*' lint",
+    "typecheck": "bun run typecheck",
+    "db:migrate": "bun run --filter @strus/db migrate",
+    "db:generate": "bun run --filter @strus/db generate",
     "version": "bumpp --recursive --commit --tag --push"
   },
   "devDependencies": {
@@ -24,9 +24,9 @@
     "typescript": "^5.7.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "bun": ">=1.3.0"
   },
-  "packageManager": "pnpm@10.30.1",
+  "packageManager": "bun@1.3.9",
   "workspaces": [
     "packages/*"
   ]
