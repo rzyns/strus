@@ -45,11 +45,11 @@ async function getGenerator(): Promise<MorfeuszImpl> {
 // ---------------------------------------------------------------------------
 
 /**
- * Filter out tokens that morfeusz-ts could not recognise (tag="ign") and
- * whitespace pseudo-tokens (tag="sp").
+ * Filter out tokens morfeusz-ts could not recognise (tag="ign"),
+ * whitespace pseudo-tokens (tag="sp"), and abbreviation markers (brev:*).
  */
 function isUsable(tag: string): boolean {
-  return tag !== "ign" && tag !== "sp";
+  return tag !== "ign" && tag !== "sp" && !tag.startsWith("brev:");
 }
 
 // ---------------------------------------------------------------------------
@@ -60,7 +60,6 @@ function isUsable(tag: string): boolean {
  * Generate all morphological forms for the given lemma.
  * Returns an empty array if the lemma is unknown to Morfeusz2.
  *
- * TODO: filter brev:pun forms (abbreviation noise) if desired.
  */
 export async function generate(lemma: string): Promise<MorphForm[]> {
   try {
