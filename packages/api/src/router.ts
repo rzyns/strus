@@ -1268,7 +1268,8 @@ const importCommit = os
     description:
       "Tokenises Polish text, filters stopwords, then commits non-duplicate lemmas to the database. " +
       "Multi-word expressions are imported with source=manual; single words with source=morfeusz " +
-      "(Morfeusz2 will generate their inflected forms). Ambiguous candidates are skipped by default.",
+      "(Morfeusz2 will generate their inflected forms). Ambiguous candidates are skipped by default. " +
+      "Pass includeLemmas with the lemmas the user selected from a preview to resolve ambiguity.",
   })
   .input(
     ImportTextInput.extend({
@@ -1276,6 +1277,14 @@ const importCommit = os
         .boolean()
         .default(true)
         .describe("Skip ambiguous candidates (default: true). Set false to commit all candidates."),
+      includeLemmas: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Explicit list of lemma strings to commit even if ambiguous. " +
+          "Use this to resolve ambiguity after a preview: pass the lemma(s) the user selected. " +
+          "Takes precedence over skipAmbiguous for matching candidates.",
+        ),
     }),
   )
   .output(
@@ -1315,8 +1324,9 @@ const importCommit = os
         continue;
       }
 
-      // Skip ambiguous if requested
-      if (c.ambiguous && input.skipAmbiguous) {
+      // Skip ambiguous unless this lemma was explicitly selected by the user.
+      const explicitlyIncluded = input.includeLemmas?.includes(c.lemma) ?? false;
+      if (c.ambiguous && input.skipAmbiguous && !explicitlyIncluded) {
         skipped.push({ lemma: c.lemma, reason: "ambiguous" });
         continue;
       }
