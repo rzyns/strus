@@ -17,7 +17,7 @@
     },
     "packages/api": {
       "name": "@strus/api",
-      "version": "0.10.2",
+      "version": "1.0.0-beta.3",
       "dependencies": {
         "@elysiajs/static": "^1.4.7",
         "@orpc/openapi": "^1.13.5",
@@ -38,7 +38,7 @@
     },
     "packages/cli": {
       "name": "@strus/cli",
-      "version": "0.10.2",
+      "version": "1.0.0-beta.3",
       "bin": {
         "strus": "./src/index.ts",
       },
@@ -56,7 +56,7 @@
     },
     "packages/config": {
       "name": "@strus/config",
-      "version": "0.10.2",
+      "version": "1.0.0-beta.3",
       "dependencies": {
         "zod": "^3.23.0",
       },
@@ -67,7 +67,7 @@
     },
     "packages/core": {
       "name": "@strus/core",
-      "version": "0.10.2",
+      "version": "1.0.0-beta.3",
       "dependencies": {
         "@strus/morph": "workspace:*",
         "ts-fsrs": "^5.2.3",
@@ -79,7 +79,7 @@
     },
     "packages/db": {
       "name": "@strus/db",
-      "version": "0.10.2",
+      "version": "1.0.0-beta.3",
       "dependencies": {
         "@strus/config": "workspace:*",
         "@strus/core": "workspace:*",
@@ -94,7 +94,10 @@
     },
     "packages/morph": {
       "name": "@strus/morph",
-      "version": "0.10.2",
+      "version": "1.0.0-beta.3",
+      "dependencies": {
+        "@rzyns/morfeusz-ts": "https://github.com/rzyns/morfeusz-ts/releases/download/v1.0.3/rzyns-morfeusz-ts-1.0.3.tgz",
+      },
       "devDependencies": {
         "@types/bun": "^1.1.0",
         "typescript": "^5.7.0",
@@ -102,7 +105,7 @@
     },
     "packages/web": {
       "name": "@strus/web",
-      "version": "0.10.2",
+      "version": "1.0.0-beta.3",
       "dependencies": {
         "@ark-ui/solid": "^5.34.0",
         "@orpc/client": "^1.13.5",
@@ -397,6 +400,8 @@
     "@rollup/rollup-win32-x64-gnu": ["@rollup/rollup-win32-x64-gnu@4.59.0", "", { "os": "win32", "cpu": "x64" }, "sha512-laBkYlSS1n2L8fSo1thDNGrCTQMmxjYY5G0WFWjFFYZkKPjsMBsgJfGf4TLxXrF6RyhI60L8TMOjBMvXiTcxeA=="],
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.59.0", "", { "os": "win32", "cpu": "x64" }, "sha512-2HRCml6OztYXyJXAvdDXPKcawukWY2GpR5/nxKp4iBgiO3wcoEGkAaqctIbZcNB6KlUQBIqt8VYkNSj2397EfA=="],
+
+    "@rzyns/morfeusz-ts": ["@rzyns/morfeusz-ts@https://github.com/rzyns/morfeusz-ts/releases/download/v1.0.3/rzyns-morfeusz-ts-1.0.3.tgz", {}],
 
     "@simple-libs/child-process-utils": ["@simple-libs/child-process-utils@1.0.2", "", { "dependencies": { "@simple-libs/stream-utils": "1.2.0" } }, "sha512-/4R8QKnd/8agJynkNdJmNw2MBxuFTRcNFnE5Sg/G+jkSsV8/UBgULMzhizWWW42p8L5H7flImV2ATi79Ove2Tw=="],
 
