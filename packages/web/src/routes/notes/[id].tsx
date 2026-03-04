@@ -1,4 +1,4 @@
-import { createResource, createSignal, createMemo, For, Show, Suspense, ErrorBoundary } from 'solid-js'
+import { createResource, createSignal, createMemo, For, Show, Suspense, ErrorBoundary, type JSX } from 'solid-js'
 import { useParams, useNavigate, A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -15,6 +15,84 @@ const ratingMeta: Record<number, { label: string; color: string; bg: string }> =
   2: { label: 'Hard', color: 'orange.11', bg: 'orange.3' },
   3: { label: 'Good', color: 'green.11', bg: 'green.3' },
   4: { label: 'Easy', color: 'teal.11', bg: 'teal.3' },
+}
+
+// ---------------------------------------------------------------------------
+// Quiz card preview — shows both sides of a card as it would appear in quiz
+// ---------------------------------------------------------------------------
+
+interface QuizCardPreviewProps {
+  kind: string
+  tag: string | null
+  lemmaText: string | null
+  front: string | null
+  back: string | null
+  forms: string[]
+}
+
+function QuizCardPreview(props: QuizCardPreviewProps): JSX.Element {
+  const prompt = (): { label: string; text: string } => {
+    switch (props.kind) {
+      case 'morph_form':
+        return { label: formatTag(props.tag ?? ''), text: props.lemmaText ?? '' }
+      case 'gloss_forward':
+        return { label: 'Gloss — what does it mean?', text: props.lemmaText ?? props.front ?? '' }
+      case 'gloss_reverse':
+        return { label: 'Gloss — what is the Polish word?', text: props.back ?? '' }
+      case 'basic_forward':
+        return { label: 'Basic card', text: props.front ?? '' }
+      default:
+        return { label: props.kind, text: props.front ?? '' }
+    }
+  }
+
+  const answer = (): string => {
+    switch (props.kind) {
+      case 'morph_form':
+        return props.forms.join(' / ') || '—'
+      case 'gloss_forward':
+        return props.back ?? '—'
+      case 'gloss_reverse':
+        return props.lemmaText ?? props.front ?? '—'
+      case 'basic_forward':
+        return props.back ?? '—'
+      default:
+        return props.back ?? '—'
+    }
+  }
+
+  return (
+    <div class={css({
+      p: '4',
+      border: '1px solid',
+      borderColor: 'border',
+      borderRadius: 'l3',
+      bg: 'bg',
+    })}>
+      {/* Question side */}
+      <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
+        {prompt().label}
+      </p>
+      <p class={css({ fontSize: '2xl', fontWeight: 'bold', color: 'fg.default' })}>
+        {prompt().text}
+      </p>
+
+      {/* Divider */}
+      <div class={css({
+        my: '3',
+        borderTop: '1px dashed',
+        borderColor: 'border',
+      })} />
+
+      {/* Answer side */}
+      <p class={css({ fontSize: 'xs', fontWeight: 'medium', color: 'fg.subtle', mb: '1', textTransform: 'uppercase', letterSpacing: 'wide' })}>
+        Answer
+      </p>
+      <p class={css({ fontSize: 'lg', fontWeight: 'semibold', color: 'fg.default' })}>
+        {answer()}
+      </p>
+    </div>
+  )
 }
 
 export default function NoteDetail() {
@@ -326,6 +404,52 @@ export default function NoteDetail() {
                       )}
                     </For>
                   </div>
+                </Show>
+
+                {/* Preview section */}
+                <Show when={data().cards.length > 0}>
+                  {(() => {
+                    const [showAll, setShowAll] = createSignal(false)
+                    const PREVIEW_LIMIT = 5
+                    const allCards = () => data().cards as any[]
+                    const visibleCards = () => showAll() || allCards().length <= PREVIEW_LIMIT
+                      ? allCards()
+                      : allCards().slice(0, PREVIEW_LIMIT)
+
+                    return (
+                      <>
+                        <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '4', mt: '8', color: 'fg.default' })}>
+                          Preview
+                        </h2>
+                        <div class={css({ display: 'flex', flexDirection: 'column', gap: '3', mb: '6' })}>
+                          <For each={visibleCards()}>
+                            {(card: any) => (
+                              <QuizCardPreview
+                                kind={card.kind}
+                                tag={card.tag ?? null}
+                                lemmaText={data().lemmaText ?? null}
+                                front={data().front ?? null}
+                                back={data().back ?? null}
+                                forms={card.kind === 'morph_form' && card.tag ? (formsByTag().get(card.tag) ?? []) : []}
+                              />
+                            )}
+                          </For>
+                        </div>
+                        <Show when={allCards().length > PREVIEW_LIMIT && !showAll()}>
+                          <button
+                            onClick={() => setShowAll(true)}
+                            class={css({
+                              bg: 'transparent', border: 'none', cursor: 'pointer',
+                              fontSize: 'sm', color: 'blue.9', p: '0', mb: '6',
+                              _hover: { textDecoration: 'underline' },
+                            })}
+                          >
+                            Show all {allCards().length} cards
+                          </button>
+                        </Show>
+                      </>
+                    )
+                  })()}
                 </Show>
 
                 <ConfirmDialog
