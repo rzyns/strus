@@ -107,6 +107,9 @@ export default function NoteDetail() {
     (lemmaId: string) => api.lemmas.forms({ id: lemmaId })
   )
 
+  // Cards / Preview tab state
+  const [detailTab, setDetailTab] = createSignal<'cards' | 'preview'>('cards')
+
   // Review history expansion state
   const [expandedCards, setExpandedCards] = createSignal<Set<string>>(new Set())
   const [reviewCache, setReviewCache] = createSignal<Record<string, any[]>>({})
@@ -280,10 +283,28 @@ export default function NoteDetail() {
                   </Show>
                 </Show>
 
-                {/* Cards section */}
-                <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '4', color: 'fg.default' })}>
-                  Cards ({data().cards.length})
-                </h2>
+                {/* Cards / Preview tabs */}
+                <div class={css({ display: 'flex', gap: '1', mb: '4', borderBottom: '1px solid', borderColor: 'border' })}>
+                  {(['cards', 'preview'] as const).map((tab) => (
+                    <button
+                      onClick={() => setDetailTab(tab)}
+                      class={css({
+                        px: '4', py: '2', fontSize: 'sm', fontWeight: 'medium',
+                        cursor: 'pointer', border: 'none', bg: 'transparent',
+                        borderBottom: '2px solid',
+                        borderBottomColor: detailTab() === tab ? 'accent.9' : 'transparent',
+                        color: detailTab() === tab ? 'accent.9' : 'fg.muted',
+                        mb: '-1px',
+                        transition: 'all 0.15s',
+                        _hover: { color: 'fg.default' },
+                      })}
+                    >
+                      {tab === 'cards' ? `Cards (${data().cards.length})` : 'Preview'}
+                    </button>
+                  ))}
+                </div>
+
+                <Show when={detailTab() === 'cards'}>
 
                 <Show
                   when={data().cards.length > 0}
@@ -405,9 +426,10 @@ export default function NoteDetail() {
                     </For>
                   </div>
                 </Show>
+                </Show>
 
-                {/* Preview section */}
-                <Show when={data().cards.length > 0}>
+                {/* Preview tab */}
+                <Show when={detailTab() === 'preview' && data().cards.length > 0}>
                   {(() => {
                     const [showAll, setShowAll] = createSignal(false)
                     const PREVIEW_LIMIT = 5
@@ -418,9 +440,6 @@ export default function NoteDetail() {
 
                     return (
                       <>
-                        <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '4', mt: '8', color: 'fg.default' })}>
-                          Preview
-                        </h2>
                         <div class={css({ display: 'flex', flexDirection: 'column', gap: '3', mb: '6' })}>
                           <For each={visibleCards()}>
                             {(card: any) => (
