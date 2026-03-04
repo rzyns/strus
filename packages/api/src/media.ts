@@ -11,10 +11,15 @@ function getMediaDir(): string {
 }
 
 export function getMediaBaseUrl(): string {
-  return (
-    process.env.STRUS_MEDIA_BASE_URL ||
-    `http://localhost:${process.env.PORT || "3457"}/media`
-  );
+  if (process.env.STRUS_MEDIA_BASE_URL) {
+    return process.env.STRUS_MEDIA_BASE_URL;
+  }
+  // Derive from STRUS_API_URL if set, so changing the API base URL is enough
+  // to fix media URLs without needing to also set STRUS_MEDIA_BASE_URL.
+  const apiBase =
+    process.env.STRUS_API_URL ||
+    `http://localhost:${process.env.PORT || "3457"}`;
+  return `${apiBase.replace(/\/$/, "")}/media`;
 }
 
 // ---------------------------------------------------------------------------
