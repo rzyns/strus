@@ -25,6 +25,9 @@ interface DueCard {
   front: string | null
   back: string | null
   forms: string[]
+  audioUrl: string | null
+  imageUrl: string | null
+  lemmaAudioUrl: string | null
   noteId: string
   due: string
   stability: number
@@ -257,6 +260,7 @@ export default function Quiz() {
   // Refs for focus management
   let inputRef: HTMLInputElement | undefined
   let nextBtnRef: HTMLButtonElement | undefined
+  let audioRef: HTMLAudioElement | undefined
 
   // Focus the right element whenever the phase changes.
   // createEffect runs after DOM updates, so refs are populated by the time this fires.
@@ -266,6 +270,31 @@ export default function Quiz() {
     else if (p === "revealed-wrong") setTimeout(() => nextBtnRef?.focus(), 0)
     // 'revealed-correct' and 'revealed-manual' are handled inside RatingButtons
     // via their own createEffect (triggered when disabled flips false).
+  })
+
+  // Auto-play audio on phase transitions
+  createEffect(() => {
+    const p = phase()
+    const card = currentCard()
+    if (!audioRef || !card) return
+
+    let url: string | null = null
+    if (p === 'asking') {
+      if (card.kind === 'morph_form' || card.kind === 'gloss_forward') {
+        url = card.lemmaAudioUrl
+      }
+    } else if (p === 'revealed-correct' || p === 'revealed-wrong' || p === 'revealed-manual') {
+      if (card.kind === 'morph_form') {
+        url = card.audioUrl
+      } else if (card.kind === 'gloss_reverse') {
+        url = card.lemmaAudioUrl
+      }
+    }
+
+    if (url) {
+      audioRef.src = url
+      audioRef.play().catch(() => {})
+    }
   })
 
   const startQuiz = async () => {
@@ -630,6 +659,21 @@ export default function Quiz() {
                     </Show>
                   </div>
 
+                  {/* Mnemonic image */}
+                  <Show when={card().imageUrl}>
+                    {(url) => (
+                      <img
+                        src={url()}
+                        alt="mnemonic"
+                        class={css({
+                          maxH: '150px', borderRadius: 'l2',
+                          border: '1px solid', borderColor: 'border',
+                          mb: '4', display: 'block',
+                        })}
+                      />
+                    )}
+                  </Show>
+
                   {/* ── Asking ── */}
                   <Show when={phase() === 'asking'}>
                     <Show when={card().kind !== 'basic_forward' && card().kind !== 'gloss_forward' && card().kind !== 'gloss_reverse'} fallback={
@@ -776,6 +820,8 @@ export default function Quiz() {
                       disabled={submitting()}
                     />
                   </Show>
+
+                  <audio ref={(el) => { audioRef = el }} style={{ display: "none" }} />
                 </Card>
               </>
             )}

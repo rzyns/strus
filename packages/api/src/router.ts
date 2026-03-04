@@ -823,6 +823,7 @@ const DueCardOutput = CardOutput.extend({
       "Empty when the lemma has source=manual or Morfeusz2 form generation was skipped.",
     ),
   audioUrl: z.string().nullable().describe("URL to TTS audio for this form; null if not yet generated"),
+  lemmaAudioUrl: z.string().nullable().describe("URL to citation-form TTS audio; null if not generated"),
   imageUrl: z.string().nullable().describe("URL to mnemonic image for the lemma; null if not yet generated"),
   nextDates: NextDatesOutput,
 });
@@ -1177,16 +1178,22 @@ const sessionDue = os
       }
     }
 
-    // Batch-fetch lemma image paths
+    // Batch-fetch lemma image paths + lemma text (for citation-form audio lookup)
     const lemmaImagePaths = new Map<string, string | null>();
+    const lemmaAudioByLemmaId = new Map<string, string | null>();
     if (lemmaIds.length > 0) {
       const lemmaRows = db
-        .select({ id: lemmas.id, imagePath: lemmas.imagePath })
+        .select({ id: lemmas.id, imagePath: lemmas.imagePath, lemma: lemmas.lemma })
         .from(lemmas)
         .where(inArray(lemmas.id, lemmaIds))
         .all();
       for (const row of lemmaRows) {
         lemmaImagePaths.set(row.id, row.imagePath);
+        // Find the first morph form whose orth matches the citation form and has audio
+        const citationForm = allForms.find(
+          (f) => f.lemmaId === row.id && f.orth === row.lemma && f.audioPath != null,
+        );
+        lemmaAudioByLemmaId.set(row.id, citationForm?.audioPath ?? null);
       }
     }
 
@@ -1271,6 +1278,9 @@ const sessionDue = os
           ? formsByKey.get(`${r.lemmaId}::${r.card.tag}`) ?? []
           : [],
         audioUrl: audioPath ? `${baseUrl}/${audioPath}` : null,
+        lemmaAudioUrl: r.lemmaId
+          ? (() => { const p = lemmaAudioByLemmaId.get(r.lemmaId!); return p ? `${baseUrl}/${p}` : null; })()
+          : null,
         imageUrl: imagePath ? `${baseUrl}/${imagePath}` : null,
         nextDates: {
           again: dates[Rating.Again].toISOString(),
