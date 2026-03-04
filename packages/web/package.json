@@ -1,6 +1,6 @@
 {
   "name": "@strus/web",
-  "version": "0.10.2",
+  "version": "1.0.0-beta.1",
   "private": true,
   "type": "module",
   "scripts": {
