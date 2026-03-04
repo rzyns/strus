@@ -1,14 +1,8 @@
-# syntax=docker/dockerfile:1
-
-# ─── Stage 1: pnpm install (Node) + web frontend build ───────────────────────
-FROM node:22-slim AS web-build
-
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable pnpm
+# ─── Stage 1: bun install + web frontend build ───────────────────────
+FROM oven/bun:1 AS web-build
 
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json bun.lock ./
 COPY packages/api/package.json     packages/api/
 COPY packages/cli/package.json     packages/cli/
 COPY packages/config/package.json  packages/config/
@@ -18,8 +12,8 @@ COPY packages/morph/package.json   packages/morph/
 COPY packages/web/package.json     packages/web/
 
 # --ignore-scripts defers Panda CSS prepare until source files are present
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod=false --ignore-scripts
+RUN --mount=type=cache,id=bun,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile --ignore-scripts
 
 # tsconfig.base.json must be present at root for packages/web/tsconfig.json to extend it
 COPY tsconfig.base.json  ./
@@ -27,8 +21,8 @@ COPY packages/web/       packages/web/
 COPY packages/config/    packages/config/
 
 # Panda CSS codegen then Vite build
-RUN pnpm --filter @strus/web run prepare && \
-    pnpm --filter @strus/web run build
+RUN bun run --filter @strus/web prepare && \
+    bun run --filter @strus/web build
 
 # ─── Stage 2: Bun runtime ────────────────────────────────────────────────────
 FROM oven/bun:1 AS runtime
@@ -53,7 +47,7 @@ EOF
 WORKDIR /app
 
 # Copy all package manifests and workspace config
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json bun.lock ./
 COPY packages/api/package.json     packages/api/
 COPY packages/cli/package.json     packages/cli/
 COPY packages/config/package.json  packages/config/
@@ -69,8 +63,7 @@ COPY packages/core/   packages/core/
 COPY packages/db/     packages/db/
 COPY packages/morph/  packages/morph/
 
-# Let Bun install its own node_modules — pnpm's symlink store is not
-# compatible with Bun's module resolution when copied across stages.
+# Let Bun install its own node_modules
 # --ignore-scripts skips better-sqlite3's node-gyp native build (it's a
 # drizzle-kit devDep only; the runtime uses bun:sqlite, not better-sqlite3)
 RUN --mount=type=cache,id=bun,target=/root/.bun/install/cache \
