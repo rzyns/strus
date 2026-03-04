@@ -24,10 +24,35 @@ export default function ListDetail() {
   const [deletingList, setDeletingList] = createSignal(false)
 
   const [showAddForm, setShowAddForm] = createSignal(false)
+  const [addTab, setAddTab] = createSignal<'new' | 'existing'>('new')
   const [word, setWord] = createSignal('')
   const [pos, setPos] = createSignal<string>('subst')
   const [source, setSource] = createSignal<string>('morfeusz')
   const [adding, setAdding] = createSignal(false)
+
+  const [allLemmas] = createResource(
+    () => showAddForm() || undefined,
+    () => api.lemmas.list({}),
+  )
+  const [existingSearch, setExistingSearch] = createSignal('')
+  const [addingExistingId, setAddingExistingId] = createSignal<string | null>(null)
+
+  const filteredExistingLemmas = () => {
+    const all = allLemmas() ?? []
+    const currentIds = new Set((lemmas() ?? []).map((l: any) => l.id))
+    const search = existingSearch().toLowerCase().trim()
+    return all.filter((l: any) => !currentIds.has(l.id) && (!search || l.lemma.toLowerCase().includes(search)))
+  }
+
+  const handleAddExisting = async (lemmaId: string) => {
+    setAddingExistingId(lemmaId)
+    try {
+      await api.lists.addLemma({ listId: params.id, lemmaId })
+      refetchLemmas()
+    } finally {
+      setAddingExistingId(null)
+    }
+  }
 
   const handleDeleteList = async () => {
     setDeletingList(true)
@@ -104,28 +129,91 @@ export default function ListDetail() {
 
                 <Show when={showAddForm()}>
                   <div class={css({ mb: '4', p: '4', border: '1px solid', borderColor: 'border', borderRadius: 'l3', bg: 'bg.subtle' })}>
-                    <div class={css({ display: 'flex', gap: '3', flexWrap: 'wrap', alignItems: 'flex-end' })}>
-                      <div>
-                        <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>Word</label>
-                        <input class={inputStyle} value={word()} onInput={(e) => setWord(e.currentTarget.value)} placeholder="e.g. dom" />
-                      </div>
-                      <div>
-                        <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>POS</label>
-                        <select class={selectStyle} value={pos()} onChange={(e) => setPos(e.currentTarget.value)}>
-                          <For each={[...POS_OPTIONS]}>{(p) => <option value={p}>{p}</option>}</For>
-                        </select>
-                      </div>
-                      <div>
-                        <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>Source</label>
-                        <select class={selectStyle} value={source()} onChange={(e) => setSource(e.currentTarget.value)}>
-                          <option value="morfeusz">morfeusz</option>
-                          <option value="manual">manual</option>
-                        </select>
-                      </div>
-                      <Button onClick={handleAddLemma} loading={adding()} disabled={!word().trim()}>
-                        Add
-                      </Button>
+                    <div class={css({ display: 'flex', gap: '1', mb: '3' })}>
+                      <button
+                        class={css({
+                          px: '3', py: '1.5', fontSize: 'sm', fontWeight: 'medium', borderRadius: 'l2', cursor: 'pointer',
+                          border: '1px solid', borderColor: addTab() === 'new' ? 'blue.8' : 'border',
+                          bg: addTab() === 'new' ? 'blue.3' : 'transparent', color: addTab() === 'new' ? 'blue.11' : 'fg.muted',
+                        })}
+                        onClick={() => setAddTab('new')}
+                      >
+                        New word
+                      </button>
+                      <button
+                        class={css({
+                          px: '3', py: '1.5', fontSize: 'sm', fontWeight: 'medium', borderRadius: 'l2', cursor: 'pointer',
+                          border: '1px solid', borderColor: addTab() === 'existing' ? 'blue.8' : 'border',
+                          bg: addTab() === 'existing' ? 'blue.3' : 'transparent', color: addTab() === 'existing' ? 'blue.11' : 'fg.muted',
+                        })}
+                        onClick={() => setAddTab('existing')}
+                      >
+                        Add existing
+                      </button>
                     </div>
+
+                    <Show when={addTab() === 'new'}>
+                      <div class={css({ display: 'flex', gap: '3', flexWrap: 'wrap', alignItems: 'flex-end' })}>
+                        <div>
+                          <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>Word</label>
+                          <input class={inputStyle} value={word()} onInput={(e) => setWord(e.currentTarget.value)} placeholder="e.g. dom" />
+                        </div>
+                        <div>
+                          <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>POS</label>
+                          <select class={selectStyle} value={pos()} onChange={(e) => setPos(e.currentTarget.value)}>
+                            <For each={[...POS_OPTIONS]}>{(p) => <option value={p}>{p}</option>}</For>
+                          </select>
+                        </div>
+                        <div>
+                          <label class={css({ display: 'block', fontSize: 'sm', fontWeight: 'medium', mb: '1', color: 'fg.default' })}>Source</label>
+                          <select class={selectStyle} value={source()} onChange={(e) => setSource(e.currentTarget.value)}>
+                            <option value="morfeusz">morfeusz</option>
+                            <option value="manual">manual</option>
+                          </select>
+                        </div>
+                        <Button onClick={handleAddLemma} loading={adding()} disabled={!word().trim()}>
+                          Add
+                        </Button>
+                      </div>
+                    </Show>
+
+                    <Show when={addTab() === 'existing'}>
+                      <div>
+                        <input
+                          class={inputStyle}
+                          value={existingSearch()}
+                          onInput={(e) => setExistingSearch(e.currentTarget.value)}
+                          placeholder="Filter lemmas..."
+                          style={{ width: '100%', "margin-bottom": '8px' }}
+                        />
+                        <Show when={!allLemmas.loading} fallback={<div class={css({ py: '4', textAlign: 'center' })}><Spinner /></div>}>
+                          <Show
+                            when={filteredExistingLemmas().length > 0}
+                            fallback={
+                              <p class={css({ color: 'fg.muted', fontSize: 'sm', py: '3', textAlign: 'center' })}>
+                                {(allLemmas() ?? []).length === 0 ? 'No lemmas exist yet' : existingSearch() ? 'No matching lemmas' : 'All lemmas already in list'}
+                              </p>
+                            }
+                          >
+                            <div class={css({ maxHeight: '200px', overflowY: 'auto', border: '1px solid', borderColor: 'border', borderRadius: 'l2' })}>
+                              <For each={filteredExistingLemmas()}>
+                                {(lemma: any) => (
+                                  <div class={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '3', py: '2', borderBottom: '1px solid', borderColor: 'border', _last: { borderBottom: 'none' } })}>
+                                    <div class={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
+                                      <span class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.default' })}>{lemma.lemma}</span>
+                                      <Badge variant="pos" value={lemma.pos} />
+                                    </div>
+                                    <Button size="sm" variant="outline" onClick={() => handleAddExisting(lemma.id)} loading={addingExistingId() === lemma.id} disabled={addingExistingId() !== null}>
+                                      Add
+                                    </Button>
+                                  </div>
+                                )}
+                              </For>
+                            </div>
+                          </Show>
+                        </Show>
+                      </div>
+                    </Show>
                   </div>
                 </Show>
 
