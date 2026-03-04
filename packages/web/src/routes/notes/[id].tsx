@@ -28,6 +28,7 @@ interface QuizCardPreviewProps {
   front: string | null
   back: string | null
   forms: string[]
+  audioUrl?: string | null
 }
 
 function QuizCardPreview(props: QuizCardPreviewProps): JSX.Element {
@@ -91,6 +92,15 @@ function QuizCardPreview(props: QuizCardPreviewProps): JSX.Element {
       <p class={css({ fontSize: 'lg', fontWeight: 'semibold', color: 'fg.default' })}>
         {answer()}
       </p>
+      <Show when={props.audioUrl}>
+        {(url) => (
+          <audio
+            controls
+            src={url()}
+            class={css({ mt: '3', w: 'full', maxW: '320px', height: '32px' })}
+          />
+        )}
+      </Show>
     </div>
   )
 }
@@ -105,6 +115,11 @@ export default function NoteDetail() {
   const [lemmaForms] = createResource(
     () => note()?.lemmaId ?? undefined,
     (lemmaId: string) => api.lemmas.forms({ id: lemmaId })
+  )
+  // Fetch the full lemma to get imageUrl
+  const [lemma] = createResource(
+    () => note()?.lemmaId ?? undefined,
+    (lemmaId: string) => api.lemmas.get({ id: lemmaId })
   )
 
   // Cards / Preview tab state
@@ -151,6 +166,16 @@ export default function NoteDetail() {
       const existing = map.get(f.tag)
       if (existing) existing.push(f.orth)
       else map.set(f.tag, [f.orth])
+    }
+    return map
+  })
+
+  // Build a lookup: tag → audioUrl (first form with audio wins)
+  const audioUrlByTag = createMemo(() => {
+    const fs = lemmaForms() ?? []
+    const map = new Map<string, string>()
+    for (const f of (fs as Array<{ tag: string; audioUrl: string | null }>)) {
+      if (f.audioUrl && !map.has(f.tag)) map.set(f.tag, f.audioUrl)
     }
     return map
   })
@@ -234,6 +259,18 @@ export default function NoteDetail() {
                             {data().lemmaText ?? lemmaId()}
                           </A>
                         </p>
+                      )}
+                    </Show>
+                    <Show when={lemma()?.imageUrl}>
+                      {(url) => (
+                        <div class={css({ mt: '3', mb: '1' })}>
+                          <img
+                            src={url()}
+                            alt={`Mnemonic for ${data().lemmaText ?? ''}`}
+                            class={css({ maxW: '160px', maxH: '160px', borderRadius: 'l2', border: '1px solid', borderColor: 'border', objectFit: 'cover' })}
+                          />
+                          <p class={css({ fontSize: 'xs', color: 'fg.subtle', mt: '1' })}>Mnemonic</p>
+                        </div>
                       )}
                     </Show>
                     <p class={css({ color: 'fg.subtle', fontSize: 'xs' })}>
@@ -450,6 +487,7 @@ export default function NoteDetail() {
                                 front={data().front ?? null}
                                 back={data().back ?? null}
                                 forms={card.kind === 'morph_form' && card.tag ? (formsByTag().get(card.tag) ?? []) : []}
+                                audioUrl={card.kind === 'morph_form' && card.tag ? (audioUrlByTag().get(card.tag) ?? null) : null}
                               />
                             )}
                           </For>
