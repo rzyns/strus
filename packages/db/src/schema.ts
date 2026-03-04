@@ -30,6 +30,8 @@ export const lemmas = sqliteTable("lemmas", {
   /** How the paradigm was populated: morfeusz = auto-generated, manual = user-supplied */
   source:    text("source", { enum: ["morfeusz", "manual"] }).notNull().default("morfeusz"),
   notes:     text("notes"),
+  /** Relative path to generated mnemonic image, e.g. "images/dom.png" */
+  imagePath: text("image_path"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -84,6 +86,8 @@ export const morphForms = sqliteTable("morph_forms", {
   tag:       text("tag").notNull(),
   /** JSON-serialised ParsedTag */
   parsedTag: text("parsed_tag").notNull(),
+  /** Relative path to generated TTS audio file, e.g. "audio/dom-subst-sg-nom-m3.mp3" */
+  audioPath: text("audio_path"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 

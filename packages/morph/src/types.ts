@@ -1,3 +1,5 @@
+export type MorphGender = "m" | "f" | "n" | null;
+
 export interface MorphForm {
   /** Surface form, e.g. "domem" */
   orth: string;

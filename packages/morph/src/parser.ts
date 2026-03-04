@@ -1,4 +1,4 @@
-import type { MorphForm, ParsedTag, Paradigm } from "./types.js";
+import type { MorphForm, MorphGender, ParsedTag, Paradigm } from "./types.js";
 
 /**
  * Parse a NKJP morphosyntactic tag string into a structured object.
@@ -22,6 +22,27 @@ export function parseTag(tag: string): ParsedTag {
   }
 
   return { pos, features, raw: tag };
+}
+
+const GENDER_TOKENS = new Set(["m1", "m2", "m3", "f", "n"]);
+
+/**
+ * Extract gender from a Morfeusz2 NKJP tag string.
+ * Returns 'm' for m1/m2/m3, 'f' for f, 'n' for n, null if tag has no gender.
+ */
+export function tagGender(tag: string): MorphGender {
+  const parts = tag.split(":");
+  for (const part of parts) {
+    // Handle dot-separated alternatives like "nom.m3"
+    const subparts = part.split(".");
+    for (const sub of subparts) {
+      if (GENDER_TOKENS.has(sub)) {
+        if (sub.startsWith("m")) return "m";
+        return sub as "f" | "n";
+      }
+    }
+  }
+  return null;
 }
 
 /**

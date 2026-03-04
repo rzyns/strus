@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { resolve, join, extname } from "node:path";
 import { Elysia } from "elysia";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
@@ -129,6 +129,36 @@ export const app = new Elysia()
   .get("/docs", () => new Response(SWAGGER_UI_HTML, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   }))
+
+  // Static media files (TTS audio, mnemonic images)
+  .get("/media/*", ({ params }) => {
+    const mediaDir = process.env.STRUS_MEDIA_DIR || resolve(process.cwd(), "media");
+    const relPath = (params as Record<string, string>)["*"] ?? "";
+    const filePath = join(mediaDir, relPath);
+
+    // Prevent path traversal
+    if (!filePath.startsWith(mediaDir)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+
+    const file = Bun.file(filePath);
+    if (!file.size) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    const ext = extname(filePath).toLowerCase();
+    const contentTypes: Record<string, string> = {
+      ".mp3": "audio/mpeg",
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".webp": "image/webp",
+    };
+
+    return new Response(file, {
+      headers: { "Content-Type": contentTypes[ext] || "application/octet-stream" },
+    });
+  })
 
   // oRPC RPC handler — used by the web client
   .all("/rpc/*", async ({ request }) => {

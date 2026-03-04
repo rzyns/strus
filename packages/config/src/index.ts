@@ -22,6 +22,18 @@ const ConfigSchema = z.object({
 
   /** Base URL the CLI uses to reach the API. */
   STRUS_API_URL: z.string().url().default("http://localhost:3457"),
+
+  /** ElevenLabs API key for TTS generation. Optional — TTS is skipped when absent. */
+  ELEVENLABS_API_KEY: z.string().min(1).optional(),
+
+  /** Google Gemini API key for image generation. Optional — images are skipped when absent. */
+  GEMINI_API_KEY: z.string().min(1).optional(),
+
+  /** Path to media directory for generated audio/images. Defaults to ./media. */
+  STRUS_MEDIA_DIR: z.string().min(1).optional(),
+
+  /** Base URL for serving media files. Defaults to http://localhost:{PORT}/media. */
+  STRUS_MEDIA_BASE_URL: z.string().url().optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

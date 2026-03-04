@@ -11,7 +11,8 @@ import {
   reviews,
   vocabListNotes,
 } from "@strus/db";
-import { generate, parseTag, analyseText } from "@strus/morph";
+import { generate, parseTag, tagGender, analyseText } from "@strus/morph";
+import { generateAudio, generateImage, getMediaBaseUrl } from "./media.js";
 import {
   scheduleReview,
   createCard,
@@ -583,6 +584,15 @@ const lemmasCreate = os
       if (input.listId) {
         await db.insert(vocabListNotes).values({ listId: input.listId, noteId });
       }
+
+      // Fire-and-forget image generation — don't block the response
+      generateImage(input.lemma).then((imagePath) => {
+        if (imagePath) {
+          db.update(lemmas).set({ imagePath }).where(eq(lemmas.id, id)).run();
+        }
+      }).catch((err) => {
+        console.warn(`[media] Image generation failed for "${input.lemma}":`, err);
+      });
     } else if (input.listId) {
       // Manual source: create a morph note (with no forms) and add to list
       const noteId = crypto.randomUUID();
@@ -604,6 +614,7 @@ const lemmasCreate = os
       pos: input.pos,
       source: input.source,
       notes: input.notes ?? null,
+      imagePath: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -695,6 +706,8 @@ const DueCardOutput = CardOutput.extend({
       "Orthographic variants for this card's tag combination. " +
       "Empty when the lemma has source=manual or Morfeusz2 form generation was skipped.",
     ),
+  audioUrl: z.string().nullable().describe("URL to TTS audio for this form; null if not yet generated"),
+  imageUrl: z.string().nullable().describe("URL to mnemonic image for the lemma; null if not yet generated"),
   nextDates: NextDatesOutput,
 });
 
@@ -1023,25 +1036,78 @@ const sessionDue = os
     const allForms = lemmaIds.length > 0
       ? db
           .select({
+            id: morphForms.id,
             lemmaId: morphForms.lemmaId,
             orth: morphForms.orth,
             tag: morphForms.tag,
+            audioPath: morphForms.audioPath,
           })
           .from(morphForms)
           .where(inArray(morphForms.lemmaId, lemmaIds))
           .all()
       : [];
 
-    // Build a lookup: `${lemmaId}::${tag}` → orth[]
+    // Build lookups: `${lemmaId}::${tag}` → orth[] and → first form with audio info
     const formsByKey = new Map<string, string[]>();
+    const formInfoByKey = new Map<string, { id: string; orth: string; tag: string; audioPath: string | null }>();
     for (const f of allForms) {
       const key = `${f.lemmaId}::${f.tag}`;
       const existing = formsByKey.get(key);
       if (existing !== undefined) existing.push(f.orth);
       else formsByKey.set(key, [f.orth]);
+      // Store first form info for audio lookup
+      if (!formInfoByKey.has(key)) {
+        formInfoByKey.set(key, { id: f.id, orth: f.orth, tag: f.tag, audioPath: f.audioPath });
+      }
+    }
+
+    // Batch-fetch lemma image paths
+    const lemmaImagePaths = new Map<string, string | null>();
+    if (lemmaIds.length > 0) {
+      const lemmaRows = db
+        .select({ id: lemmas.id, imagePath: lemmas.imagePath })
+        .from(lemmas)
+        .where(inArray(lemmas.id, lemmaIds))
+        .all();
+      for (const row of lemmaRows) {
+        lemmaImagePaths.set(row.id, row.imagePath);
+      }
     }
 
     const now = new Date(nowSecs * 1000);
+    const baseUrl = getMediaBaseUrl();
+
+    // Lazy TTS generation for morph_form cards missing audio
+    const audioGenerationPromises: Array<Promise<void>> = [];
+    for (const r of session) {
+      if (r.card.kind !== "morph_form" || !r.lemmaId || !r.card.tag) continue;
+      const key = `${r.lemmaId}::${r.card.tag}`;
+      const formInfo = formInfoByKey.get(key);
+      if (!formInfo || formInfo.audioPath != null) continue;
+
+      // Queue lazy TTS generation (fire-and-forget, update DB in background)
+      const capturedFormInfo = formInfo;
+      audioGenerationPromises.push(
+        generateAudio(capturedFormInfo.orth, capturedFormInfo.tag, tagGender(capturedFormInfo.tag))
+          .then((audioPath) => {
+            if (audioPath) {
+              db.update(morphForms)
+                .set({ audioPath })
+                .where(eq(morphForms.id, capturedFormInfo.id))
+                .run();
+              capturedFormInfo.audioPath = audioPath;
+            }
+          })
+          .catch((err) => {
+            console.warn(`[media] TTS generation failed for "${capturedFormInfo.orth}":`, err);
+          }),
+      );
+    }
+
+    // Wait for all TTS generation to complete so URLs are available in the response
+    if (audioGenerationPromises.length > 0) {
+      await Promise.allSettled(audioGenerationPromises);
+    }
 
     return session.map((r) => {
       let front = r.front;
@@ -1074,6 +1140,12 @@ const sessionDue = os
       };
       const dates = getNextReviewDates(domainCard, now);
 
+      // Resolve media URLs
+      const formKey = r.lemmaId && r.card.tag ? `${r.lemmaId}::${r.card.tag}` : null;
+      const formInfo = formKey ? formInfoByKey.get(formKey) : undefined;
+      const audioPath = formInfo?.audioPath ?? null;
+      const imagePath = r.lemmaId ? lemmaImagePaths.get(r.lemmaId) ?? null : null;
+
       return {
         ...mapCardRow(r.card),
         lemmaText: r.lemmaText,
@@ -1082,6 +1154,8 @@ const sessionDue = os
         forms: r.lemmaId && r.card.tag
           ? formsByKey.get(`${r.lemmaId}::${r.card.tag}`) ?? []
           : [],
+        audioUrl: audioPath ? `${baseUrl}/${audioPath}` : null,
+        imageUrl: imagePath ? `${baseUrl}/${imagePath}` : null,
         nextDates: {
           again: dates[Rating.Again].toISOString(),
           hard: dates[Rating.Hard].toISOString(),
