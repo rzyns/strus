@@ -140,7 +140,7 @@ export default function LemmaDetail() {
                           <img
                             src={url()}
                             alt={`Mnemonic for ${data().lemma}`}
-                            class={css({ maxW: '200px', maxH: '200px', borderRadius: 'lg', border: '1px solid', borderColor: 'border.subtle' })}
+                            class={css({ maxW: '200px', w: 'auto', h: 'auto', borderRadius: 'lg', border: '1px solid', borderColor: 'border.subtle' })}
                           />
                           <span class={css({ fontSize: 'xs', color: 'fg.muted', mt: '1' })}>Mnemonic</span>
                         </div>

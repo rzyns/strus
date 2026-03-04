@@ -267,7 +267,7 @@ export default function NoteDetail() {
                           <img
                             src={url()}
                             alt={`Mnemonic for ${data().lemmaText ?? ''}`}
-                            class={css({ maxW: '160px', maxH: '160px', borderRadius: 'l2', border: '1px solid', borderColor: 'border', objectFit: 'cover' })}
+                            class={css({ maxW: '160px', w: 'auto', h: 'auto', borderRadius: 'l2', border: '1px solid', borderColor: 'border' })}
                           />
                           <p class={css({ fontSize: 'xs', color: 'fg.subtle', mt: '1' })}>Mnemonic</p>
                         </div>
