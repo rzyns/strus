@@ -133,10 +133,12 @@ export const app = new Elysia()
   // Static media files (TTS audio, mnemonic images)
   .get("/media/*", ({ params }) => {
     const mediaDir = process.env.STRUS_MEDIA_DIR || resolve(process.cwd(), "media");
-    const relPath = (params as Record<string, string>)["*"] ?? "";
+    const rawPath = (params as Record<string, string>)["*"] ?? "";
+    // Decode percent-encoding (e.g. %C4%99 → ę) so Polish filenames resolve correctly
+    const relPath = decodeURIComponent(rawPath);
     const filePath = join(mediaDir, relPath);
 
-    // Prevent path traversal
+    // Prevent path traversal (check after decoding to catch encoded ../ attempts)
     if (!filePath.startsWith(mediaDir)) {
       return new Response("Forbidden", { status: 403 });
     }
