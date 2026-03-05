@@ -14,11 +14,22 @@ processors:
   batch:
     timeout: 1s
     send_batch_size: 1024
+
   resource:
     attributes:
       - key: deployment.environment
         value: development
         action: upsert
+
+  # Drop spans that are noise: static assets, SPA fallback, media files.
+  # These are always fast, never interesting, and drown out real traces.
+  filter/drop_noise:
+    error_mode: ignore
+    traces:
+      span:
+        - 'name =~ "GET /assets/.*"'   # Vite-built JS/CSS chunks
+        - 'name =~ "GET /media/.*"'    # Audio/image files
+        - 'name == "GET /*"'           # SPA index.html fallback
 
 exporters:
   # Grafana Tempo — receives OTLP natively
@@ -36,5 +47,5 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch, resource]
+      processors: [filter/drop_noise, batch, resource]
       exporters: [otlp_grpc/tempo, debug]
