@@ -29,7 +29,8 @@ processors:
       span:
         - 'IsMatch(name, "GET /assets/.*")'   # Vite-built JS/CSS chunks
         - 'IsMatch(name, "GET /media/.*")'    # Audio/image files
-        - 'name == "GET /*"'                  # SPA index.html fallback
+        # Note: don't filter "GET /*" (SPA fallback) here — dropping the root span
+        # while its child "Handle" span passes through creates orphan spans in Tempo.
 
 exporters:
   # Grafana Tempo — receives OTLP natively
