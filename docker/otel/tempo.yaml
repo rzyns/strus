@@ -1,11 +1,9 @@
-# Grafana Tempo — single-binary config for local dev
-# Receives OTLP from the OTel Collector and stores traces locally.
-
-stream_over_http_enabled: true
+# Grafana Tempo v2.x — single-binary config for local dev
+# Verified against v2.10.1 (latest as of 2026-03)
 
 server:
   http_listen_port: 3200
-  log_level: warn  # reduce noise in dev; set info for debugging Tempo itself
+  log_level: warn
 
 distributor:
   receivers:
@@ -17,11 +15,7 @@ distributor:
           endpoint: 0.0.0.0:4318
 
 ingester:
-  max_block_duration: 5m  # flush blocks quickly for local dev
-
-compactor:
-  compaction:
-    block_retention: 24h  # keep 24h of traces locally
+  max_block_duration: 5m
 
 storage:
   trace:
