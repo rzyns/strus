@@ -1,6 +1,6 @@
 import {
   createSignal, createMemo, createEffect, createResource,
-  Show, Switch, Match, For, onMount,
+  Show, Switch, Match, For, onMount, batch,
 } from 'solid-js'
 import { A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
@@ -424,9 +424,11 @@ export default function Quiz() {
     if (next >= cards().length) {
       setPhase('done')
     } else {
-      setIndex(next)
-      setAnswer('')
-      setPhase('asking')
+      batch(() => {
+        setIndex(next)
+        setAnswer('')
+        setPhase('asking')
+      })
     }
 
     setSubmitting(false)
