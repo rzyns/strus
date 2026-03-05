@@ -88,8 +88,11 @@ export default function Settings() {
       <Show when={!data.loading} fallback={
         <div class={css({ display: 'flex', justifyContent: 'center', py: '12' })}><Spinner size="lg" /></div>
       }>
-        <Card title="Image Prompt Template">
+        <Card title="Image Generation Meta-Prompt">
           <div class={css({ display: 'flex', flexDir: 'column', gap: '4' })}>
+            <p class={css({ fontSize: 'sm', color: 'fg.muted' })}>
+              This is sent to the Gemini text model to generate a word-specific image prompt. The generated prompt is then sent to the image generation model.
+            </p>
             <p class={css({ fontSize: 'sm', color: 'fg.muted' })}>
               Mustache template variables: <code>{`{{word}}`}</code>, <code>{`{{wordClass}}`}</code>, <code>{`{{gender}}`}</code>
               {' '}(conditional: <code>{`{{#gender}}…{{/gender}}`}</code>)
@@ -139,7 +142,7 @@ export default function Settings() {
           </div>
         </Card>
 
-        <Card title="Live Preview">
+        <Card title="Meta-prompt Preview">
           <div class={css({ display: 'flex', gap: '3', mb: '4', flexWrap: 'wrap', alignItems: 'flex-end' })}>
             <div>
               <label class={labelStyle}>Preview word</label>

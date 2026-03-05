@@ -746,12 +746,12 @@ export default function Quiz() {
                       />
                     </div>
                   </Show>
-                  {/* Collapsible rendered prompt */}
+                  {/* Collapsible image generation prompt */}
                   <Show when={phase() === 'asking' && card().imagePrompt}>
                     {(prompt) => (
                       <details style={{ "margin-top": "0", "margin-bottom": "8px" }}>
                         <summary style={{ "font-size": "0.75rem", color: "var(--colors-fg-muted)", cursor: "pointer" }}>
-                          Image prompt
+                          Image generation prompt
                         </summary>
                         <textarea
                           readonly

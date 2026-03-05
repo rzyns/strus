@@ -7,7 +7,16 @@ export const SETTINGS_KEYS = {
 } as const;
 
 export const DEFAULTS: Record<string, string> = {
-  [SETTINGS_KEYS.IMAGE_PROMPT_TEMPLATE]: `A vivid, dreamlike mnemonic scene for the Polish {{wordClass}} "{{word}}"{{#gender}} ({{gender}}){{/gender}}. The scene uses concrete imagery or wordplay to make the word unforgettable. Absolutely no text, letters, numbers, symbols, or writing of any kind anywhere in the image. Photorealistic style.`,
+  [SETTINGS_KEYS.IMAGE_PROMPT_TEMPLATE]: `Write a vivid, specific image generation prompt to help a Polish language learner remember the word "{{word}}" ({{wordClass}}{{#gender}}, {{gender}}{{/gender}}).
+
+The prompt should describe a single concrete, memorable scene using wordplay, visual metaphor, or absurdist imagery tied to the word's meaning or sound. Be creative and specific — not generic.
+
+Requirements for the image prompt you write:
+- No text, letters, numbers, symbols, or writing of any kind in the image
+- Photorealistic style
+- One clear focal scene, not a collage
+
+Respond with only the image prompt text, nothing else.`,
 };
 
 export function getSetting(key: string): string {

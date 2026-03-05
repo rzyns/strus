@@ -110,9 +110,10 @@ export async function generateAudio(
 // ---------------------------------------------------------------------------
 
 /**
- * Render the image prompt template with the given lemma and tag.
+ * Render the meta-prompt template — what gets sent to the Gemini text model
+ * to generate a word-specific image prompt.
  */
-export function renderImagePrompt(lemma: string, tag: string): string {
+export function renderMetaPrompt(lemma: string, tag: string): string {
   const template = getSetting(SETTINGS_KEYS.IMAGE_PROMPT_TEMPLATE);
   return Mustache.render(template, {
     word: lemma,
@@ -122,28 +123,56 @@ export function renderImagePrompt(lemma: string, tag: string): string {
 }
 
 /**
- * Generate a mnemonic image for a Polish lemma.
- * Returns the relative path stored in DB, e.g. "images/dom.png".
- * Returns null if GEMINI_API_KEY is not set (graceful degradation).
+ * Generate a mnemonic image for a Polish lemma using a two-stage pipeline:
+ * 1. Gemini text model generates a specific image prompt from the meta-prompt template
+ * 2. Gemini image model generates an image from that specific prompt
+ *
+ * Returns both the relative path and the generated image prompt for DB storage.
+ * Returns nulls if GEMINI_API_KEY is not set (graceful degradation).
  * Always overwrites — caller decides whether to regenerate.
  */
 export async function generateImage(
   lemma: string,
   tag: string,
-  gloss?: string,
-): Promise<string | null> {
+): Promise<{ relativePath: string | null; imagePrompt: string | null }> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return { relativePath: null, imagePrompt: null };
 
+  // Stage 1 — generate specific image prompt via Gemini text model
+  const metaPrompt = renderMetaPrompt(lemma, tag);
+
+  const textModel = process.env.STRUS_GEMINI_TEXT_MODEL ?? "gemini-2.0-flash";
+  const textResponse = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${textModel}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: metaPrompt }] }],
+      }),
+    },
+  );
+  if (!textResponse.ok) {
+    console.warn(`[media] Gemini text generation failed: ${textResponse.status}`);
+    return { relativePath: null, imagePrompt: null };
+  }
+  const textData = (await textResponse.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const specificPrompt =
+    textData.candidates?.[0]?.content?.parts?.find((p) => p.text)?.text?.trim() ?? null;
+  if (!specificPrompt) {
+    console.warn(`[media] Gemini text returned no prompt for "${lemma}"`);
+    return { relativePath: null, imagePrompt: null };
+  }
+
+  // Stage 2 — generate image using the specific prompt
   const filename = `${sanitize(lemma)}.png`;
   const relativePath = `images/${filename}`;
   const absolutePath = join(getMediaDir(), relativePath);
 
   ensureDir(join(getMediaDir(), "images"));
 
-  const prompt = renderImagePrompt(lemma, tag);
-
-  // "Nano Banana Pro" = gemini-3-pro-image-preview; override via STRUS_GEMINI_IMAGE_MODEL
   const model =
     process.env.STRUS_GEMINI_IMAGE_MODEL || "gemini-3-pro-image-preview";
 
@@ -153,7 +182,7 @@ export async function generateImage(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts: [{ text: specificPrompt }] }],
         generationConfig: {
           responseModalities: ["TEXT", "IMAGE"],
         },
@@ -165,7 +194,7 @@ export async function generateImage(
     console.warn(
       `[media] Gemini image generation failed for "${lemma}": ${response.status} ${response.statusText}`,
     );
-    return null;
+    return { relativePath: null, imagePrompt: specificPrompt };
   }
 
   const data = (await response.json()) as {
@@ -182,17 +211,17 @@ export async function generateImage(
   const parts = data.candidates?.[0]?.content?.parts;
   if (!parts) {
     console.warn(`[media] Gemini returned no parts for "${lemma}"`);
-    return null;
+    return { relativePath: null, imagePrompt: specificPrompt };
   }
 
   for (const part of parts) {
     if (part.inlineData) {
       const imageBytes = Buffer.from(part.inlineData.data, "base64");
       await Bun.write(absolutePath, imageBytes);
-      return relativePath;
+      return { relativePath, imagePrompt: specificPrompt };
     }
   }
 
   console.warn(`[media] Gemini returned no image data for "${lemma}"`);
-  return null;
+  return { relativePath: null, imagePrompt: specificPrompt };
 }

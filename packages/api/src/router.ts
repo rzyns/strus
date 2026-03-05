@@ -13,7 +13,7 @@ import {
   vocabListNotes,
 } from "@strus/db";
 import { generate, parseTag, tagGender, analyseText } from "@strus/morph";
-import { generateAudio, generateImage, renderImagePrompt, getMediaBaseUrl } from "./media.js";
+import { generateAudio, generateImage, getMediaBaseUrl } from "./media.js";
 import { getSetting, setSetting, SETTINGS_KEYS, DEFAULTS } from "./settings.js";
 import {
   scheduleReview,
@@ -60,6 +60,7 @@ const LemmaOutput = z.object({
   source: zSource,
   notes: z.string().nullable().describe("Free-form notes about this lemma; null if not set"),
   imageUrl: z.string().url().nullable().describe("URL to mnemonic image; null if not yet generated"),
+  imagePrompt: z.string().nullable().describe("Generated image prompt sent to the image model; null if not yet generated"),
   createdAt: zIso.describe("When this lemma was added"),
   updatedAt: zIso.describe("When this lemma was last modified"),
 });
@@ -167,6 +168,7 @@ function mapLemma(row: typeof lemmas.$inferSelect) {
     source: row.source,
     notes: row.notes,
     imageUrl: row.imagePath ? `${baseUrl}/${row.imagePath}` : null,
+    imagePrompt: row.imagePrompt ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -619,9 +621,12 @@ const lemmasCreate = os
         .where(and(eq(morphForms.lemmaId, id), eq(morphForms.orth, input.lemma)))
         .limit(1).get();
       const citationTag = citationForm?.tag ?? "";
-      generateImage(input.lemma, citationTag).then((imagePath) => {
-        if (imagePath) {
-          db.update(lemmas).set({ imagePath }).where(eq(lemmas.id, id)).run();
+      generateImage(input.lemma, citationTag).then((result) => {
+        if (result.relativePath || result.imagePrompt) {
+          db.update(lemmas).set({
+            ...(result.relativePath ? { imagePath: result.relativePath } : {}),
+            ...(result.imagePrompt ? { imagePrompt: result.imagePrompt } : {}),
+          }).where(eq(lemmas.id, id)).run();
         }
       }).catch((err) => {
         console.warn(`[media] Image generation failed for "${input.lemma}":`, err);
@@ -648,6 +653,7 @@ const lemmasCreate = os
       source: input.source,
       notes: input.notes ?? null,
       imagePath: null,
+      imagePrompt: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -749,10 +755,13 @@ const lemmasGenerateImage = os
       .limit(1).get();
     const citationTag = citationForm?.tag ?? "";
 
-    const relativePath = await generateImage(row.lemma, citationTag);
-    if (relativePath) {
+    const result = await generateImage(row.lemma, citationTag);
+    if (result.relativePath || result.imagePrompt) {
       db.update(lemmas)
-        .set({ imagePath: relativePath })
+        .set({
+          ...(result.relativePath ? { imagePath: result.relativePath } : {}),
+          ...(result.imagePrompt ? { imagePrompt: result.imagePrompt } : {}),
+        })
         .where(eq(lemmas.id, input.id))
         .run();
     }
@@ -838,7 +847,7 @@ const DueCardOutput = CardOutput.extend({
   audioUrl: z.string().nullable().describe("URL to TTS audio for this form; null if not yet generated"),
   lemmaAudioUrl: z.string().nullable().describe("URL to citation-form TTS audio; null if not generated"),
   imageUrl: z.string().nullable().describe("URL to mnemonic image for the lemma; null if not yet generated"),
-  imagePrompt: z.string().nullable().describe("Rendered image prompt template for this lemma; null for basic cards"),
+  imagePrompt: z.string().nullable().describe("Generated image prompt sent to the image model; null if not yet generated"),
   nextDates: NextDatesOutput,
 });
 
@@ -1194,17 +1203,19 @@ const sessionDue = os
 
     // Batch-fetch lemma image paths + lemma text (for citation-form audio lookup)
     const lemmaImagePaths = new Map<string, string | null>();
+    const lemmaImagePrompts = new Map<string, string | null>();
     const lemmaAudioByLemmaId = new Map<string, string | null>();
     const lemmaFormIdByLemmaId = new Map<string, string | null>();
     const lemmaCitationTag = new Map<string, string>();
     if (lemmaIds.length > 0) {
       const lemmaRows = db
-        .select({ id: lemmas.id, imagePath: lemmas.imagePath, lemma: lemmas.lemma })
+        .select({ id: lemmas.id, imagePath: lemmas.imagePath, imagePrompt: lemmas.imagePrompt, lemma: lemmas.lemma })
         .from(lemmas)
         .where(inArray(lemmas.id, lemmaIds))
         .all();
       for (const row of lemmaRows) {
         lemmaImagePaths.set(row.id, row.imagePath);
+        lemmaImagePrompts.set(row.id, row.imagePrompt);
         // Find the first morph form whose orth matches the citation form (for ID, regardless of audio)
         const citationFormForId = allForms.find(
           (f) => f.lemmaId === row.id && f.orth === row.lemma,
@@ -1307,8 +1318,8 @@ const sessionDue = os
           ? (() => { const p = lemmaAudioByLemmaId.get(r.lemmaId!); return p ? `${baseUrl}/${p}` : null; })()
           : null,
         imageUrl: imagePath ? `${baseUrl}/${imagePath}` : null,
-        imagePrompt: r.lemmaId && r.lemmaText
-          ? renderImagePrompt(r.lemmaText, lemmaCitationTag.get(r.lemmaId) ?? "")
+        imagePrompt: r.lemmaId
+          ? lemmaImagePrompts.get(r.lemmaId) ?? null
           : null,
         nextDates: {
           again: dates[Rating.Again].toISOString(),

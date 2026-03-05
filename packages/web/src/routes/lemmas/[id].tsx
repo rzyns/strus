@@ -1,5 +1,4 @@
 import { createResource, createSignal, createMemo, Show, Suspense, ErrorBoundary, Switch, Match, For } from 'solid-js'
-import Mustache from 'mustache'
 import { useParams, useNavigate } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -41,37 +40,9 @@ export default function LemmaDetail() {
   const [deletingGlossId, setDeletingGlossId] = createSignal<string | null>(null)
   const [glossToDelete, setGlossToDelete] = createSignal<{ id: string; back: string } | null>(null)
 
-  // Image prompt rendering
-  const [settingsData] = createResource(
-    () => api.settings.get({}) as Promise<{ imagePromptTemplate: string }>
-  )
   const imagePromptText = createMemo(() => {
-    const s = settingsData()
     const l = lemma()
-    const f = forms()
-    if (!s || !l) return null
-    const citationForm = f?.find((form: { orth: string; tag: string }) => form.orth === l.lemma)
-    const tag = citationForm?.tag ?? ''
-    try {
-      const wordClass = tag.startsWith('subst:') ? 'noun'
-        : (tag.startsWith('verb:') || tag.startsWith('ger:') || tag.startsWith('pact:') || tag.startsWith('ppas:')) ? 'verb'
-        : tag.startsWith('adj') ? 'adjective'
-        : tag.startsWith('adv') ? 'adverb'
-        : ''
-      const parts = tag.split(':')
-      const genderTokens = new Set(['m1', 'm2', 'm3', 'f', 'n'])
-      let gender = ''
-      for (const p of parts) {
-        for (const sub of p.split('.')) {
-          if (genderTokens.has(sub)) {
-            gender = sub.startsWith('m') ? 'masculine' : sub === 'f' ? 'feminine' : 'neuter'
-          }
-        }
-      }
-      return Mustache.render(s.imagePromptTemplate, { word: l.lemma, wordClass, gender })
-    } catch {
-      return null
-    }
+    return l?.imagePrompt ?? null
   })
 
   const handleDelete = async () => {
@@ -179,7 +150,7 @@ export default function LemmaDetail() {
                         {(prompt) => (
                           <details style={{ "margin-top": "8px" }}>
                             <summary style={{ "font-size": "0.75rem", color: "var(--colors-fg-muted)", cursor: "pointer" }}>
-                              Image prompt
+                              Image generation prompt
                             </summary>
                             <textarea
                               readonly
