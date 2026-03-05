@@ -17,6 +17,10 @@
 #   3. Add exporters to docker/otel/otel-collector.yaml
 #   No app code changes needed.
 
+networks:
+  otel:
+    driver: bridge
+
 services:
   tempo:
     image: grafana/tempo:latest
@@ -25,12 +29,12 @@ services:
     volumes:
       - ./docker/otel/tempo.yaml:/etc/tempo.yaml:ro
       - tempo-data:/var/tempo
-    # Tempo's ports are internal — only the collector and Grafana talk to it.
-    # Expose 3200 on the host only if you want to query Tempo directly.
     expose:
       - "3200"   # HTTP API (Grafana queries this)
       - "4317"   # OTLP gRPC (collector forwards here)
       - "4318"   # OTLP HTTP
+    networks:
+      - otel
     restart: unless-stopped
 
   grafana:
@@ -42,12 +46,13 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Auth-free for local dev — remove these in production
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
     depends_on:
       - tempo
+    networks:
+      - otel
     restart: unless-stopped
 
   otel-collector:
@@ -61,6 +66,8 @@ services:
       - "4318:4318"   # OTLP HTTP  (← app sends here)
     depends_on:
       - tempo
+    networks:
+      - otel
     restart: unless-stopped
 
 volumes:
