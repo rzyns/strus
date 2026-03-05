@@ -21,16 +21,8 @@ processors:
         value: development
         action: upsert
 
-  # Drop spans that are noise: static assets, SPA fallback, media files.
-  # These are always fast, never interesting, and drown out real traces.
-  filter/drop_noise:
-    error_mode: ignore
-    traces:
-      span:
-        - 'IsMatch(name, "GET /assets/.*")'   # Vite-built JS/CSS chunks
-        - 'IsMatch(name, "GET /media/.*")'    # Audio/image files
-        # Note: don't filter "GET /*" (SPA fallback) here — dropping the root span
-        # while its child "Handle" span passes through creates orphan spans in Tempo.
+  # (No span filter needed — noisy routes are excluded via checkIfShouldTrace
+  #  in packages/api/src/instrumentation.ts before spans are even created.)
 
 exporters:
   # Grafana Tempo — receives OTLP natively
@@ -48,5 +40,5 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [filter/drop_noise, batch, resource]
+      processors: [batch, resource]
       exporters: [otlp_grpc/tempo, debug]

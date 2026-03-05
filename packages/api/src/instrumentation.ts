@@ -41,6 +41,20 @@ if (process.env.OTEL_CONSOLE_TRACES === "true") {
 }
 
 /**
+ * Routes that should never be traced — static files, SPA fallback, etc.
+ * These generate spans with zero diagnostic value and drown out real traces.
+ */
+function shouldTrace(req: Request): boolean {
+  const path = new URL(req.url).pathname;
+  return (
+    !path.startsWith("/assets/") &&
+    !path.startsWith("/media/")
+    // Add more exclusions here as needed, e.g.:
+    // && path !== "/favicon.ico"
+  );
+}
+
+/**
  * The Elysia OTel plugin. Apply with `.use(otelPlugin)` as the FIRST plugin
  * in your Elysia app — before routes, other plugins, etc.
  *
@@ -49,4 +63,5 @@ if (process.env.OTEL_CONSOLE_TRACES === "true") {
 export const otelPlugin = opentelemetry({
   serviceName,
   spanProcessors: processors,
+  checkIfShouldTrace: shouldTrace,
 });
