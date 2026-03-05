@@ -22,7 +22,8 @@ processors:
 
 exporters:
   # Grafana Tempo — receives OTLP natively
-  otlp/tempo:
+  # Use otlp_grpc (otlp alias is deprecated in otelcol-contrib 0.147+)
+  otlp_grpc/tempo:
     endpoint: tempo:4317
     tls:
       insecure: true
@@ -36,4 +37,4 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch, resource]
-      exporters: [otlp/tempo, debug]
+      exporters: [otlp_grpc/tempo, debug]
