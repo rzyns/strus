@@ -1,0 +1,36 @@
+# OTel dev overlay — layer on top of your main docker-compose.yaml:
+#
+#   docker compose -f docker-compose.yaml -f docker-compose.otel.yaml up
+#
+# Or standalone (just the OTel infrastructure, API runs bare on host):
+#
+#   docker compose -f docker-compose.otel.yaml up
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 bun run dev
+#
+# Jaeger UI: http://localhost:16686
+# OTLP HTTP:  http://localhost:4318  (what the app sends to)
+# OTLP gRPC:  localhost:4317
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: strus-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # Jaeger gRPC (collector → jaeger internal)
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: strus-otel-collector
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./docker/otel/otel-collector.yaml:/etc/otel-collector.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    depends_on:
+      - jaeger
+    restart: unless-stopped

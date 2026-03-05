@@ -1,4 +1,6 @@
 import { os, ORPCError } from "@orpc/server";
+import { record } from "@elysiajs/opentelemetry";
+import { SpanStatusCode } from "@opentelemetry/api";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 import { count, eq, lte, ne, like, and, or, inArray, asc, sql } from "drizzle-orm";
@@ -283,7 +285,15 @@ async function analyseImportText(
 ): Promise<{ candidates: ImportCandidate[]; unknownTokens: string[] }> {
   // Let analyseText errors propagate — callers get a 500 with a useful message
   // rather than silently returning 0 candidates when morfeusz_analyzer is unavailable.
-  const allForms = await analyseText(text);
+  const allForms = await record("morph.analyseText", async (span) => {
+    span.setAttributes({
+      "morph.text_length": text.length,
+      "morph.word_count": text.split(/\s+/).filter(Boolean).length,
+    });
+    const result = await analyseText(text);
+    span.setAttribute("morph.tokens_count", result.length);
+    return result;
+  }) as Awaited<ReturnType<typeof analyseText>>;
 
   // Group analyses by surface form (orth)
   const byOrth = new Map<string, typeof allForms>();
@@ -358,7 +368,12 @@ async function createMorphNoteAndCards(
 
   let forms: Awaited<ReturnType<typeof generate>> = [];
   try {
-    forms = await generate(lemmaText);
+    forms = await record("morph.generate", async (span) => {
+      span.setAttribute("morph.lemma", lemmaText);
+      const result = await generate(lemmaText);
+      span.setAttribute("morph.forms_count", result.length);
+      return result;
+    }) as Awaited<ReturnType<typeof generate>>;
   } catch {
     console.warn(`[morph] morfeusz2 unavailable; skipping form generation for "${lemmaText}"`);
   }

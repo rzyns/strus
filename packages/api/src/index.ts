@@ -1,5 +1,6 @@
 import { resolve, join, extname } from "node:path";
 import { Elysia } from "elysia";
+import { otelPlugin } from "./instrumentation.js";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { RPCHandler } from "@orpc/server/fetch";
@@ -119,6 +120,8 @@ const webPlugin = existsSync(webDist)
   : null;
 
 export const app = new Elysia()
+  // OTel — must be first so it can instrument all subsequent lifecycle hooks
+  .use(otelPlugin)
   // Health check
   .get("/health", () => ({ ok: true, version: "0.0.1" }))
 

@@ -1,6 +1,8 @@
 import { mkdirSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import Mustache from "mustache";
+import { record, setAttributes } from "@elysiajs/opentelemetry";
+import { SpanStatusCode } from "@opentelemetry/api";
 import type { MorphGender } from "@strus/morph";
 import { tagWordClass, tagGenderLabel } from "@strus/morph";
 import { getSetting, SETTINGS_KEYS } from "./settings.js";
@@ -67,42 +69,56 @@ export async function generateAudio(
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) return null;
 
-  const voiceId = VOICES[gender ?? "m"];
-  const filename = `${sanitize(orth)}-${sanitize(tag)}.mp3`;
-  const relativePath = `audio/${filename}`;
-  const absolutePath = join(getMediaDir(), relativePath);
+  return record("elevenlabs.tts", async (span) => {
+    const voiceId = VOICES[gender ?? "m"];
+    const filename = `${sanitize(orth)}-${sanitize(tag)}.mp3`;
+    const relativePath = `audio/${filename}`;
+    const absolutePath = join(getMediaDir(), relativePath);
 
-  // Skip if already generated
-  if (existsSync(absolutePath)) return relativePath;
+    span.setAttributes({
+      "tts.orth": orth,
+      "tts.tag": tag,
+      "tts.gender": gender ?? "m",
+      "tts.voice_id": voiceId,
+      "tts.cached": existsSync(absolutePath),
+    });
 
-  ensureDir(join(getMediaDir(), "audio"));
+    // Skip if already generated
+    if (existsSync(absolutePath)) return relativePath;
 
-  const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-        Accept: "audio/mpeg",
+    ensureDir(join(getMediaDir(), "audio"));
+
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg",
+        },
+        body: JSON.stringify({
+          text: orth,
+          model_id: "eleven_multilingual_v2",
+        }),
       },
-      body: JSON.stringify({
-        text: orth,
-        model_id: "eleven_multilingual_v2",
-      }),
-    },
-  );
-
-  if (!response.ok) {
-    console.warn(
-      `[media] ElevenLabs TTS failed for "${orth}": ${response.status} ${response.statusText}`,
     );
-    return null;
-  }
 
-  const buffer = await response.arrayBuffer();
-  await Bun.write(absolutePath, buffer);
-  return relativePath;
+    span.setAttribute("http.status_code", response.status);
+
+    if (!response.ok) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: `ElevenLabs ${response.status}` });
+      console.warn(
+        `[media] ElevenLabs TTS failed for "${orth}": ${response.status} ${response.statusText}`,
+      );
+      return null;
+    }
+
+    const buffer = await response.arrayBuffer();
+    span.setAttribute("tts.bytes", buffer.byteLength);
+    await Bun.write(absolutePath, buffer);
+    return relativePath;
+  }) as Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,90 +154,126 @@ export async function generateImage(
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { relativePath: null, imagePrompt: null };
 
-  // Stage 1 — generate specific image prompt via Gemini text model
-  const metaPrompt = renderMetaPrompt(lemma, tag);
+  return record("gemini.image.generate", async (span) => {
+    span.setAttributes({
+      "gemini.lemma": lemma,
+      "gemini.tag": tag,
+    });
 
-  const textModel = process.env.STRUS_GEMINI_TEXT_MODEL ?? "gemini-2.5-flash";
-  const textResponse = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${textModel}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: metaPrompt }] }],
-      }),
-    },
-  );
-  if (!textResponse.ok) {
-    console.warn(`[media] Gemini text generation failed: ${textResponse.status}`);
-    return { relativePath: null, imagePrompt: null };
-  }
-  const textData = (await textResponse.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const specificPrompt =
-    textData.candidates?.[0]?.content?.parts?.find((p) => p.text)?.text?.trim() ?? null;
-  if (!specificPrompt) {
-    console.warn(`[media] Gemini text returned no prompt for "${lemma}"`);
-    return { relativePath: null, imagePrompt: null };
-  }
+    // Stage 1 — generate specific image prompt via Gemini text model
+    const metaPrompt = renderMetaPrompt(lemma, tag);
+    const textModel = process.env.STRUS_GEMINI_TEXT_MODEL ?? "gemini-2.5-flash";
 
-  // Stage 2 — generate image using the specific prompt
-  const filename = `${sanitize(lemma)}.png`;
-  const relativePath = `images/${filename}`;
-  const absolutePath = join(getMediaDir(), relativePath);
+    const specificPrompt = await record("gemini.text.generateContent", async (textSpan) => {
+      textSpan.setAttribute("gemini.model", textModel);
 
-  ensureDir(join(getMediaDir(), "images"));
-
-  const model =
-    process.env.STRUS_GEMINI_IMAGE_MODEL || "gemini-3-pro-image-preview";
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: specificPrompt }] }],
-        generationConfig: {
-          responseModalities: ["TEXT", "IMAGE"],
+      const textResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${textModel}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: metaPrompt }] }],
+          }),
         },
-      }),
-    },
-  );
+      );
 
-  if (!response.ok) {
-    console.warn(
-      `[media] Gemini image generation failed for "${lemma}": ${response.status} ${response.statusText}`,
-    );
-    return { relativePath: null, imagePrompt: specificPrompt };
-  }
+      textSpan.setAttribute("http.status_code", textResponse.status);
 
-  const data = (await response.json()) as {
-    candidates?: Array<{
-      content?: {
-        parts?: Array<{
-          text?: string;
-          inlineData?: { mimeType: string; data: string };
+      if (!textResponse.ok) {
+        textSpan.setStatus({ code: SpanStatusCode.ERROR, message: `Gemini text ${textResponse.status}` });
+        console.warn(`[media] Gemini text generation failed: ${textResponse.status}`);
+        return null;
+      }
+
+      const textData = (await textResponse.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
+      const prompt =
+        textData.candidates?.[0]?.content?.parts?.find((p) => p.text)?.text?.trim() ?? null;
+
+      if (!prompt) {
+        textSpan.setStatus({ code: SpanStatusCode.ERROR, message: "No prompt generated" });
+        console.warn(`[media] Gemini text returned no prompt for "${lemma}"`);
+      }
+
+      return prompt;
+    }) as string | null;
+
+    if (!specificPrompt) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: "No specific prompt from text model" });
+      return { relativePath: null, imagePrompt: null };
+    }
+
+    span.setAttribute("gemini.image_prompt_length", specificPrompt.length);
+
+    // Stage 2 — generate image using the specific prompt
+    const filename = `${sanitize(lemma)}.png`;
+    const relativePath = `images/${filename}`;
+    const absolutePath = join(getMediaDir(), relativePath);
+    ensureDir(join(getMediaDir(), "images"));
+
+    const imageModel = process.env.STRUS_GEMINI_IMAGE_MODEL || "gemini-3-pro-image-preview";
+
+    const result = await record("gemini.image.generateContent", async (imgSpan) => {
+      imgSpan.setAttribute("gemini.model", imageModel);
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: specificPrompt }] }],
+            generationConfig: {
+              responseModalities: ["TEXT", "IMAGE"],
+            },
+          }),
+        },
+      );
+
+      imgSpan.setAttribute("http.status_code", response.status);
+
+      if (!response.ok) {
+        imgSpan.setStatus({ code: SpanStatusCode.ERROR, message: `Gemini image ${response.status}` });
+        console.warn(
+          `[media] Gemini image generation failed for "${lemma}": ${response.status} ${response.statusText}`,
+        );
+        return { relativePath: null, imagePrompt: specificPrompt };
+      }
+
+      const data = (await response.json()) as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{
+              text?: string;
+              inlineData?: { mimeType: string; data: string };
+            }>;
+          };
         }>;
       };
-    }>;
-  };
 
-  const parts = data.candidates?.[0]?.content?.parts;
-  if (!parts) {
-    console.warn(`[media] Gemini returned no parts for "${lemma}"`);
-    return { relativePath: null, imagePrompt: specificPrompt };
-  }
+      const parts = data.candidates?.[0]?.content?.parts;
+      if (!parts) {
+        imgSpan.setStatus({ code: SpanStatusCode.ERROR, message: "No parts in response" });
+        console.warn(`[media] Gemini returned no parts for "${lemma}"`);
+        return { relativePath: null, imagePrompt: specificPrompt };
+      }
 
-  for (const part of parts) {
-    if (part.inlineData) {
-      const imageBytes = Buffer.from(part.inlineData.data, "base64");
-      await Bun.write(absolutePath, imageBytes);
-      return { relativePath, imagePrompt: specificPrompt };
-    }
-  }
+      for (const part of parts) {
+        if (part.inlineData) {
+          const imageBytes = Buffer.from(part.inlineData.data, "base64");
+          imgSpan.setAttribute("gemini.image_bytes", imageBytes.byteLength);
+          await Bun.write(absolutePath, imageBytes);
+          return { relativePath, imagePrompt: specificPrompt };
+        }
+      }
 
-  console.warn(`[media] Gemini returned no image data for "${lemma}"`);
-  return { relativePath: null, imagePrompt: specificPrompt };
+      imgSpan.setStatus({ code: SpanStatusCode.ERROR, message: "No image data in response" });
+      console.warn(`[media] Gemini returned no image data for "${lemma}"`);
+      return { relativePath: null, imagePrompt: specificPrompt };
+    }) as { relativePath: string | null; imagePrompt: string | null };
+
+    return result;
+  }) as Promise<{ relativePath: string | null; imagePrompt: string | null }>;
 }

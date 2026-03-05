@@ -19,7 +19,11 @@
     "lint": "echo 'lint: ok'"
   },
   "dependencies": {
+    "@elysiajs/opentelemetry": "^1.4.10",
     "@elysiajs/static": "^1.4.7",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.213.0",
+    "@opentelemetry/sdk-trace-node": "^2.6.0",
     "@orpc/openapi": "^1.13.5",
     "@orpc/server": "^1.13.5",
     "@orpc/zod": "^1.13.5",
