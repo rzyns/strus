@@ -27,8 +27,10 @@
     "@strus/core": "workspace:*",
     "@strus/db": "workspace:*",
     "@strus/morph": "workspace:*",
+    "@types/mustache": "^4.2.6",
     "drizzle-orm": "^0.45.1",
     "elysia": "^1.4.25",
+    "mustache": "^4.2.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

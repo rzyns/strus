@@ -12,6 +12,7 @@ const NotesIndex = lazy(() => import('./routes/notes/index'))
 const NoteDetail = lazy(() => import('./routes/notes/[id]'))
 const Import = lazy(() => import('./routes/import'))
 const Quiz = lazy(() => import('./routes/quiz/index'))
+const Settings = lazy(() => import('./routes/settings/index'))
 const NotFound = lazy(() => import('./routes/not-found'))
 
 export function App() {
@@ -37,6 +38,7 @@ export function App() {
       <Route path="/notes/:id" component={NoteDetail} />
       <Route path="/import" component={Import} />
       <Route path="/quiz" component={Quiz} />
+      <Route path="/settings" component={Settings} />
       <Route path="*" component={NotFound} />
     </Router>
   )

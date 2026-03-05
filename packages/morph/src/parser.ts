@@ -46,6 +46,32 @@ export function tagGender(tag: string): MorphGender {
 }
 
 /**
+ * Map a Morfeusz2 NKJP tag to a human-readable word class label.
+ */
+export function tagWordClass(tag: string): string {
+  if (tag.startsWith("subst:")) return "noun";
+  if (tag.startsWith("verb:") || tag.startsWith("ger:") || tag.startsWith("pact:") || tag.startsWith("ppas:")) return "verb";
+  if (tag.startsWith("adj")) return "adjective";
+  if (tag.startsWith("adv")) return "adverb";
+  if (tag.startsWith("num")) return "numeral";
+  if (tag.startsWith("prep:")) return "preposition";
+  if (tag.startsWith("conj") || tag.startsWith("comp:")) return "conjunction";
+  if (tag.startsWith("interj")) return "interjection";
+  return "";
+}
+
+/**
+ * Map a Morfeusz2 NKJP gender token to a human-readable label.
+ */
+export function tagGenderLabel(tag: string): string {
+  const g = tagGender(tag);
+  if (g === "m") return "masculine";
+  if (g === "f") return "feminine";
+  if (g === "n") return "neuter";
+  return "";
+}
+
+/**
  * Group a flat list of morphological forms by their tag.
  * Multiple surface forms (orths) can map to the same tag.
  */

@@ -1,4 +1,5 @@
-import { createResource, createSignal, Show, Suspense, ErrorBoundary, Switch, Match, For } from 'solid-js'
+import { createResource, createSignal, createMemo, Show, Suspense, ErrorBoundary, Switch, Match, For } from 'solid-js'
+import Mustache from 'mustache'
 import { useParams, useNavigate } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -39,6 +40,39 @@ export default function LemmaDetail() {
   // Gloss delete state
   const [deletingGlossId, setDeletingGlossId] = createSignal<string | null>(null)
   const [glossToDelete, setGlossToDelete] = createSignal<{ id: string; back: string } | null>(null)
+
+  // Image prompt rendering
+  const [settingsData] = createResource(
+    () => api.settings.get({}) as Promise<{ imagePromptTemplate: string }>
+  )
+  const imagePromptText = createMemo(() => {
+    const s = settingsData()
+    const l = lemma()
+    const f = forms()
+    if (!s || !l) return null
+    const citationForm = f?.find((form: { orth: string; tag: string }) => form.orth === l.lemma)
+    const tag = citationForm?.tag ?? ''
+    try {
+      const wordClass = tag.startsWith('subst:') ? 'noun'
+        : (tag.startsWith('verb:') || tag.startsWith('ger:') || tag.startsWith('pact:') || tag.startsWith('ppas:')) ? 'verb'
+        : tag.startsWith('adj') ? 'adjective'
+        : tag.startsWith('adv') ? 'adverb'
+        : ''
+      const parts = tag.split(':')
+      const genderTokens = new Set(['m1', 'm2', 'm3', 'f', 'n'])
+      let gender = ''
+      for (const p of parts) {
+        for (const sub of p.split('.')) {
+          if (genderTokens.has(sub)) {
+            gender = sub.startsWith('m') ? 'masculine' : sub === 'f' ? 'feminine' : 'neuter'
+          }
+        }
+      }
+      return Mustache.render(s.imagePromptTemplate, { word: l.lemma, wordClass, gender })
+    } catch {
+      return null
+    }
+  })
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -106,46 +140,62 @@ export default function LemmaDetail() {
                     </p>
                   </div>
                   <div class={css({ display: 'flex', gap: '4', alignItems: 'flex-start' })}>
-                    <Show
-                      when={data().imageUrl}
-                      fallback={
-                        <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'center' })}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={generatingImage()}
-                            onClick={async () => {
-                              setGeneratingImage(true)
-                              setImageError(null)
-                              try {
-                                await api.lemmas.generateImage({ id: params.id })
-                                refetchLemma()
-                              } catch (err) {
-                                setImageError(String(err))
-                              } finally {
-                                setGeneratingImage(false)
-                              }
-                            }}
-                          >
-                            {generatingImage() ? 'Generating…' : 'Generate image'}
-                          </Button>
-                          <Show when={imageError()}>
-                            <span class={css({ fontSize: 'xs', color: 'red.9', mt: '1' })}>{imageError()}</span>
-                          </Show>
-                        </div>
-                      }
-                    >
-                      {(url) => (
-                        <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'center' })}>
-                          <img
-                            src={url()}
-                            alt={`Mnemonic for ${data().lemma}`}
-                            class={css({ maxW: '200px', w: 'auto', h: 'auto', borderRadius: 'lg', border: '1px solid', borderColor: 'border.subtle' })}
-                          />
-                          <span class={css({ fontSize: 'xs', color: 'fg.muted', mt: '1' })}>Mnemonic</span>
-                        </div>
-                      )}
-                    </Show>
+                    <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'center' })}>
+                      <Show when={data().imageUrl}>
+                        {(url) => (
+                          <>
+                            <img
+                              src={url()}
+                              alt={`Mnemonic for ${data().lemma}`}
+                              class={css({ maxW: '200px', w: 'auto', h: 'auto', borderRadius: 'lg', border: '1px solid', borderColor: 'border.subtle' })}
+                            />
+                            <span class={css({ fontSize: 'xs', color: 'fg.muted', mt: '1' })}>Mnemonic</span>
+                          </>
+                        )}
+                      </Show>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={generatingImage()}
+                        onClick={async () => {
+                          setGeneratingImage(true)
+                          setImageError(null)
+                          try {
+                            await api.lemmas.generateImage({ id: params.id })
+                            refetchLemma()
+                          } catch (err) {
+                            setImageError(String(err))
+                          } finally {
+                            setGeneratingImage(false)
+                          }
+                        }}
+                      >
+                        {generatingImage() ? 'Generating…' : data().imageUrl ? 'Regenerate image' : 'Generate image'}
+                      </Button>
+                      <Show when={imageError()}>
+                        <span class={css({ fontSize: 'xs', color: 'red.9', mt: '1' })}>{imageError()}</span>
+                      </Show>
+                      <Show when={imagePromptText()}>
+                        {(prompt) => (
+                          <details style={{ "margin-top": "8px" }}>
+                            <summary style={{ "font-size": "0.75rem", color: "var(--colors-fg-muted)", cursor: "pointer" }}>
+                              Image prompt
+                            </summary>
+                            <textarea
+                              readonly
+                              value={prompt()}
+                              rows={4}
+                              style={{
+                                "font-size": "0.7rem", "font-family": "monospace", width: "100%",
+                                "margin-top": "4px", resize: "none", border: "1px solid var(--colors-border)",
+                                "border-radius": "4px", padding: "6px", background: "var(--colors-bg-subtle)",
+                                color: "var(--colors-fg-muted)",
+                              }}
+                            />
+                          </details>
+                        )}
+                      </Show>
+                    </div>
                     <div class={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
                       <JsonViewer data={{ lemma: data(), forms: forms() }} label="lemma JSON" />
                       <Button variant="danger" onClick={() => setShowDelete(true)}>Delete</Button>

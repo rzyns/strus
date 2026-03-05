@@ -13,7 +13,8 @@ import {
   vocabListNotes,
 } from "@strus/db";
 import { generate, parseTag, tagGender, analyseText } from "@strus/morph";
-import { generateAudio, generateImage, getMediaBaseUrl } from "./media.js";
+import { generateAudio, generateImage, renderImagePrompt, getMediaBaseUrl } from "./media.js";
+import { getSetting, setSetting, SETTINGS_KEYS, DEFAULTS } from "./settings.js";
 import {
   scheduleReview,
   createCard,
@@ -614,7 +615,11 @@ const lemmasCreate = os
       }
 
       // Fire-and-forget image generation — don't block the response
-      generateImage(input.lemma).then((imagePath) => {
+      const citationForm = db.select({ tag: morphForms.tag }).from(morphForms)
+        .where(and(eq(morphForms.lemmaId, id), eq(morphForms.orth, input.lemma)))
+        .limit(1).get();
+      const citationTag = citationForm?.tag ?? "";
+      generateImage(input.lemma, citationTag).then((imagePath) => {
         if (imagePath) {
           db.update(lemmas).set({ imagePath }).where(eq(lemmas.id, id)).run();
         }
@@ -739,7 +744,12 @@ const lemmasGenerateImage = os
         message: `Lemma not found: ${input.id}`,
       });
 
-    const relativePath = await generateImage(row.lemma);
+    const citationForm = db.select({ tag: morphForms.tag }).from(morphForms)
+      .where(and(eq(morphForms.lemmaId, input.id), eq(morphForms.orth, row.lemma)))
+      .limit(1).get();
+    const citationTag = citationForm?.tag ?? "";
+
+    const relativePath = await generateImage(row.lemma, citationTag);
     if (relativePath) {
       db.update(lemmas)
         .set({ imagePath: relativePath })
@@ -828,6 +838,7 @@ const DueCardOutput = CardOutput.extend({
   audioUrl: z.string().nullable().describe("URL to TTS audio for this form; null if not yet generated"),
   lemmaAudioUrl: z.string().nullable().describe("URL to citation-form TTS audio; null if not generated"),
   imageUrl: z.string().nullable().describe("URL to mnemonic image for the lemma; null if not yet generated"),
+  imagePrompt: z.string().nullable().describe("Rendered image prompt template for this lemma; null for basic cards"),
   nextDates: NextDatesOutput,
 });
 
@@ -1185,6 +1196,7 @@ const sessionDue = os
     const lemmaImagePaths = new Map<string, string | null>();
     const lemmaAudioByLemmaId = new Map<string, string | null>();
     const lemmaFormIdByLemmaId = new Map<string, string | null>();
+    const lemmaCitationTag = new Map<string, string>();
     if (lemmaIds.length > 0) {
       const lemmaRows = db
         .select({ id: lemmas.id, imagePath: lemmas.imagePath, lemma: lemmas.lemma })
@@ -1198,6 +1210,7 @@ const sessionDue = os
           (f) => f.lemmaId === row.id && f.orth === row.lemma,
         );
         lemmaFormIdByLemmaId.set(row.id, citationFormForId?.id ?? null);
+        lemmaCitationTag.set(row.id, citationFormForId?.tag ?? "");
         // Find the first morph form whose orth matches the citation form and has audio
         const citationForm = allForms.find(
           (f) => f.lemmaId === row.id && f.orth === row.lemma && f.audioPath != null,
@@ -1294,6 +1307,9 @@ const sessionDue = os
           ? (() => { const p = lemmaAudioByLemmaId.get(r.lemmaId!); return p ? `${baseUrl}/${p}` : null; })()
           : null,
         imageUrl: imagePath ? `${baseUrl}/${imagePath}` : null,
+        imagePrompt: r.lemmaId && r.lemmaText
+          ? renderImagePrompt(r.lemmaText, lemmaCitationTag.get(r.lemmaId) ?? "")
+          : null,
         nextDates: {
           again: dates[Rating.Again].toISOString(),
           hard: dates[Rating.Hard].toISOString(),
@@ -1918,6 +1934,43 @@ const cardsReviews = os
   });
 
 // ---------------------------------------------------------------------------
+// Settings procedures
+// ---------------------------------------------------------------------------
+
+const settingsGet = os
+  .route({
+    method: "GET",
+    path: "/settings",
+    tags: ["Settings"],
+    summary: "Get application settings",
+  })
+  .input(z.object({}))
+  .output(z.object({
+    imagePromptTemplate: z.string().describe("Current Mustache template for image prompt generation"),
+    imagePromptTemplateDefault: z.string().describe("Factory-default template for image prompts"),
+  }))
+  .handler(() => ({
+    imagePromptTemplate: getSetting(SETTINGS_KEYS.IMAGE_PROMPT_TEMPLATE),
+    imagePromptTemplateDefault: DEFAULTS[SETTINGS_KEYS.IMAGE_PROMPT_TEMPLATE] ?? "",
+  }));
+
+const settingsSet = os
+  .route({
+    method: "POST",
+    path: "/settings",
+    tags: ["Settings"],
+    summary: "Update application settings",
+  })
+  .input(z.object({
+    imagePromptTemplate: z.string().min(10).describe("Mustache template for image prompt generation"),
+  }))
+  .output(z.object({ ok: z.boolean() }))
+  .handler(({ input }) => {
+    setSetting(SETTINGS_KEYS.IMAGE_PROMPT_TEMPLATE, input.imagePromptTemplate);
+    return { ok: true };
+  });
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -1962,6 +2015,10 @@ export const router = {
   import: {
     preview: importPreview,
     commit: importCommit,
+  },
+  settings: {
+    get: settingsGet,
+    set: settingsSet,
   },
 };
 

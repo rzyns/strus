@@ -30,6 +30,7 @@ interface DueCard {
   lemmaId: string | null
   audioUrl: string | null
   imageUrl: string | null
+  imagePrompt: string | null
   lemmaAudioUrl: string | null
   noteId: string
   due: string
@@ -720,19 +721,7 @@ export default function Quiz() {
                   </div>
 
                   {/* Mnemonic image */}
-                  <Show when={effectiveImageUrl()} fallback={
-                    <Show when={card().lemmaId}>
-                      <div class={css({ mb: '4' })}>
-                        <GenerateButton
-                          label="Generate image"
-                          onGenerate={async () => {
-                            const result = await api.lemmas.generateImage({ id: card().lemmaId! }) as { imageUrl?: string | null }
-                            if (result.imageUrl) setLocalImageUrl(result.imageUrl)
-                          }}
-                        />
-                      </div>
-                    </Show>
-                  }>
+                  <Show when={effectiveImageUrl()}>
                     {(url) => (
                       <img
                         src={url()}
@@ -744,6 +733,38 @@ export default function Quiz() {
                           mb: '4', display: 'block',
                         })}
                       />
+                    )}
+                  </Show>
+                  <Show when={card().lemmaId}>
+                    <div class={css({ mb: '4' })}>
+                      <GenerateButton
+                        label={effectiveImageUrl() ? "Regenerate image" : "Generate image"}
+                        onGenerate={async () => {
+                          const result = await api.lemmas.generateImage({ id: card().lemmaId! }) as { imageUrl?: string | null }
+                          if (result.imageUrl) setLocalImageUrl(result.imageUrl)
+                        }}
+                      />
+                    </div>
+                  </Show>
+                  {/* Collapsible rendered prompt */}
+                  <Show when={phase() === 'asking' && card().imagePrompt}>
+                    {(prompt) => (
+                      <details style={{ "margin-top": "0", "margin-bottom": "8px" }}>
+                        <summary style={{ "font-size": "0.75rem", color: "var(--colors-fg-muted)", cursor: "pointer" }}>
+                          Image prompt
+                        </summary>
+                        <textarea
+                          readonly
+                          value={prompt()}
+                          rows={4}
+                          style={{
+                            "font-size": "0.7rem", "font-family": "monospace", width: "100%",
+                            "margin-top": "4px", resize: "none", border: "1px solid var(--colors-border)",
+                            "border-radius": "4px", padding: "6px", background: "var(--colors-bg-subtle)",
+                            color: "var(--colors-fg-muted)",
+                          }}
+                        />
+                      </details>
                     )}
                   </Show>
 

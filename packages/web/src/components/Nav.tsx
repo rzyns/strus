@@ -46,6 +46,7 @@ export function Nav() {
         <A href="/notes" activeClass={activeLinkStyle} class={linkStyle}>Notes</A>
         <A href="/import" activeClass={activeLinkStyle} class={linkStyle}>Import</A>
         <A href="/quiz" activeClass={activeLinkStyle} class={linkStyle}>Quiz</A>
+        <A href="/settings" activeClass={activeLinkStyle} class={linkStyle}>Settings</A>
         <button
           onClick={toggleTheme}
           class={css({

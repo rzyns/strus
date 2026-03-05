@@ -1,6 +1,9 @@
 import { mkdirSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
+import Mustache from "mustache";
 import type { MorphGender } from "@strus/morph";
+import { tagWordClass, tagGenderLabel } from "@strus/morph";
+import { getSetting, SETTINGS_KEYS } from "./settings.js";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -107,12 +110,26 @@ export async function generateAudio(
 // ---------------------------------------------------------------------------
 
 /**
+ * Render the image prompt template with the given lemma and tag.
+ */
+export function renderImagePrompt(lemma: string, tag: string): string {
+  const template = getSetting(SETTINGS_KEYS.IMAGE_PROMPT_TEMPLATE);
+  return Mustache.render(template, {
+    word: lemma,
+    wordClass: tagWordClass(tag),
+    gender: tagGenderLabel(tag),
+  });
+}
+
+/**
  * Generate a mnemonic image for a Polish lemma.
  * Returns the relative path stored in DB, e.g. "images/dom.png".
  * Returns null if GEMINI_API_KEY is not set (graceful degradation).
+ * Always overwrites — caller decides whether to regenerate.
  */
 export async function generateImage(
   lemma: string,
+  tag: string,
   gloss?: string,
 ): Promise<string | null> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -122,16 +139,9 @@ export async function generateImage(
   const relativePath = `images/${filename}`;
   const absolutePath = join(getMediaDir(), relativePath);
 
-  // Skip if already generated
-  if (existsSync(absolutePath)) return relativePath;
-
   ensureDir(join(getMediaDir(), "images"));
 
-  const meaning = gloss || "a Polish word";
-  const prompt =
-    `A vivid, memorable mnemonic illustration for the Polish word '${lemma}' (meaning: ${meaning}). ` +
-    `The image should be clear, striking, and easy to remember. ` +
-    `Absolutely no text, letters, words, numbers, or writing anywhere in the image.`;
+  const prompt = renderImagePrompt(lemma, tag);
 
   // "Nano Banana Pro" = gemini-3-pro-image-preview; override via STRUS_GEMINI_IMAGE_MODEL
   const model =
