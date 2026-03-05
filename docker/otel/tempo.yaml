@@ -1,15 +1,10 @@
-# Grafana Tempo v2.x — single-binary config for local dev
-# Verified against v2.10.1
+# Grafana Tempo — single-binary config for local dev
+# Pinned to 2.6.1: last version before partition rings (introduced in 2.7)
+# caused "empty ring" errors in single-binary mode.
 
 server:
   http_listen_port: 3200
   log_level: warn
-
-# Single-node memberlist — tells Tempo it's not joining a cluster.
-# Required in v2.7+ so the partition ring can elect itself and queries work.
-memberlist:
-  abort_if_cluster_join_fails: false
-  join_members: []
 
 distributor:
   receivers:
@@ -22,11 +17,6 @@ distributor:
 
 ingester:
   max_block_duration: 5m
-  lifecycler:
-    ring:
-      kvstore:
-        store: memberlist
-      replication_factor: 1
 
 storage:
   trace:

@@ -23,7 +23,7 @@ networks:
 
 services:
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.6.1  # 2.7+ has a partition ring bug in single-binary mode
     container_name: strus-tempo
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
