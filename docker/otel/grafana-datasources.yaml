@@ -1,0 +1,20 @@
+# Grafana datasource provisioning — auto-configures on container start.
+# Add Loki and Prometheus entries here when you set those up.
+apiVersion: 1
+
+datasources:
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    url: http://tempo:3200
+    access: proxy
+    isDefault: true
+    jsonData:
+      # Enable the node graph (service dependency map) in the trace view
+      nodeGraph:
+        enabled: true
+      # When Loki is added later, uncomment and set the uid:
+      # tracesToLogsV2:
+      #   datasourceUid: loki
+      #   filterByTraceID: true
+      #   filterBySpanID: true

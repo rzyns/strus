@@ -1,7 +1,6 @@
-# OpenTelemetry Collector configuration for strus local dev
-#
-# Receives OTLP from the strus API and forwards to Jaeger.
-# Phase 2: add Tempo/Loki/Prometheus exporters here without changing app code.
+# OpenTelemetry Collector — receives OTLP from strus-api/web, forwards to Tempo.
+# To add more backends later (Loki, Prometheus), add exporters here and
+# wire them into the pipelines — no app code changes needed.
 
 receivers:
   otlp:
@@ -15,7 +14,6 @@ processors:
   batch:
     timeout: 1s
     send_batch_size: 1024
-  # Adds resource attributes useful for filtering in Jaeger
   resource:
     attributes:
       - key: deployment.environment
@@ -23,14 +21,13 @@ processors:
         action: upsert
 
 exporters:
-  # Jaeger via OTLP (Jaeger v1.35+ supports native OTLP)
-  otlp/jaeger:
-    endpoint: jaeger:4317
+  # Grafana Tempo — receives OTLP natively
+  otlp/tempo:
+    endpoint: tempo:4317
     tls:
       insecure: true
 
-  # Debug exporter — logs span summaries to collector stdout
-  # Remove or set verbosity: none in production
+  # Span summary to collector stdout (useful when debugging instrumentation)
   debug:
     verbosity: basic
 
@@ -39,4 +36,4 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch, resource]
-      exporters: [otlp/jaeger, debug]
+      exporters: [otlp/tempo, debug]

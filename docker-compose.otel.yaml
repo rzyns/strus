@@ -1,25 +1,53 @@
-# OTel dev overlay — layer on top of your main docker-compose.yaml:
+# OTel observability stack — Grafana + Tempo + OTel Collector
 #
-#   docker compose -f docker-compose.yaml -f docker-compose.otel.yaml up
-#
-# Or standalone (just the OTel infrastructure, API runs bare on host):
-#
-#   docker compose -f docker-compose.otel.yaml up
+# Run alongside the app:
+#   docker compose -f docker-compose.otel.yaml up -d
 #   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 bun run dev
 #
-# Jaeger UI: http://localhost:16686
-# OTLP HTTP:  http://localhost:4318  (what the app sends to)
-# OTLP gRPC:  localhost:4317
+# Or overlay on an existing compose file:
+#   docker compose -f docker-compose.yaml -f docker-compose.otel.yaml up -d
+#
+# Grafana UI:    http://localhost:3000  (Explore → Tempo datasource)
+# OTLP HTTP:     http://localhost:4318  (app → collector)
+# OTLP gRPC:     localhost:4317         (app → collector)
+#
+# When adding Loki (logs) and Prometheus/Mimir (metrics) later:
+#   1. Add services here
+#   2. Add datasources to docker/otel/grafana-datasources.yaml
+#   3. Add exporters to docker/otel/otel-collector.yaml
+#   No app code changes needed.
 
 services:
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    container_name: strus-jaeger
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
+  tempo:
+    image: grafana/tempo:latest
+    container_name: strus-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./docker/otel/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    # Tempo's ports are internal — only the collector and Grafana talk to it.
+    # Expose 3200 on the host only if you want to query Tempo directly.
+    expose:
+      - "3200"   # HTTP API (Grafana queries this)
+      - "4317"   # OTLP gRPC (collector forwards here)
+      - "4318"   # OTLP HTTP
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: strus-grafana
+    volumes:
+      - ./docker/otel/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - grafana-data:/var/lib/grafana
     ports:
-      - "16686:16686"  # Jaeger UI
-      - "14250:14250"  # Jaeger gRPC (collector → jaeger internal)
+      - "3000:3000"
+    environment:
+      # Auth-free for local dev — remove these in production
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    depends_on:
+      - tempo
     restart: unless-stopped
 
   otel-collector:
@@ -29,8 +57,12 @@ services:
     volumes:
       - ./docker/otel/otel-collector.yaml:/etc/otel-collector.yaml:ro
     ports:
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
+      - "4317:4317"   # OTLP gRPC  (← app sends here)
+      - "4318:4318"   # OTLP HTTP  (← app sends here)
     depends_on:
-      - jaeger
+      - tempo
     restart: unless-stopped
+
+volumes:
+  tempo-data:
+  grafana-data:
