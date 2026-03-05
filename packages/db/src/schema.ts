@@ -15,7 +15,7 @@ import { sql } from "drizzle-orm";
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
-  updatedAt: text("updated_at").notNull().default(sql`(datetime("now"))`),
+  updatedAt: text("updated_at").notNull(),
 });
 
 // ---------------------------------------------------------------------------

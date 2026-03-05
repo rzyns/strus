@@ -1,6 +1,6 @@
 import { db } from "@strus/db";
 import { settings } from "@strus/db";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export const SETTINGS_KEYS = {
   IMAGE_PROMPT_TEMPLATE: "imagePromptTemplate",
@@ -16,8 +16,9 @@ export function getSetting(key: string): string {
 }
 
 export function setSetting(key: string, value: string): void {
+  const updatedAt = new Date().toISOString();
   db.insert(settings)
-    .values({ key, value })
-    .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: sql`(datetime("now"))` } })
+    .values({ key, value, updatedAt })
+    .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt } })
     .run();
 }
