@@ -141,7 +141,7 @@ export async function generateImage(
   // Stage 1 — generate specific image prompt via Gemini text model
   const metaPrompt = renderMetaPrompt(lemma, tag);
 
-  const textModel = process.env.STRUS_GEMINI_TEXT_MODEL ?? "gemini-2.0-flash";
+  const textModel = process.env.STRUS_GEMINI_TEXT_MODEL ?? "gemini-2.5-flash";
   const textResponse = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${textModel}:generateContent?key=${apiKey}`,
     {
