@@ -110,68 +110,70 @@ export default function LemmaDetail() {
                       Updated {new Date(data().updatedAt).toLocaleDateString()}
                     </p>
                   </div>
-                  <div class={css({ display: 'flex', gap: '4', alignItems: 'flex-start' })}>
-                    <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'center' })}>
-                      <Show when={data().imageUrl}>
-                        {(url) => (
-                          <>
-                            <img
-                              src={url()}
-                              alt={`Mnemonic for ${data().lemma}`}
-                              class={css({ maxW: '200px', w: 'auto', h: 'auto', borderRadius: 'lg', border: '1px solid', borderColor: 'border.subtle' })}
-                            />
-                            <span class={css({ fontSize: 'xs', color: 'fg.muted', mt: '1' })}>Mnemonic</span>
-                          </>
-                        )}
-                      </Show>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={generatingImage()}
-                        onClick={async () => {
-                          setGeneratingImage(true)
-                          setImageError(null)
-                          try {
-                            await api.lemmas.generateImage({ id: params.id })
-                            refetchLemma()
-                          } catch (err) {
-                            setImageError(String(err))
-                          } finally {
-                            setGeneratingImage(false)
-                          }
-                        }}
-                      >
-                        {generatingImage() ? 'Generating…' : data().imageUrl ? 'Regenerate image' : 'Generate image'}
-                      </Button>
-                      <Show when={imageError()}>
-                        <span class={css({ fontSize: 'xs', color: 'red.9', mt: '1' })}>{imageError()}</span>
-                      </Show>
-                      <Show when={imagePromptText()}>
-                        {(prompt) => (
-                          <details style={{ "margin-top": "8px" }}>
-                            <summary style={{ "font-size": "0.75rem", color: "var(--colors-fg-muted)", cursor: "pointer" }}>
-                              Image generation prompt
-                            </summary>
-                            <textarea
-                              readonly
-                              value={prompt()}
-                              rows={4}
-                              style={{
-                                "font-size": "0.7rem", "font-family": "monospace", width: "100%",
-                                "margin-top": "4px", resize: "none", border: "1px solid var(--colors-border)",
-                                "border-radius": "4px", padding: "6px", background: "var(--colors-bg-subtle)",
-                                color: "var(--colors-fg-muted)",
-                              }}
-                            />
-                          </details>
-                        )}
-                      </Show>
-                    </div>
-                    <div class={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
-                      <JsonViewer data={{ lemma: data(), forms: forms() }} label="lemma JSON" />
-                      <Button variant="danger" onClick={() => setShowDelete(true)}>Delete</Button>
-                    </div>
+                  <div class={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
+                    <JsonViewer data={{ lemma: data(), forms: forms() }} label="lemma JSON" />
+                    <Button variant="danger" onClick={() => setShowDelete(true)}>Delete</Button>
                   </div>
+                </div>
+
+                {/* ── Mnemonic image ─────────────────────────────────────── */}
+                <div class={css({ mb: '6' })}>
+                  <Show when={data().imageUrl}>
+                    {(url) => (
+                      <>
+                        <img
+                          src={url()}
+                          alt={`Mnemonic for ${data().lemma}`}
+                          class={css({ w: '100%', h: 'auto', borderRadius: 'lg', border: '1px solid', borderColor: 'border.subtle', mb: '2' })}
+                        />
+                        <span class={css({ fontSize: 'xs', color: 'fg.muted' })}>Mnemonic</span>
+                      </>
+                    )}
+                  </Show>
+                  <div class={css({ display: 'flex', alignItems: 'center', gap: '3', mt: '2' })}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={generatingImage()}
+                      onClick={async () => {
+                        setGeneratingImage(true)
+                        setImageError(null)
+                        try {
+                          await api.lemmas.generateImage({ id: params.id })
+                          refetchLemma()
+                        } catch (err) {
+                          setImageError(String(err))
+                        } finally {
+                          setGeneratingImage(false)
+                        }
+                      }}
+                    >
+                      {generatingImage() ? 'Generating…' : data().imageUrl ? 'Regenerate image' : 'Generate image'}
+                    </Button>
+                    <Show when={imageError()}>
+                      <span class={css({ fontSize: 'xs', color: 'red.9' })}>{imageError()}</span>
+                    </Show>
+                  </div>
+                  <Show when={imagePromptText()}>
+                    {(prompt) => (
+                      <details style={{ "margin-top": "8px" }}>
+                        <summary style={{ "font-size": "0.75rem", color: "var(--colors-fg-muted)", cursor: "pointer" }}>
+                          Image generation prompt
+                        </summary>
+                        <textarea
+                          readonly
+                          value={prompt()}
+                          rows={4}
+                          style={{
+                            "font-size": "0.7rem", "font-family": "monospace", width: "100%",
+                            "margin-top": "4px", resize: "none", border: "1px solid var(--colors-border)",
+                            "border-radius": "4px", padding: "6px", background: "var(--colors-bg-subtle)",
+                            color: "var(--colors-fg-muted)",
+                          }}
+                        />
+                      </details>
+                    )}
+                  </Show>
                 </div>
 
                 {/* ── Glosses ────────────────────────────────────────────── */}
