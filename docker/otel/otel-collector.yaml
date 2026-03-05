@@ -27,9 +27,9 @@ processors:
     error_mode: ignore
     traces:
       span:
-        - 'name =~ "GET /assets/.*"'   # Vite-built JS/CSS chunks
-        - 'name =~ "GET /media/.*"'    # Audio/image files
-        - 'name == "GET /*"'           # SPA index.html fallback
+        - 'IsMatch(name, "GET /assets/.*")'   # Vite-built JS/CSS chunks
+        - 'IsMatch(name, "GET /media/.*")'    # Audio/image files
+        - 'name == "GET /*"'                  # SPA index.html fallback
 
 exporters:
   # Grafana Tempo — receives OTLP natively
