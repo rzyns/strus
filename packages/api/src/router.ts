@@ -646,8 +646,11 @@ const lemmasCreate = os
       }).catch((err) => {
         console.warn(`[media] Image generation failed for "${input.lemma}":`, err);
       });
-    } else if (input.listId) {
-      // Manual source: create a morph note (with no forms) and add to list
+    } else {
+      // Manual source: ALWAYS create a morph note (even without a listId).
+      // Without this, listsAddLemma throws NOT_FOUND for any manual lemma
+      // that was created before being added to a list, because it queries
+      // for a morph note and finds none.
       const noteId = crypto.randomUUID();
       await db.insert(notes).values({
         id: noteId,
@@ -658,7 +661,9 @@ const lemmasCreate = os
         createdAt: now,
         updatedAt: now,
       });
-      await db.insert(vocabListNotes).values({ listId: input.listId, noteId });
+      if (input.listId) {
+        await db.insert(vocabListNotes).values({ listId: input.listId, noteId });
+      }
     }
 
     return mapLemma({

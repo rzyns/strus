@@ -50,6 +50,13 @@
       "when": 1772714116164,
       "tag": "0006_slim_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1772831760000,
+      "tag": "0007_repair_manual_lemma_morph_notes",
+      "breakpoints": true
     }
   ]
 }
