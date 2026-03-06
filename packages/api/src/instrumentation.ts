@@ -50,7 +50,7 @@ function shouldTrace(req: Request): boolean {
     !path.startsWith("/assets/") &&
     !path.startsWith("/media/")
     // Add more exclusions here as needed, e.g.:
-    // && path !== "/favicon.ico"
+    && path !== "/favicon.ico"
   );
 }
 
