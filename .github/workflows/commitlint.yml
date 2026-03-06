@@ -15,8 +15,8 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Install commitlint
-        run: bun add -g @commitlint/cli @commitlint/config-conventional
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Lint commits
         run: |
