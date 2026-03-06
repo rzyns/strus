@@ -387,14 +387,29 @@ export default function Quiz() {
     const card = currentCard()
     if (!card) return
 
-    if (card.kind === 'basic_forward' || card.kind === 'gloss_forward' || card.kind === 'gloss_reverse' || card.forms.length === 0) {
-      setPhase('revealed-manual')
-      return
+    switch (card.kind) {
+      case 'basic_forward':
+      case 'gloss_forward':
+      case 'gloss_reverse':
+        setPhase('revealed-manual')
+        return
+      case 'morph_form': {
+        if (card.forms.length === 0) {
+          // No expected forms available — fall back to manual reveal
+          setPhase('revealed-manual')
+          return
+        }
+        const userAnswer = answer().trim()
+        const ok = card.forms.some(f => f.toLowerCase() === userAnswer.toLowerCase())
+        setPhase(ok ? 'revealed-correct' : 'revealed-wrong')
+        return
+      }
+      default:
+        // Exhaustiveness guard: TypeScript will error here if a new card kind
+        // is added to the union without updating this switch.
+        card.kind satisfies never
+        setPhase('revealed-manual')
     }
-
-    const userAnswer = answer().trim()
-    const ok = card.forms.some(f => f.toLowerCase() === userAnswer.toLowerCase())
-    setPhase(ok ? 'revealed-correct' : 'revealed-wrong')
   }
 
   const submitReview = async (rating: 1 | 2 | 3 | 4) => {
