@@ -1311,6 +1311,7 @@ const sessionDue = os
         scheduledDays: r.card.scheduledDays,
         reps: r.card.reps,
         lapses: r.card.lapses,
+        learningSteps: r.card.learningSteps,
         ...(r.card.tag != null ? { tag: r.card.tag } : {}),
         ...(r.card.lastReview != null ? { lastReview: new Date(r.card.lastReview * 1000) } : {}),
       };
@@ -1401,6 +1402,7 @@ const sessionReview = os
       scheduledDays: row.scheduledDays,
       reps: row.reps,
       lapses: row.lapses,
+      learningSteps: row.learningSteps,
       ...(row.tag != null ? { tag: row.tag } : {}),
       ...(row.lastReview != null ? { lastReview: new Date(row.lastReview * 1000) } : {}),
     };
@@ -1418,6 +1420,7 @@ const sessionReview = os
         scheduledDays: updated.scheduledDays,
         reps: updated.reps,
         lapses: updated.lapses,
+        learningSteps: updated.learningSteps,
         lastReview: updated.lastReview
           ? Math.floor(updated.lastReview.getTime() / 1000)
           : null,
@@ -1672,6 +1675,7 @@ function insertCardValues(cardData: Omit<import("@strus/core").Card, "id">) {
     scheduledDays: cardData.scheduledDays,
     reps: cardData.reps,
     lapses: cardData.lapses,
+    learningSteps: cardData.learningSteps,
     lastReview: cardData.lastReview
       ? Math.floor(cardData.lastReview.getTime() / 1000)
       : null,

@@ -52,6 +52,8 @@ export interface Card {
   scheduledDays: number;
   reps: number;
   lapses: number;
+  /** ts-fsrs v5: index into the learning_steps sequence (0 = start of learning queue) */
+  learningSteps: number;
   lastReview?: Date;
 }
 

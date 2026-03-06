@@ -52,11 +52,12 @@ function makeRelearningCard(): Card {
 // ---------------------------------------------------------------------------
 
 describe("createCard", () => {
-  test("creates a New state card with zero reps and lapses", () => {
+  test("creates a New state card with zero reps, lapses, and learningSteps", () => {
     const card = makeCard();
     expect(card.state).toBe(CardState.New);
     expect(card.reps).toBe(0);
     expect(card.lapses).toBe(0);
+    expect(card.learningSteps).toBe(0);
   });
 
   test("sets noteId and kind correctly", () => {

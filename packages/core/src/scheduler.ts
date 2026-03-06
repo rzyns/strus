@@ -20,7 +20,6 @@ type ScoredFsrsRating = Exclude<FsrsRating, typeof FsrsRating.Manual>;
 /** Map our Card onto a ts-fsrs Card */
 function toFsrsCard(card: Card): FsrsCard {
   // CardState and ts-fsrs State share the same integer values (0-3).
-  // learning_steps was added in ts-fsrs v5; we don't persist it yet, so default to 0.
   const base: FsrsCard = {
     due: card.due,
     stability: card.stability,
@@ -29,7 +28,7 @@ function toFsrsCard(card: Card): FsrsCard {
     scheduled_days: card.scheduledDays,
     reps: card.reps,
     lapses: card.lapses,
-    learning_steps: 0,
+    learning_steps: card.learningSteps,
     state: card.state as unknown as FsrsCard["state"],
   };
   if (card.lastReview !== undefined) {
@@ -60,6 +59,7 @@ function applyFsrsCard(card: Card, fsrsCard: FsrsCard): Card {
     scheduledDays: fsrsCard.scheduled_days,
     reps: fsrsCard.reps,
     lapses: fsrsCard.lapses,
+    learningSteps: fsrsCard.learning_steps,
     // exactOptionalPropertyTypes: conditionally include to avoid `undefined` assignment
     ...(fsrsCard.last_review !== undefined ? { lastReview: fsrsCard.last_review } : {}),
   };
@@ -123,6 +123,7 @@ export function createCard(
     scheduledDays: emptyCard.scheduled_days,
     reps: emptyCard.reps,
     lapses: emptyCard.lapses,
+    learningSteps: emptyCard.learning_steps,
     // last_review is undefined on a new card — omit to satisfy exactOptionalPropertyTypes
     ...(emptyCard.last_review !== undefined ? { lastReview: emptyCard.last_review } : {}),
     ...(tag !== undefined ? { tag } : {}),
