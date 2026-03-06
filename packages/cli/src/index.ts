@@ -464,7 +464,7 @@ program
       lemmaId: string;
       tag: string;
       state: number;
-      lemmaText: string;
+      lemmaText: string | null;
       front: string | null;
       back: string | null;
       forms: string[];
@@ -495,7 +495,7 @@ program
         const label = card.kind === "basic_forward" ? "Basic" : card.kind === "gloss_forward" ? "Gloss (→ meaning)" : card.kind === "gloss_reverse" ? "Gloss (→ word)" : "Card";
         console.log(`${label}    : ${card.front}`);
       } else {
-        console.log(`Lemma     : ${card.lemmaText}`);
+        console.log(`Lemma     : ${card.lemmaText ?? "(unknown)"}`);
         console.log(`Tag       : ${card.tag}`);
       }
       console.log("─".repeat(40));

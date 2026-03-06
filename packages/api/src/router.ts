@@ -1609,6 +1609,27 @@ const importCommit = os
         if (input.listId !== undefined) {
           await db.insert(vocabListNotes).values({ listId: input.listId, noteId });
         }
+
+        // Fire-and-forget image generation — mirrors lemmasCreate behaviour.
+        // Swallows failures (rate-limit, network) so the import response is
+        // never blocked by media generation.
+        const citationForm = db
+          .select({ tag: morphForms.tag })
+          .from(morphForms)
+          .where(and(eq(morphForms.lemmaId, id), eq(morphForms.orth, c.lemma)))
+          .limit(1)
+          .get();
+        const citationTag = citationForm?.tag ?? "";
+        generateImage(c.lemma, citationTag).then((result) => {
+          if (result.relativePath || result.imagePrompt) {
+            db.update(lemmas).set({
+              ...(result.relativePath ? { imagePath: result.relativePath } : {}),
+              ...(result.imagePrompt ? { imagePrompt: result.imagePrompt } : {}),
+            }).where(eq(lemmas.id, id)).run();
+          }
+        }).catch((err) => {
+          console.warn(`[media] Import image generation failed for "${c.lemma}":`, err);
+        });
       } else {
         // Manual source: create a morph note (with no forms)
         const noteId = crypto.randomUUID();
