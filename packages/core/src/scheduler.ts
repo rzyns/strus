@@ -5,8 +5,14 @@ import {
   Rating as FsrsRating,
   type Card as FsrsCard,
   type RecordLog,
+  type State as FsrsState,
 } from "ts-fsrs";
 import { CardState, Rating, type Card } from "./types.js";
+
+// Compile-time assertion: CardState integer values must remain aligned with
+// ts-fsrs State. If ts-fsrs changes its enum, this line will error.
+type _AssertCardStateMatchesFsrsState = CardState extends FsrsState ? true : never;
+const _assertCardState: _AssertCardStateMatchesFsrsState = true;
 
 const params = generatorParameters();
 const f = fsrs(params);
