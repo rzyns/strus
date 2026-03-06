@@ -11,7 +11,11 @@ const NOW = new Date("2026-01-15T12:00:00.000Z");
 
 function makeCard(overrides: Partial<Card> = {}): Card {
   const base = createCard("note-uuid-1", "morph_form", "subst:sg:nom:m3");
-  return { id: "card-uuid-1", ...base, ...overrides };
+  // Pin `due` to NOW so elapsed-day calculations in scheduleReview are
+  // deterministic regardless of when the test suite runs. createEmptyCard()
+  // (called inside createCard) sets due to real wall-clock time; overriding
+  // it here ensures fixtures are fully time-independent.
+  return { id: "card-uuid-1", ...base, due: NOW, ...overrides };
 }
 
 function makeMatureCard(): Card {
@@ -23,6 +27,8 @@ function makeMatureCard(): Card {
     lapses: 0,
     scheduledDays: 10,
     elapsedDays: 10,
+    // due = lastReview + scheduledDays = 2026-01-05 + 10d = 2026-01-15 = NOW
+    due: NOW,
     lastReview: new Date("2026-01-05T12:00:00.000Z"),
   });
 }
@@ -36,6 +42,7 @@ function makeRelearningCard(): Card {
     lapses: 2,
     scheduledDays: 0,
     elapsedDays: 0,
+    due: NOW,
     lastReview: new Date("2026-01-15T10:00:00.000Z"),
   });
 }
