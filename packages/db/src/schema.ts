@@ -15,7 +15,8 @@ import { sql } from "drizzle-orm";
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
-  updatedAt: text("updated_at").notNull(),
+  // integer timestamp consistent with all other tables (was text/ISO-string)
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
 // ---------------------------------------------------------------------------
@@ -67,7 +68,11 @@ export const notes = sqliteTable("notes", {
   lastReviewedAt: integer("last_reviewed_at"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
-});
+}, (t) => [
+  // lemmaId is queried in listsAddLemma, notesCreate, notesList, and sessionDue.
+  // SQLite does NOT auto-index FK columns — explicit index required.
+  index("notes_lemma_id_idx").on(t.lemmaId),
+]);
 
 // ---------------------------------------------------------------------------
 // vocabListNotes  (join table)
@@ -102,7 +107,11 @@ export const morphForms = sqliteTable("morph_forms", {
   /** Relative path to generated TTS audio file, e.g. "audio/dom-subst-sg-nom-m3.mp3" */
   audioPath: text("audio_path"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-});
+}, (t) => [
+  // lemmaId is batch-fetched in sessionDue (WHERE lemmaId IN (...)) over
+  // potentially large sets. SQLite does NOT auto-index FK columns.
+  index("morph_forms_lemma_id_idx").on(t.lemmaId),
+]);
 
 // ---------------------------------------------------------------------------
 // cards

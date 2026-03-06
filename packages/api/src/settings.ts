@@ -25,7 +25,7 @@ export function getSetting(key: string): string {
 }
 
 export function setSetting(key: string, value: string): void {
-  const updatedAt = new Date().toISOString();
+  const updatedAt = new Date();
   db.insert(settings)
     .values({ key, value, updatedAt })
     .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt } })
