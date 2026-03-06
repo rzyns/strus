@@ -1,4 +1,4 @@
-import { resolve, join, extname } from "node:path";
+import { resolve, join, extname, sep } from "node:path";
 import { Elysia } from "elysia";
 import { otelPlugin } from "./instrumentation.js";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
@@ -142,7 +142,8 @@ export const app = new Elysia()
     const filePath = join(mediaDir, relPath);
 
     // Prevent path traversal (check after decoding to catch encoded ../ attempts)
-    if (!filePath.startsWith(mediaDir)) {
+    const allowedPrefix = mediaDir.endsWith(sep) ? mediaDir : mediaDir + sep;
+    if (filePath !== mediaDir && !filePath.startsWith(allowedPrefix)) {
       return new Response("Forbidden", { status: 403 });
     }
 
