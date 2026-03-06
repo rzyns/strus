@@ -11,8 +11,9 @@ import {
 
 // Point morfeusz-ts at the system-installed .dict files.
 // sgjp-a.dict → analyzer, sgjp-s.dict → generator
+// Override with MORFEUSZ2_DICT_PATH env var for non-standard installations.
 DictionariesRepository.dictionarySearchPaths = [
-  "/usr/share/morfeusz2/dictionaries",
+  process.env["MORFEUSZ2_DICT_PATH"] ?? "/usr/share/morfeusz2/dictionaries",
 ];
 
 // ---------------------------------------------------------------------------
