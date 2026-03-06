@@ -27,6 +27,7 @@ RUN bun run --filter @strus/web prepare && \
 # ─── Stage 2: Bun runtime ────────────────────────────────────────────────────
 FROM oven/bun:1 AS runtime
 
+COPY deb/*.deb /tmp/morfeusz2/
 # Install morfeusz2 (Polish morphological analyser — required by @strus/morph)
 RUN <<-'EOF'
 	set -euo pipefail
@@ -34,14 +35,10 @@ RUN <<-'EOF'
 		ca-certificates \
 		wget
 
-	mkdir -p /etc/apt/keyrings
-	wget -O /etc/apt/keyrings/sgjp.asc http://download.sgjp.pl/apt/sgjp.gpg.key
-	echo 'deb [trusted=yes] http://download.sgjp.pl/apt/ubuntu noble main' > /etc/apt/sources.list.d/sgjp.list
-	apt-get -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowUnsigned=true update
-	apt-get install -y --no-install-recommends \
-		morfeusz2 \
-		morfeusz2-dictionary-polimorf
-	apt-get clean && rm -rf /var/lib/apt/lists/*
+	dpkg -i /tmp/morfeusz2/*.deb
+	rm -rf /tmp/morfeusz2
+
+	apt-get clean
 EOF
 
 WORKDIR /app
