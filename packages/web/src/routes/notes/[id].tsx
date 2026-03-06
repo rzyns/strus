@@ -2,6 +2,7 @@ import { createResource, createSignal, createMemo, For, Show, Suspense, ErrorBou
 import { useParams, useNavigate, A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
+import type { NoteDetail, CardItem, ReviewItem, MorphFormItem } from '../../api/types'
 import { Button } from '../../components/Button'
 import { Spinner } from '../../components/Spinner'
 import { ErrorState } from '../../components/ErrorState'
@@ -109,10 +110,10 @@ export default function NoteDetail() {
   const params = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const [note, { refetch }] = createResource(() => api.notes.get({ id: params.id }))
+  const [note, { refetch }] = createResource<NoteDetail>(() => api.notes.get({ id: params.id }))
   // Fetch morph forms so we can show the answer alongside each morph_form card
   // Source returns undefined when no lemmaId — SolidJS skips the fetcher in that case
-  const [lemmaForms] = createResource(
+  const [lemmaForms] = createResource<MorphFormItem[]>(
     () => note()?.lemmaId ?? undefined,
     (lemmaId: string) => api.lemmas.forms({ id: lemmaId })
   )
@@ -127,7 +128,7 @@ export default function NoteDetail() {
 
   // Review history expansion state
   const [expandedCards, setExpandedCards] = createSignal<Set<string>>(new Set())
-  const [reviewCache, setReviewCache] = createSignal<Record<string, any[]>>({})
+  const [reviewCache, setReviewCache] = createSignal<Record<string, ReviewItem[]>>({})
   const [loadingReviews, setLoadingReviews] = createSignal<Set<string>>(new Set())
 
   const toggleCardReviews = async (cardId: string) => {
@@ -149,7 +150,7 @@ export default function NoteDetail() {
       setLoadingReviews(prev => { const s = new Set(prev); s.add(cardId); return s })
       try {
         const revs = await api.cards.reviews({ id: cardId })
-        setReviewCache(prev => ({ ...prev, [cardId]: revs as any[] }))
+        setReviewCache(prev => ({ ...prev, [cardId]: revs }))
       } catch (err) {
         console.error('Failed to fetch reviews:', err)
         setReviewCache(prev => ({ ...prev, [cardId]: [] }))
@@ -349,7 +350,7 @@ export default function NoteDetail() {
                 >
                   <div class={css({ display: 'flex', flexDirection: 'column', gap: '3' })}>
                     <For each={data().cards}>
-                      {(card: any) => (
+                      {(card) => (
                         <div class={css({
                           p: '4',
                           border: '1px solid',
@@ -429,7 +430,7 @@ export default function NoteDetail() {
                                 >
                                   <div class={css({ display: 'flex', flexDirection: 'column', gap: '1' })}>
                                     <For each={reviewCache()[card.id]}>
-                                      {(rev: any) => {
+                                      {(rev) => {
                                         const meta = ratingMeta[rev.rating as number] ?? { label: '?', color: 'fg.muted', bg: 'gray.3' }
                                         return (
                                           <div class={css({ display: 'flex', gap: '3', alignItems: 'center', fontSize: 'xs', py: '1' })}>
@@ -470,7 +471,7 @@ export default function NoteDetail() {
                   {(() => {
                     const [showAll, setShowAll] = createSignal(false)
                     const PREVIEW_LIMIT = 5
-                    const allCards = () => data().cards as any[]
+                    const allCards = () => data().cards as CardItem[]
                     const visibleCards = () => showAll() || allCards().length <= PREVIEW_LIMIT
                       ? allCards()
                       : allCards().slice(0, PREVIEW_LIMIT)
@@ -479,7 +480,7 @@ export default function NoteDetail() {
                       <>
                         <div class={css({ display: 'flex', flexDirection: 'column', gap: '3', mb: '6' })}>
                           <For each={visibleCards()}>
-                            {(card: any) => (
+                            {(card) => (
                               <QuizCardPreview
                                 kind={card.kind}
                                 tag={card.tag ?? null}

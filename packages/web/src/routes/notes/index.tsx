@@ -1,4 +1,5 @@
 import { createResource, createSignal, createMemo, For, Show, Suspense, ErrorBoundary } from 'solid-js'
+import type { NoteListItem } from '../../api/types'
 import { A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -37,7 +38,7 @@ function KindBadge(props: { kind: string }) {
 }
 
 export default function NotesIndex() {
-  const [notes, { refetch }] = createResource(() => api.notes.list({}))
+  const [notes, { refetch }] = createResource<NoteListItem[]>(() => api.notes.list({}))
   const [kindFilter, setKindFilter] = createSignal('')
   const [deleteId, setDeleteId] = createSignal<string | null>(null)
   const [deleting, setDeleting] = createSignal(false)
@@ -48,7 +49,7 @@ export default function NotesIndex() {
     if (!data) return []
     const k = kindFilter()
     if (!k) return data
-    return data.filter((n: any) => n.kind === k)
+    return data.filter((n) => n.kind === k)
   })
 
   const handleDelete = async () => {
@@ -69,7 +70,7 @@ export default function NotesIndex() {
     border: '1px solid', borderColor: 'border', bg: 'bg', color: 'fg.default',
   })
 
-  function notePreview(note: any): string {
+  function notePreview(note: NoteListItem): string {
     const truncate = (s: string) => s.length > 60 ? s.slice(0, 60) + '…' : s
     if (note.kind === 'morph') return note.lemmaText ? truncate(note.lemmaText) : '—'
     if (note.kind === 'gloss') {
@@ -122,7 +123,7 @@ export default function NotesIndex() {
                   </Table.Head>
                   <Table.Body>
                     <For each={filtered()}>
-                      {(note: any) => (
+                      {(note) => (
                         <Table.Row>
                           <Table.Cell>
                             <KindBadge kind={note.kind} />

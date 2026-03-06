@@ -2,6 +2,7 @@ import { createResource, createSignal, createMemo, For, Show, Suspense, ErrorBou
 import { A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
+import type { LemmaItem } from '../../api/types'
 import { Button } from '../../components/Button'
 import { Badge } from '../../components/Badge'
 import { Spinner } from '../../components/Spinner'
@@ -13,7 +14,7 @@ import * as Table from '../../components/ui/table'
 const POS_OPTIONS = ['', 'subst', 'verb', 'adj', 'adv'] as const
 
 export default function LemmasIndex() {
-  const [lemmas, { refetch }] = createResource(() => api.lemmas.list({}))
+  const [lemmas, { refetch }] = createResource<LemmaItem[]>(() => api.lemmas.list({}))
   const [search, setSearch] = createSignal('')
   const [posFilter, setPosFilter] = createSignal('')
   const [sourceFilter, setSourceFilter] = createSignal('')
@@ -30,7 +31,7 @@ export default function LemmasIndex() {
     const data = lemmas()
     if (!data) return []
     const s = search().toLowerCase()
-    return data.filter((l: any) => {
+    return data.filter((l) => {
       if (s && !l.lemma.toLowerCase().includes(s)) return false
       if (posFilter() && l.pos !== posFilter()) return false
       if (sourceFilter() && l.source !== sourceFilter()) return false
@@ -163,7 +164,7 @@ export default function LemmasIndex() {
                   </Table.Head>
                   <Table.Body>
                     <For each={filtered()}>
-                      {(lemma: any) => (
+                      {(lemma) => (
                         <Table.Row>
                           <Table.Cell>
                             <A href={`/lemmas/${lemma.id}`} class={css({ color: 'blue.9', textDecoration: 'none', fontWeight: 'medium', _hover: { textDecoration: 'underline' } })}>

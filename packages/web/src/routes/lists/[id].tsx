@@ -1,7 +1,8 @@
-import { createResource, createSignal, For, Show, Suspense, ErrorBoundary } from 'solid-js'
+import { createResource, createSignal, createMemo, For, Show, Suspense, ErrorBoundary } from 'solid-js'
 import { useParams, useNavigate, A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
+import type { LemmaItem } from '../../api/types'
 import { Button } from '../../components/Button'
 import { Badge } from '../../components/Badge'
 import { Spinner } from '../../components/Spinner'
@@ -18,7 +19,7 @@ export default function ListDetail() {
   const navigate = useNavigate()
 
   const [list, { refetch: refetchList }] = createResource(() => api.lists.get({ id: params.id }))
-  const [lemmas, { refetch: refetchLemmas }] = createResource(() => api.lemmas.list({ listId: params.id }))
+  const [lemmas, { refetch: refetchLemmas }] = createResource<LemmaItem[]>(() => api.lemmas.list({ listId: params.id }))
 
   const [showDeleteList, setShowDeleteList] = createSignal(false)
   const [deletingList, setDeletingList] = createSignal(false)
@@ -30,19 +31,23 @@ export default function ListDetail() {
   const [source, setSource] = createSignal<string>('morfeusz')
   const [adding, setAdding] = createSignal(false)
 
-  const [allLemmas] = createResource(
+  const [allLemmas] = createResource<LemmaItem[]>(
     () => showAddForm() || undefined,
     () => api.lemmas.list({}),
   )
   const [existingSearch, setExistingSearch] = createSignal('')
   const [addingExistingId, setAddingExistingId] = createSignal<string | null>(null)
 
-  const filteredExistingLemmas = () => {
+  // createMemo — not a plain function — so SolidJS caches the result and only
+  // recomputes when allLemmas(), lemmas(), or existingSearch() changes.
+  // This function is called twice in JSX; without memo it would compute twice
+  // per reactive update (including the Set construction over all lemmas).
+  const filteredExistingLemmas = createMemo(() => {
     const all = allLemmas() ?? []
-    const currentIds = new Set((lemmas() ?? []).map((l: any) => l.id))
+    const currentIds = new Set((lemmas() ?? []).map((l) => l.id))
     const search = existingSearch().toLowerCase().trim()
-    return all.filter((l: any) => !currentIds.has(l.id) && (!search || l.lemma.toLowerCase().includes(search)))
-  }
+    return all.filter((l) => !currentIds.has(l.id) && (!search || l.lemma.toLowerCase().includes(search)))
+  })
 
   const handleAddExisting = async (lemmaId: string) => {
     setAddingExistingId(lemmaId)
@@ -197,7 +202,7 @@ export default function ListDetail() {
                           >
                             <div class={css({ maxHeight: '200px', overflowY: 'auto', border: '1px solid', borderColor: 'border', borderRadius: 'l2' })}>
                               <For each={filteredExistingLemmas()}>
-                                {(lemma: any) => (
+                                {(lemma) => (
                                   <div class={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: '3', py: '2', borderBottom: '1px solid', borderColor: 'border', _last: { borderBottom: 'none' } })}>
                                     <div class={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
                                       <span class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.default' })}>{lemma.lemma}</span>
@@ -235,7 +240,7 @@ export default function ListDetail() {
                           </Table.Head>
                           <Table.Body>
                             <For each={lemmaData()}>
-                              {(lemma: any) => (
+                              {(lemma) => (
                                 <Table.Row>
                                   <Table.Cell>
                                     <A href={`/lemmas/${lemma.id}`} class={css({ color: 'blue.9', textDecoration: 'none', fontWeight: 'medium', _hover: { textDecoration: 'underline' } })}>
