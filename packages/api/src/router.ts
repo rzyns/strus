@@ -781,6 +781,7 @@ const lemmasGenerateImage = os
       .select({ back: notes.back })
       .from(notes)
       .where(and(eq(notes.lemmaId, input.id), eq(notes.kind, "gloss")))
+      .orderBy(asc(notes.createdAt))
       .limit(1)
       .get();
     const meaning = glossNote?.back ?? null;
