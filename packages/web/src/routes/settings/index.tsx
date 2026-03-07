@@ -35,6 +35,7 @@ export default function Settings() {
   const [previewWord, setPreviewWord] = createSignal('dom')
   const [previewWordClass, setPreviewWordClass] = createSignal('noun')
   const [previewGender, setPreviewGender] = createSignal('masculine')
+  const [previewMeaning, setPreviewMeaning] = createSignal('house')
 
   // Populate form when data loads
   createResource(
@@ -55,6 +56,7 @@ export default function Settings() {
         word: previewWord(),
         wordClass: previewWordClass(),
         gender: previewGender() === '—' ? '' : previewGender(),
+        meaning: previewMeaning() || null,
       })
     } catch {
       return '(template error)'
@@ -95,7 +97,8 @@ export default function Settings() {
             </p>
             <p class={css({ fontSize: 'sm', color: 'fg.muted' })}>
               Mustache template variables: <code>{`{{word}}`}</code>, <code>{`{{wordClass}}`}</code>, <code>{`{{gender}}`}</code>
-              {' '}(conditional: <code>{`{{#gender}}…{{/gender}}`}</code>)
+              {' '}(conditional: <code>{`{{#gender}}…{{/gender}}`}</code>), <code>{`{{meaning}}`}</code>
+              {' '}(conditional: <code>{`{{#meaning}}…{{/meaning}}`}</code>)
             </p>
 
             <div>
@@ -179,6 +182,17 @@ export default function Settings() {
                 <option value="neuter">neuter</option>
                 <option value="—">—</option>
               </select>
+            </div>
+            <div>
+              <label class={labelStyle}>Meaning</label>
+              <input
+                type="text"
+                class={inputStyle}
+                value={previewMeaning()}
+                onInput={(e) => setPreviewMeaning(e.currentTarget.value)}
+                style={{ width: '140px' }}
+                placeholder="(optional)"
+              />
             </div>
           </div>
 
