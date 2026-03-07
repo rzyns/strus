@@ -775,7 +775,17 @@ const lemmasGenerateImage = os
       .limit(1).get();
     const citationTag = citationForm?.tag ?? "";
 
-    const result = await generateImage(row.lemma, citationTag);
+    // Look up the first gloss note for this lemma so we can pass the
+    // translation to the image-prompt template as {{meaning}}.
+    const glossNote = db
+      .select({ back: notes.back })
+      .from(notes)
+      .where(and(eq(notes.lemmaId, input.id), eq(notes.kind, "gloss")))
+      .limit(1)
+      .get();
+    const meaning = glossNote?.back ?? null;
+
+    const result = await generateImage(row.lemma, citationTag, meaning);
     if (result.relativePath || result.imagePrompt) {
       db.update(lemmas)
         .set({

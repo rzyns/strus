@@ -129,13 +129,18 @@ export async function generateAudio(
 /**
  * Render the meta-prompt template — what gets sent to the Gemini text model
  * to generate a word-specific image prompt.
+ *
+ * @param meaning - Optional translation/gloss (e.g. "rejection"). When provided,
+ *   it is exposed as `{{meaning}}` in the template so the model can produce
+ *   more semantically grounded mnemonic images.
  */
-export function renderMetaPrompt(lemma: string, tag: string): string {
+export function renderMetaPrompt(lemma: string, tag: string, meaning?: string | null): string {
   const template = getSetting(SETTINGS_KEYS.IMAGE_PROMPT_TEMPLATE);
   return Mustache.render(template, {
     word: lemma,
     wordClass: tagWordClass(tag),
     gender: tagGenderLabel(tag),
+    meaning: meaning ?? null,
   });
 }
 
@@ -147,10 +152,13 @@ export function renderMetaPrompt(lemma: string, tag: string): string {
  * Returns both the relative path and the generated image prompt for DB storage.
  * Returns nulls if GEMINI_API_KEY is not set (graceful degradation).
  * Always overwrites — caller decides whether to regenerate.
+ *
+ * @param meaning - Optional translation/gloss forwarded to `renderMetaPrompt`.
  */
 export async function generateImage(
   lemma: string,
   tag: string,
+  meaning?: string | null,
 ): Promise<{ relativePath: string | null; imagePrompt: string | null }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { relativePath: null, imagePrompt: null };
@@ -162,7 +170,7 @@ export async function generateImage(
     });
 
     // Stage 1 — generate specific image prompt via Gemini text model
-    const metaPrompt = renderMetaPrompt(lemma, tag);
+    const metaPrompt = renderMetaPrompt(lemma, tag, meaning);
     const textModel = process.env.STRUS_GEMINI_TEXT_MODEL ?? "gemini-2.5-flash";
 
     const specificPrompt = await record("gemini.text.generateContent", async (textSpan) => {
