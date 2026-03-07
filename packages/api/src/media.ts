@@ -108,7 +108,7 @@ export async function generateAudio(
 
     if (!response.ok) {
       span.setStatus({ code: SpanStatusCode.ERROR, message: `ElevenLabs ${response.status}` });
-      const errorBody = await response.text();
+      const errorBody = await response.text().catch(() => '<unreadable>');
       console.warn(
         `[media] ElevenLabs TTS failed for "${orth}": ${response.status} — ${errorBody}`,
       );
@@ -183,7 +183,7 @@ export async function generateImage(
 
       if (!textResponse.ok) {
         textSpan.setStatus({ code: SpanStatusCode.ERROR, message: `Gemini text ${textResponse.status}` });
-        const errorBody = await textResponse.text();
+        const errorBody = await textResponse.text().catch(() => '<unreadable>');
         console.warn(`[media] Gemini text generation failed: ${textResponse.status} — ${errorBody}`);
         return null;
       }
@@ -238,7 +238,7 @@ export async function generateImage(
 
       if (!response.ok) {
         imgSpan.setStatus({ code: SpanStatusCode.ERROR, message: `Gemini image ${response.status}` });
-        const errorBody = await response.text();
+        const errorBody = await response.text().catch(() => '<unreadable>');
         console.warn(
           `[media] Gemini image generation failed for "${lemma}": ${response.status} — ${errorBody}`,
         );
