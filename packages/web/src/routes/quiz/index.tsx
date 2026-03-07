@@ -744,7 +744,7 @@ export default function Quiz() {
                         src={url()}
                         alt="mnemonic"
                         class={css({
-                          maxW: '240px', w: 'auto', h: 'auto',
+                          w: '100%', h: 'auto',
                           borderRadius: 'l2',
                           border: '1px solid', borderColor: 'border',
                           mb: '4', display: 'block',
