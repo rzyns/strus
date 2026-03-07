@@ -138,6 +138,8 @@ export const cards = sqliteTable(
     scheduledDays: integer("scheduled_days").notNull().default(0),
     reps:          integer("reps").notNull().default(0),
     lapses:        integer("lapses").notNull().default(0),
+    /** ts-fsrs v5: position in the learning_steps sequence (0 = start of queue) */
+    learningSteps: integer("learning_steps").notNull().default(0),
     /** Unix timestamp (seconds), nullable */
     lastReview:    integer("last_review"),
   },
