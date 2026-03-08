@@ -6,6 +6,7 @@ import {
   primaryKey,
   index,
 } from "drizzle-orm/sqlite-core";
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -51,13 +52,53 @@ export const lemmas = sqliteTable("lemmas", {
 });
 
 // ---------------------------------------------------------------------------
+// grammarConcepts  — taxonomy tree (VoM types, reflexivity types, prefix semantics)
+// ---------------------------------------------------------------------------
+
+export const grammarConcepts = sqliteTable("grammar_concepts", {
+  id:          text("id").primaryKey(),
+  name:        text("name").notNull(),
+  description: text("description"),
+  parentId:    text("parent_id").references((): AnySQLiteColumn => grammarConcepts.id),
+  createdAt:   integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// sentences  — reusable sentence corpus
+// ---------------------------------------------------------------------------
+
+export const sentences = sqliteTable("sentences", {
+  id:          text("id").primaryKey(),
+  text:        text("text").notNull(),
+  translation: text("translation"),
+  /** 'handcrafted' | 'llm:gemini-2.0-flash-exp' | etc. */
+  source:      text("source").notNull().default("handcrafted"),
+  /** 1–5, nullable */
+  difficulty:  integer("difficulty"),
+  createdAt:   integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// semanticClusters  — prefix families, VoM groups, aspect pairs
+// ---------------------------------------------------------------------------
+
+export const semanticClusters = sqliteTable("semantic_clusters", {
+  id:          text("id").primaryKey(),
+  name:        text("name").notNull(),
+  /** 'prefix_family' | 'vom_group' | 'aspect_pair' */
+  clusterType: text("cluster_type").notNull(),
+  description: text("description"),
+  createdAt:   integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+// ---------------------------------------------------------------------------
 // notes
 // ---------------------------------------------------------------------------
 
 export const notes = sqliteTable("notes", {
   id:        text("id").primaryKey(),
-  /** 'morph' | 'gloss' | 'basic' */
-  kind:      text("kind", { enum: ["morph", "gloss", "basic"] }).notNull(),
+  /** 'morph' | 'gloss' | 'basic' | 'cloze' | 'choice' | 'error' | 'classifier' */
+  kind:      text("kind", { enum: ["morph", "gloss", "basic", "cloze", "choice", "error", "classifier"] }).notNull(),
   /** Populated for kind='morph' and kind='gloss'; null for kind='basic' */
   lemmaId:   text("lemma_id").references(() => lemmas.id, { onDelete: "cascade" }),
   /** For kind='gloss' and kind='basic': the prompt text shown to the user */
@@ -66,6 +107,18 @@ export const notes = sqliteTable("notes", {
   back:      text("back"),
   /** Unix timestamp (seconds) — last time any card under this note was reviewed */
   lastReviewedAt: integer("last_reviewed_at"),
+  /** Linked sentence for cloze/choice/error/classifier notes */
+  sentenceId:     text("sentence_id").references(() => sentences.id),
+  /** Grammar concept this note targets */
+  conceptId:      text("concept_id").references(() => grammarConcepts.id),
+  /** Semantic cluster this note belongs to */
+  clusterId:      text("cluster_id").references(() => semanticClusters.id),
+  /** Human-readable explanation of the grammar point */
+  explanation:    text("explanation"),
+  /** 'approved' | 'draft' | 'flagged' | 'rejected' */
+  status:         text("status").notNull().default("approved"),
+  /** JSON blob — LLM generation metadata (model, prompt, temperature, etc.) */
+  generationMeta: text("generation_meta"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 }, (t) => [
@@ -114,6 +167,66 @@ export const morphForms = sqliteTable("morph_forms", {
 ]);
 
 // ---------------------------------------------------------------------------
+// sentenceConcepts  — many-to-many: sentence ↔ grammar_concept
+// ---------------------------------------------------------------------------
+
+export const sentenceConcepts = sqliteTable(
+  "sentence_concepts",
+  {
+    sentenceId: text("sentence_id").notNull().references(() => sentences.id, { onDelete: "cascade" }),
+    conceptId:  text("concept_id").notNull().references(() => grammarConcepts.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.sentenceId, t.conceptId] })],
+);
+
+// ---------------------------------------------------------------------------
+// semanticClusterMembers  — join table: cluster ↔ lemma
+// ---------------------------------------------------------------------------
+
+export const semanticClusterMembers = sqliteTable(
+  "semantic_cluster_members",
+  {
+    clusterId: text("cluster_id").notNull().references(() => semanticClusters.id, { onDelete: "cascade" }),
+    lemmaId:   text("lemma_id").notNull().references(() => lemmas.id, { onDelete: "cascade" }),
+    /** e.g. "na+pisać: write to completion" */
+    role:      text("role"),
+  },
+  (t) => [primaryKey({ columns: [t.clusterId, t.lemmaId] })],
+);
+
+// ---------------------------------------------------------------------------
+// clozeGaps  — one row per gap; each gap generates one cloze_fill card
+// ---------------------------------------------------------------------------
+
+export const clozeGaps = sqliteTable("cloze_gaps", {
+  id:             text("id").primaryKey(),
+  noteId:         text("note_id").notNull().references(() => notes.id, { onDelete: "cascade" }),
+  /** 1-based; matches {{1}} marker in sentence text */
+  gapIndex:       integer("gap_index").notNull(),
+  /** JSON array: '["chodzę","chadzam"]' */
+  correctAnswers: text("correct_answers").notNull(),
+  hint:           text("hint"),
+  conceptId:      text("concept_id").references(() => grammarConcepts.id),
+  /** 1–5, nullable */
+  difficulty:     integer("difficulty"),
+  explanation:    text("explanation"),
+  createdAt:      integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// choiceOptions  — one row per option per choice note
+// ---------------------------------------------------------------------------
+
+export const choiceOptions = sqliteTable("choice_options", {
+  id:          text("id").primaryKey(),
+  noteId:      text("note_id").notNull().references(() => notes.id, { onDelete: "cascade" }),
+  optionText:  text("option_text").notNull(),
+  isCorrect:   integer("is_correct", { mode: "boolean" }).notNull().default(false),
+  explanation: text("explanation"),
+  sortOrder:   integer("sort_order").notNull().default(0),
+});
+
+// ---------------------------------------------------------------------------
 // cards
 // ---------------------------------------------------------------------------
 
@@ -124,10 +237,12 @@ export const cards = sqliteTable(
     noteId:        text("note_id")
       .notNull()
       .references(() => notes.id, { onDelete: "cascade" }),
-    /** 'morph_form' | 'gloss_forward' | 'gloss_reverse' | 'basic_forward' */
-    kind:          text("kind", { enum: ["morph_form", "gloss_forward", "gloss_reverse", "basic_forward"] }).notNull().default("morph_form"),
+    /** 'morph_form' | 'gloss_forward' | 'gloss_reverse' | 'basic_forward' | 'cloze_fill' | 'multiple_choice' | 'error_correction' | 'classify' */
+    kind:          text("kind", { enum: ["morph_form", "gloss_forward", "gloss_reverse", "basic_forward", "cloze_fill", "multiple_choice", "error_correction", "classify"] }).notNull().default("morph_form"),
     /** Morphosyntactic tag — only set for kind='morph_form' */
     tag:           text("tag"),
+    /** Links to cloze_gaps for kind='cloze_fill' cards */
+    gapId:         text("gap_id").references(() => clozeGaps.id),
     /** CardState enum value (0=New,1=Learning,2=Review,3=Relearning) */
     state:         integer("state").notNull().default(0),
     /** Unix timestamp (seconds) */

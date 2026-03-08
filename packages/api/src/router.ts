@@ -71,7 +71,7 @@ const CardOutput = z.object({
   id: zId,
   noteId: zId.describe("ID of the parent note"),
   kind: z
-    .enum(["morph_form", "gloss_forward", "gloss_reverse", "basic_forward"])
+    .enum(["morph_form", "gloss_forward", "gloss_reverse", "basic_forward", "cloze_fill", "multiple_choice", "error_correction", "classify"])
     .describe("Card kind: morph_form for morphological drill, gloss/basic for other note types"),
   tag: z
     .string()
@@ -121,7 +121,7 @@ const StatsOutput = z.object({
 
 const NoteOutput = z.object({
   id: zId,
-  kind: z.enum(["morph", "gloss", "basic"]).describe("Note kind: morph for morphological drill, gloss for translation, basic for custom flashcards"),
+  kind: z.enum(["morph", "gloss", "basic", "cloze", "choice", "error", "classifier"]).describe("Note kind: morph for morphological drill, gloss for translation, basic for custom flashcards"),
   lemmaId: zId.nullable().describe("ID of the associated lemma; null for basic notes"),
   lemmaText: z.string().nullable().describe("Citation form of the associated lemma; null for basic notes"),
   front: z.string().nullable().describe("Prompt text for gloss/basic notes; null for morph notes"),
@@ -977,7 +977,7 @@ const sessionDue = os
       .default(true)
       .describe("Interleave cards by lemma to avoid back-to-back form drilling (default: true)"),
     kinds: z
-      .array(z.enum(["morph_form", "gloss_forward", "gloss_reverse", "basic_forward"]))
+      .array(z.enum(["morph_form", "gloss_forward", "gloss_reverse", "basic_forward", "cloze_fill", "multiple_choice", "error_correction", "classify"]))
       .optional()
       .describe("Only include cards of these kinds"),
     tagContains: z
@@ -1754,6 +1754,12 @@ const notesCreate = os
         front: null,
         back: input.back,
         lastReviewedAt: null,
+        sentenceId: null,
+        conceptId: null,
+        clusterId: null,
+        explanation: null,
+        status: "approved",
+        generationMeta: null,
         createdAt: now,
         updatedAt: now,
       });
@@ -1790,6 +1796,12 @@ const notesCreate = os
       front: input.front,
       back: input.back,
       lastReviewedAt: null,
+      sentenceId: null,
+      conceptId: null,
+      clusterId: null,
+      explanation: null,
+      status: "approved",
+      generationMeta: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -1804,7 +1816,7 @@ const notesList = os
     description: "Returns all notes, optionally filtered by kind, vocabulary list, and/or lemma.",
   })
   .input(z.object({
-    kind: z.enum(["morph", "gloss", "basic"]).optional().describe("Filter by note kind"),
+    kind: z.enum(["morph", "gloss", "basic", "cloze", "choice", "error", "classifier"]).optional().describe("Filter by note kind"),
     listId: z.string().uuid().optional().describe("Filter to notes in this vocabulary list"),
     lemmaId: z.string().uuid().optional().describe("Filter to notes associated with this lemma"),
   }))
