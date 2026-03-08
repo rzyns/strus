@@ -3420,6 +3420,8 @@ const notesListDrafts = os
             }),
           ).optional(),
           sentenceText: z.string().nullable().optional(),
+          front: z.string().nullable().optional(),
+          back: z.string().nullable().optional(),
         }),
       ),
       total: z.number(),
@@ -3445,6 +3447,8 @@ const notesListDrafts = os
         generationMeta: notes.generationMeta,
         createdAt: notes.createdAt,
         sentenceText: sentences.text,
+        front: notes.front,
+        back: notes.back,
       })
       .from(notes)
       .leftJoin(sentences, eq(sentences.id, notes.sentenceId))
@@ -3525,6 +3529,8 @@ const notesListDrafts = os
       generationMeta: r.generationMeta,
       createdAt: r.createdAt instanceof Date ? Math.floor(r.createdAt.getTime() / 1000) : (r.createdAt as number),
       sentenceText: r.sentenceText ?? null,
+      front: r.front ?? null,
+      back: r.back ?? null,
       gaps: r.kind === "cloze" ? (gapsByNote.get(r.id) ?? []).map((g) => ({
         id: g.id,
         gapIndex: g.gapIndex,
