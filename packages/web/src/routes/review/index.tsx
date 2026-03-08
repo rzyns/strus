@@ -2,6 +2,7 @@ import {
   createSignal,
   createMemo,
   createEffect,
+  createResource,
   For,
   Show,
   Switch,
@@ -246,7 +247,7 @@ function ErrorNote(props: { note: DraftNote }) {
   )
 }
 
-function ClassifierNote(props: { note: DraftNote }) {
+function ClassifierNote(props: { note: DraftNote; conceptName?: string | undefined }) {
   const options = () => props.note.options ?? []
 
   return (
@@ -265,7 +266,7 @@ function ClassifierNote(props: { note: DraftNote }) {
           <Show when={props.note.conceptId}>
             {(id) => (
               <p class={css({ fontSize: 'sm', color: 'fg.muted' })}>
-                Correct concept: <code class={css({ fontFamily: 'mono', fontSize: 'xs' })}>{id()}</code>
+                Correct concept: <span>{props.conceptName ?? id()}</span>
               </p>
             )}
           </Show>
@@ -302,12 +303,12 @@ function ClassifierNote(props: { note: DraftNote }) {
   )
 }
 
-function renderNote(note: DraftNote) {
+function renderNote(note: DraftNote, conceptName?: string) {
   switch (note.kind) {
     case 'cloze':      return <ClozeNote note={note} />
     case 'choice':     return <ChoiceNote note={note} />
     case 'error':      return <ErrorNote note={note} />
-    case 'classifier': return <ClassifierNote note={note} />
+    case 'classifier': return <ClassifierNote note={note} conceptName={conceptName} />
     default:
       return (
         <pre class={css({ fontSize: 'xs', fontFamily: 'mono', whiteSpace: 'pre-wrap', color: 'fg.muted' })}>
@@ -333,6 +334,15 @@ export default function ReviewQueue() {
 
   const currentNote = createMemo(() => notes()[index()])
   const reviewedCount = createMemo(() => index())
+
+  // Fetch grammar concept name for classifier notes (fires lazily, re-fetches as user advances)
+  const [currentConcept] = createResource(
+    () => {
+      const note = currentNote()
+      return note?.kind === 'classifier' && note?.conceptId ? note.conceptId : null
+    },
+    (conceptId) => api.grammarConcepts.get({ id: conceptId })
+  )
 
   // Track whether any notes were loaded (for done state messaging)
   let initialCount = 0
@@ -552,7 +562,7 @@ export default function ReviewQueue() {
 
                 {/* Note content */}
                 <div class={css({ mb: '6' })}>
-                  {renderNote(note())}
+                  {renderNote(note(), currentConcept()?.name)}
                 </div>
 
                 {/* Action row */}
