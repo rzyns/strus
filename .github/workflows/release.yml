@@ -29,6 +29,36 @@ jobs:
         run: bun install --frozen-lockfile
 
       # -----------------------------------------------------------------------
+      # Sync package versions from git tag & publish to GitHub Packages
+      # -----------------------------------------------------------------------
+      - name: Set package versions from tag
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"   # strip 'v' prefix → "1.2.3"
+          echo "Publishing version: $VERSION"
+          find packages -name "package.json" -not -path "*/node_modules/*" \
+            -exec sh -c '
+              tmp=$(mktemp)
+              jq --arg v "$1" ".version = \$v" "$2" > "$tmp" && mv "$tmp" "$2"
+            ' _ "$VERSION" {} \;
+
+      - name: Configure npm for GitHub Packages
+        run: |
+          echo "@rzyns:registry=https://npm.pkg.github.com" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
+      - name: Publish packages to GitHub Packages
+        run: |
+          for pkg in config core morph db api cli; do
+            echo "--- Publishing @rzyns/strus-$pkg ---"
+            cd packages/$pkg
+            bun publish --access public
+            cd ../..
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # -----------------------------------------------------------------------
       # Generate changelog (commits since last tag)
       # -----------------------------------------------------------------------
       - name: Generate changelog
