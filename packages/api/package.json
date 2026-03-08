@@ -1,6 +1,6 @@
 {
   "name": "@rzyns/strus-api",
-  "version": "2.0.0-beta.11",
+  "version": "2.0.0-beta.12",
   "description": "Elysia + oRPC HTTP server for strus",
   "type": "module",
   "main": "./src/index.ts",
