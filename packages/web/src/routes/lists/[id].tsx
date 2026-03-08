@@ -31,7 +31,7 @@ export default function ListDetail() {
   const [source, setSource] = createSignal<string>('morfeusz')
   const [adding, setAdding] = createSignal(false)
 
-  const [allLemmas] = createResource<LemmaItem[]>(
+  const [allLemmas] = createResource<LemmaItem[], true>(
     () => showAddForm() || undefined,
     () => api.lemmas.list({}),
   )

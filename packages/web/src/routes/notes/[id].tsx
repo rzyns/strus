@@ -113,7 +113,7 @@ export default function NoteDetail() {
   const [note, { refetch }] = createResource<NoteDetail>(() => api.notes.get({ id: params.id }))
   // Fetch morph forms so we can show the answer alongside each morph_form card
   // Source returns undefined when no lemmaId — SolidJS skips the fetcher in that case
-  const [lemmaForms] = createResource<MorphFormItem[]>(
+  const [lemmaForms] = createResource<MorphFormItem[], string>(
     () => note()?.lemmaId ?? undefined,
     (lemmaId: string) => api.lemmas.forms({ id: lemmaId })
   )
@@ -369,7 +369,7 @@ export default function NoteDetail() {
                               <StateBadge state={card.state} />
                               <Show when={card.tag}>
                                 <span class={css({ fontSize: 'sm', color: 'fg.muted' })}>
-                                  {formatTag(card.tag)}
+                                  {formatTag(card.tag ?? '')}
                                 </span>
                               </Show>
                             </div>

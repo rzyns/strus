@@ -8,7 +8,7 @@
     "dev": "concurrently --names api,web --prefix-colors cyan,magenta \"bun run --filter @strus/api dev\" \"bun run --filter @strus/web dev\"",
     "test": "bun run --filter '*' test",
     "lint": "bun run --filter '*' lint",
-    "typecheck": "bun run typecheck",
+    "typecheck": "bun run --filter '*' typecheck",
     "db:migrate": "bun run --filter @strus/db migrate",
     "db:generate": "bun run --filter @strus/db generate",
     "version": "bumpp --recursive --commit --tag --push"
