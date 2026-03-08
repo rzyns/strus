@@ -10,9 +10,20 @@ import {
 import { CardState, Rating, type Card } from "./types.js";
 
 // Compile-time assertion: CardState integer values must remain aligned with
-// ts-fsrs State. If ts-fsrs changes its enum, this line will error.
-type _AssertCardStateMatchesFsrsState = CardState extends FsrsState ? true : never;
-const _assertCardState: _AssertCardStateMatchesFsrsState = true;
+// ts-fsrs State. If ts-fsrs changes its enum, one of these lines will error.
+// (Two distinct TS enums cannot satisfy `A extends B` even with identical values,
+// so we check each member against the expected numeric literal instead.)
+type _AssertFsrsStateValues =
+  0 extends FsrsState.New
+    ? 1 extends FsrsState.Learning
+      ? 2 extends FsrsState.Review
+        ? 3 extends FsrsState.Relearning
+          ? true
+          : never
+        : never
+      : never
+    : never;
+const _assertCardState: _AssertFsrsStateValues = true;
 
 const params = generatorParameters();
 const f = fsrs(params);

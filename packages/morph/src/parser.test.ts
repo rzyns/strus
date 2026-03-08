@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { parseTag, tagGender, tagWordClass, tagGenderLabel, getParadigm } from "./parser.js";
-import type { MorphForm } from "./types.js";
+import type { MorphForm, MorphGender } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // parseTag
@@ -73,7 +73,9 @@ describe("tagGender", () => {
     ["adj:sg:nom:f:pos",  "f"],
     ["adj:sg:nom:n:pos",  "n"],
   ])("tagGender(%s) === %s", (tag, expected) => {
-    expect(tagGender(tag)).toBe(expected);
+    // test.each infers `expected` as `string`; cast to MorphGender since the
+    // table only contains valid gender values (checked at author time).
+    expect(tagGender(tag)).toBe(expected as MorphGender);
   });
 
   test("returns null for tags with no gender component", () => {
