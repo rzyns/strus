@@ -17,7 +17,7 @@
     },
     "packages/api": {
       "name": "@rzyns/strus-api",
-      "version": "1.12.2",
+      "version": "2.0.0-beta.3",
       "dependencies": {
         "@elysiajs/opentelemetry": "^1.4.10",
         "@elysiajs/static": "^1.4.7",
@@ -46,7 +46,7 @@
     },
     "packages/cli": {
       "name": "@rzyns/strus-cli",
-      "version": "1.12.2",
+      "version": "2.0.0-beta.3",
       "bin": {
         "strus": "./src/index.ts",
       },
@@ -64,7 +64,7 @@
     },
     "packages/config": {
       "name": "@rzyns/strus-config",
-      "version": "1.12.2",
+      "version": "2.0.0-beta.3",
       "dependencies": {
         "zod": "^3.23.0",
       },
@@ -75,7 +75,7 @@
     },
     "packages/core": {
       "name": "@rzyns/strus-core",
-      "version": "1.12.2",
+      "version": "2.0.0-beta.3",
       "dependencies": {
         "@rzyns/strus-morph": "workspace:*",
         "ts-fsrs": "^5.2.3",
@@ -87,7 +87,7 @@
     },
     "packages/db": {
       "name": "@rzyns/strus-db",
-      "version": "1.12.2",
+      "version": "2.0.0-beta.3",
       "dependencies": {
         "@rzyns/strus-config": "workspace:*",
         "@rzyns/strus-core": "workspace:*",
@@ -102,7 +102,7 @@
     },
     "packages/morph": {
       "name": "@rzyns/strus-morph",
-      "version": "1.12.2",
+      "version": "2.0.0-beta.3",
       "dependencies": {
         "@rzyns/morfeusz-ts": "https://github.com/rzyns/morfeusz-ts/releases/download/v1.0.3/rzyns-morfeusz-ts-1.0.3.tgz",
       },
@@ -113,7 +113,7 @@
     },
     "packages/web": {
       "name": "@rzyns/strus-web",
-      "version": "1.12.2",
+      "version": "2.0.0-beta.3",
       "dependencies": {
         "@ark-ui/solid": "^5.34.0",
         "@opentelemetry/api": "^1.9.0",
@@ -559,7 +559,7 @@
 
     "@types/better-sqlite3": ["@types/better-sqlite3@7.6.13", "", { "dependencies": { "@types/node": "25.3.0" } }, "sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA=="],
 
-    "@types/bun": ["@types/bun@1.3.9", "", { "dependencies": { "bun-types": "1.3.9" } }, "sha512-KQ571yULOdWJiMH+RIWIOZ7B2RXQGpL1YQrBtLIV3FqDcCu6FsbFUBwhdKUlCKUpS3PJDsHlJ1QKlpxoVR+xtw=="],
+    "@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
 
     "@types/estree": ["@types/estree@1.0.8", "", {}, "sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w=="],
 
@@ -787,7 +787,7 @@
 
     "bumpp": ["bumpp@10.4.1", "", { "dependencies": { "ansis": "4.2.0", "args-tokenizer": "0.3.0", "c12": "3.3.3", "cac": "6.7.14", "escalade": "3.2.0", "jsonc-parser": "3.3.1", "package-manager-detector": "1.6.0", "semver": "7.7.4", "tinyexec": "1.0.2", "tinyglobby": "0.2.15", "yaml": "2.8.2" }, "bin": { "bumpp": "bin/bumpp.mjs" } }, "sha512-X/bwWs5Gbb/D7rN4aHLB7zdjiA6nGdjckM1sTHhI9oovIbEw2L5pw5S4xzk8ZTeOZ8EnwU/Ze4SoZ6/Vr3pM2Q=="],
 
-    "bun-types": ["bun-types@1.3.9", "", { "dependencies": { "@types/node": "25.3.0" } }, "sha512-+UBWWOakIP4Tswh0Bt0QD0alpTY8cb5hvgiYeWCMet9YukHbzuruIEeXC2D7nMJPB12kbh8C7XJykSexEqGKJg=="],
+    "bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
 
     "bundle-n-require": ["bundle-n-require@1.1.2", "", { "dependencies": { "esbuild": "0.25.12", "node-eval": "2.0.0" } }, "sha512-bEk2jakVK1ytnZ9R2AAiZEeK/GxPUM8jvcRxHZXifZDMcjkI4EG/GlsJ2YGSVYT9y/p/gA9/0yDY8rCGsSU6Tg=="],
 
@@ -839,7 +839,7 @@
 
     "conventional-changelog-codemirror": ["conventional-changelog-codemirror@5.0.0", "", {}, "sha512-8gsBDI5Y3vrKUCxN6Ue8xr6occZ5nsDEc4C7jO/EovFGozx8uttCAyfhRrvoUAWi2WMm3OmYs+0mPJU7kQdYWQ=="],
 
-    "conventional-changelog-conventionalcommits": ["conventional-changelog-conventionalcommits@9.2.0", "", { "dependencies": { "compare-func": "2.0.0" } }, "sha512-fCf+ODjseueTV09wVBoC0HXLi3OyuBJ+HfE3L63Khxqnr99f9nUcnQh3a15lCWHlGLihyZShW/mVVkBagr9JvQ=="],
+    "conventional-changelog-conventionalcommits": ["conventional-changelog-conventionalcommits@9.3.0", "", { "dependencies": { "compare-func": "^2.0.0" } }, "sha512-kYFx6gAyjSIMwNtASkI3ZE99U1fuVDJr0yTYgVy+I2QG46zNZfl2her+0+eoviG82c5WQvW1jMt1eOQTeJLodA=="],
 
     "conventional-changelog-core": ["conventional-changelog-core@8.0.0", "", { "dependencies": { "@hutson/parse-repository-url": "5.0.0", "add-stream": "1.0.0", "conventional-changelog-writer": "8.3.0", "conventional-commits-parser": "6.3.0", "git-raw-commits": "5.0.1", "git-semver-tags": "8.0.1", "hosted-git-info": "7.0.2", "normalize-package-data": "6.0.2", "read-package-up": "11.0.0", "read-pkg": "9.0.1" } }, "sha512-EATUx5y9xewpEe10UEGNpbSHRC6cVZgO+hXQjofMqpy+gFIrcGvH3Fl6yk2VFKh7m+ffenup2N7SZJYpyD9evw=="],
 
@@ -1451,6 +1451,8 @@
 
     "@babel/helper-compilation-targets/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
+    "@commitlint/config-conventional/conventional-changelog-conventionalcommits": ["conventional-changelog-conventionalcommits@9.2.0", "", { "dependencies": { "compare-func": "2.0.0" } }, "sha512-fCf+ODjseueTV09wVBoC0HXLi3OyuBJ+HfE3L63Khxqnr99f9nUcnQh3a15lCWHlGLihyZShW/mVVkBagr9JvQ=="],
+
     "@csstools/postcss-cascade-layers/postcss": ["postcss@8.4.49", "", { "dependencies": { "nanoid": "3.3.11", "picocolors": "1.1.1", "source-map-js": "1.2.1" } }, "sha512-OCVPnIObs4N29kxTjzLfUryOkvZEq+pf8jTF0lg8E7uETuWHA+v7j3c/xJmiqpX450191LlmZfUKkXxkTry7nA=="],
 
     "@elysiajs/opentelemetry/@opentelemetry/instrumentation": ["@opentelemetry/instrumentation@0.200.0", "", { "dependencies": { "@opentelemetry/api-logs": "0.200.0", "@types/shimmer": "^1.2.0", "import-in-the-middle": "^1.8.1", "require-in-the-middle": "^7.1.1", "shimmer": "^1.2.1" }, "peerDependencies": { "@opentelemetry/api": "^1.3.0" } }, "sha512-pmPlzfJd+vvgaZd/reMsC8RWgTXn2WY1OWT5RT42m3aOn5532TozwXNDhg1vzqJ+jnvmkREcdLr27ebJEQt0Jg=="],
@@ -1617,6 +1619,10 @@
 
     "cssnano-utils/postcss": ["postcss@8.4.49", "", { "dependencies": { "nanoid": "3.3.11", "picocolors": "1.1.1", "source-map-js": "1.2.1" } }, "sha512-OCVPnIObs4N29kxTjzLfUryOkvZEq+pf8jTF0lg8E7uETuWHA+v7j3c/xJmiqpX450191LlmZfUKkXxkTry7nA=="],
 
+    "drizzle-orm/bun-types": ["bun-types@1.3.9", "", { "dependencies": { "@types/node": "25.3.0" } }, "sha512-+UBWWOakIP4Tswh0Bt0QD0alpTY8cb5hvgiYeWCMet9YukHbzuruIEeXC2D7nMJPB12kbh8C7XJykSexEqGKJg=="],
+
+    "elysia/@types/bun": ["@types/bun@1.3.9", "", { "dependencies": { "bun-types": "1.3.9" } }, "sha512-KQ571yULOdWJiMH+RIWIOZ7B2RXQGpL1YQrBtLIV3FqDcCu6FsbFUBwhdKUlCKUpS3PJDsHlJ1QKlpxoVR+xtw=="],
+
     "fdir/picomatch": ["picomatch@4.0.2", "", {}, "sha512-M7BAV6Rlcy5u+m6oPhAPFgJTzAioX/6B0DxyvDlo9l8+T3nLKbrczg2WLUyzd45L8RqfUMyGPzekbMvX2Ldkwg=="],
 
     "git-raw-commits/meow": ["meow@12.1.1", "", {}, "sha512-BhXM0Au22RwUneMPwSCnyhTOizdWoIEPU9sp0Aqa1PnDMR5Wv2FGXYDjuzJEIX+Eo2Rb8xuYe5jrnm5QowQFkw=="],
@@ -1758,6 +1764,8 @@
     "@pandacss/node/pkg-types/pathe": ["pathe@1.1.2", "", {}, "sha512-whLdWMYL2TwI08hn8/ZqAbrVemu0LNaNNJZX73O6qaIdCTfXutsLhMkjdENX0qhsQ9uIimo4/aQOmXkoon2nDQ=="],
 
     "@ts-morph/common/tinyglobby/picomatch": ["picomatch@4.0.2", "", {}, "sha512-M7BAV6Rlcy5u+m6oPhAPFgJTzAioX/6B0DxyvDlo9l8+T3nLKbrczg2WLUyzd45L8RqfUMyGPzekbMvX2Ldkwg=="],
+
+    "elysia/@types/bun/bun-types": ["bun-types@1.3.9", "", { "dependencies": { "@types/node": "25.3.0" } }, "sha512-+UBWWOakIP4Tswh0Bt0QD0alpTY8cb5hvgiYeWCMet9YukHbzuruIEeXC2D7nMJPB12kbh8C7XJykSexEqGKJg=="],
 
     "mlly/pkg-types/confbox": ["confbox@0.1.8", "", {}, "sha512-RMtmw0iFkeR4YV+fUOSucriAQNb9g8zFR52MWCtl+cCZOFRNL6zeB395vPzFhEjjn4fMxXudmELnl/KF/WrK6w=="],
 

@@ -11,11 +11,11 @@ learning card per form.
 ```
 strus/
 ├── packages/
-│   ├── morph/   @strus/morph   — Morfeusz2 CLI subprocess wrapper + tag parser
-│   ├── core/    @strus/core    — FSRS scheduler, domain types (Lemma, LearningTarget, …)
-│   ├── db/      @strus/db      — Drizzle ORM schema, migrations, db client (bun:sqlite)
-│   ├── api/     @strus/api     — Elysia + oRPC HTTP server + OpenAPI spec generation
-│   └── cli/     @strus/cli     — Commander CLI (thin wrapper over the HTTP API)
+│   ├── morph/   @rzyns/strus-morph   — Morfeusz2 CLI subprocess wrapper + tag parser
+│   ├── core/    @rzyns/strus-core    — FSRS scheduler, domain types (Lemma, LearningTarget, …)
+│   ├── db/      @rzyns/strus-db      — Drizzle ORM schema, migrations, db client (bun:sqlite)
+│   ├── api/     @rzyns/strus-api     — Elysia + oRPC HTTP server + OpenAPI spec generation
+│   └── cli/     @rzyns/strus-cli     — Commander CLI (thin wrapper over the HTTP API)
 ├── CLAUDE.md
 ├── pnpm-workspace.yaml
 └── package.json
@@ -58,11 +58,11 @@ STRUS_DB_PATH=/absolute/path/to/strus.db PORT=3457 bun run src/index.ts
 STRUS_DB_PATH=/absolute/path/to/strus.db PORT=3457 bun run --watch src/index.ts
 
 # Schema changes → generate migration
-pnpm --filter @strus/db run generate    # interactive: drizzle-kit generate
+pnpm --filter @rzyns/strus-db run generate    # interactive: drizzle-kit generate
 # (drizzle-kit will ask about renames — answer them interactively via PTY)
 
 # Write openapi.json to disk
-pnpm --filter @strus/api run generate:spec
+pnpm --filter @rzyns/strus-api run generate:spec
 
 # CLI (from packages/cli/)
 bun run src/index.ts --help
@@ -171,7 +171,7 @@ migrate(db, { migrationsFolder: resolve(import.meta.dir, "../../db/migrations") 
 ```
 
 `drizzle-kit` is a **dev-only** tool — only used to generate SQL migration files. It runs under
-Node (not Bun). `better-sqlite3` is kept as a `devDependency` of `@strus/db` solely for
+Node (not Bun). `better-sqlite3` is kept as a `devDependency` of `@rzyns/strus-db` solely for
 drizzle-kit's use; it is never imported at runtime.
 
 **Queries are synchronous** with `bun:sqlite`. Don't `await` synchronous query methods:
@@ -207,7 +207,7 @@ ts-fsrs **v5** API — key points:
 
 ## Morfeusz2
 
-Morfeusz2 is invoked as a **CLI subprocess**. The `@strus/morph` package
+Morfeusz2 is invoked as a **CLI subprocess**. The `@rzyns/strus-morph` package
 spawns it via `Bun.spawn`, writes the lemma to stdin, and parses tab-separated output lines:
 
 ```
@@ -229,7 +229,7 @@ API gracefully skips form generation (logs a warning, returns the lemma without 
 - All packages use `"moduleResolution": "bundler"` (Bun-compatible).
 - Source files are run directly by Bun; `tsc` is used only for type-checking (`--noEmit`).
   There is no build/emit step.
-- Workspace packages import each other using the `@strus/*` package name, not relative paths
+- Workspace packages import each other using the `@rzyns/strus-*` package name, not relative paths
   across package boundaries.
 - Zod v3 only. If you see `@orpc/zod/zod4`, that's for Zod v4 and is **wrong** for this project.
 
@@ -245,7 +245,7 @@ API gracefully skips form generation (logs a warning, returns the lemma without 
 ## Changing the DB Schema
 
 1. Edit `packages/db/src/schema.ts`
-2. `pnpm --filter @strus/db run generate` (interactive — answer rename prompts carefully)
+2. `pnpm --filter @rzyns/strus-db run generate` (interactive — answer rename prompts carefully)
 3. Inspect the generated SQL in `packages/db/migrations/`
 4. Update any affected TypeScript types in `packages/core/src/types.ts`
 5. `pnpm typecheck` to verify

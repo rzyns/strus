@@ -1,4 +1,4 @@
-# @strus/api — Agent Context
+# @rzyns/strus-api — Agent Context
 
 Elysia HTTP server with oRPC for type-safe routing and automatic OpenAPI spec generation.
 
@@ -103,12 +103,12 @@ Unhandled JS errors become `INTERNAL_SERVER_ERROR` (500).
 
 ## Morphological Analysis
 
-The `@strus/morph` package wraps `@rzyns/morfeusz-ts` — a native Node/Bun binding to
+The `@rzyns/strus-morph` package wraps `@rzyns/morfeusz-ts` — a native Node/Bun binding to
 Morfeusz2. It uses **lazy singletons** (loaded once, reused across requests) and expects
 the SGJP dictionary files at `/usr/share/morfeusz2/dictionaries`. No subprocess is spawned.
 
 ```ts
-import { analyseText, generate } from "@strus/morph";
+import { analyseText, generate } from "@rzyns/strus-morph";
 // analyseText(text: string) → Promise<MorphForm[]>
 // generate(lemma: string, tag: string) → Promise<MorphForm[]>
 ```

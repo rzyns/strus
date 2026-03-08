@@ -1,4 +1,4 @@
-# @strus/cli — Agent Context
+# @rzyns/strus-cli — Agent Context
 
 Commander.js CLI that talks to the strus API server over HTTP.
 

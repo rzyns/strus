@@ -21,14 +21,14 @@ COPY packages/web/       packages/web/
 COPY packages/config/    packages/config/
 
 # Panda CSS codegen then Vite build
-RUN bun run --filter @strus/web prepare && \
-    bun run --filter @strus/web build
+RUN bun run --filter @rzyns/strus-web prepare && \
+    bun run --filter @rzyns/strus-web build
 
 # ─── Stage 2: Bun runtime ────────────────────────────────────────────────────
 FROM oven/bun:1 AS runtime
 
 COPY deb/*.deb /tmp/morfeusz2/
-# Install morfeusz2 (Polish morphological analyser — required by @strus/morph)
+# Install morfeusz2 (Polish morphological analyser — required by @rzyns/strus-morph)
 RUN <<-'EOF'
 	set -euo pipefail
 	apt-get update && apt-get install -y --no-install-recommends \

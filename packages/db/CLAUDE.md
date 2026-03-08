@@ -1,4 +1,4 @@
-# @strus/db — Agent Context
+# @rzyns/strus-db — Agent Context
 
 Drizzle ORM schema, migrations, and database client using the `bun:sqlite` adapter.
 
@@ -36,7 +36,7 @@ Current tables:
 # From the db package directory (or via repo root filter):
 pnpm run generate
 # or:
-pnpm --filter @strus/db run generate
+pnpm --filter @rzyns/strus-db run generate
 ```
 
 This runs `drizzle-kit generate` interactively. **It will ask about renames** — if you renamed

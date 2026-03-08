@@ -45,7 +45,7 @@ jobs:
       # Build web frontend
       # -----------------------------------------------------------------------
       - name: Build web
-        run: bun run --filter @strus/web build
+        run: bun run --filter @rzyns/strus-web build
         env:
           NODE_ENV: production
 

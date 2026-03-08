@@ -9,11 +9,11 @@ Strus helps you learn Polish vocabulary by drilling morphological forms (declens
 ```
 strus/
   packages/
-    morph/     (@strus/morph)  — Morfeusz2 CLI wrapper
-    core/      (@strus/core)   — Domain types + FSRS scheduling
-    db/        (@strus/db)     — Drizzle ORM schema + queries
-    api/       (@strus/api)    — Elysia + oRPC HTTP server
-    cli/       (@strus/cli)    — Commander.js interactive CLI
+    morph/     (@rzyns/strus-morph)  — Morfeusz2 CLI wrapper
+    core/      (@rzyns/strus-core)   — Domain types + FSRS scheduling
+    db/        (@rzyns/strus-db)     — Drizzle ORM schema + queries
+    api/       (@rzyns/strus-api)    — Elysia + oRPC HTTP server
+    cli/       (@rzyns/strus-cli)    — Commander.js interactive CLI
 ```
 
 ## Prerequisites

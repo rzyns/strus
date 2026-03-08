@@ -16,12 +16,12 @@
   "devDependencies": {
     "@commitlint/cli": "^20.4.3",
     "@commitlint/config-conventional": "^20.4.3",
-    "@types/bun": "^1.1.0",
+    "@types/bun": "^1.3.10",
     "bumpp": "^10.4.1",
     "concurrently": "^9.2.1",
     "conventional-changelog-cli": "^5.0.0",
-    "conventional-changelog-conventionalcommits": "^9.2.0",
-    "typescript": "^5.7.0"
+    "conventional-changelog-conventionalcommits": "^9.3.0",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "bun": ">=1.3.0"
