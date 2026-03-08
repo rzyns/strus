@@ -42,21 +42,20 @@ jobs:
               jq --arg v "$1" ".version = \$v" "$2" > "$tmp" && mv "$tmp" "$2"
             ' _ "$VERSION" {} \;
 
-      - name: Write bunfig for GitHub Packages auth
-        run: |
-          cat >> ~/.bunfig.toml << 'EOF'
-          [install.scopes]
-          "@rzyns" = { url = "https://npm.pkg.github.com/", token = "$BUN_AUTH_TOKEN" }
-          EOF
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@rzyns'
 
       - name: Publish packages to GitHub Packages
         env:
-          BUN_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for pkg in config core morph db api cli; do
             echo "--- Publishing @rzyns/strus-$pkg ---"
             cd packages/$pkg
-            bun publish
+            npm publish
             cd ../..
           done
 
