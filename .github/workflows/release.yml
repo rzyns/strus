@@ -36,11 +36,15 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"   # strip 'v' prefix → "1.2.3"
           echo "Publishing version: $VERSION"
-          find packages -name "package.json" -not -path "*/node_modules/*" \
-            -exec sh -c '
-              tmp=$(mktemp)
-              jq --arg v "$1" ".version = \$v" "$2" > "$tmp" && mv "$tmp" "$2"
-            ' _ "$VERSION" {} \;
+          for pkg in config core morph db api cli web; do
+            PKG_JSON="packages/$pkg/package.json"
+            tmp=$(mktemp)
+            jq --arg v "$VERSION" '
+              .version = $v |
+              .dependencies = (.dependencies // {} | with_entries(if .value == "workspace:*" then .value = $v else . end)) |
+              .peerDependencies = (.peerDependencies // {} | with_entries(if .value == "workspace:*" then .value = $v else . end))
+            ' "$PKG_JSON" > "$tmp" && mv "$tmp" "$PKG_JSON"
+          done
 
       - uses: actions/setup-node@v4
         with:
