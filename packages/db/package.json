@@ -14,7 +14,8 @@
     "test": "bun test",
     "lint": "echo 'lint: ok'",
     "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate"
+    "migrate": "drizzle-kit migrate",
+    "seed:concepts": "bun run seeds/grammar-concepts.ts"
   },
   "dependencies": {
     "@strus/core": "workspace:*",
