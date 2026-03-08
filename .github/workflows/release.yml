@@ -42,21 +42,23 @@ jobs:
               jq --arg v "$1" ".version = \$v" "$2" > "$tmp" && mv "$tmp" "$2"
             ' _ "$VERSION" {} \;
 
-      - name: Configure npm for GitHub Packages
+      - name: Write bunfig for GitHub Packages auth
         run: |
-          echo "@rzyns:registry=https://npm.pkg.github.com" >> ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+          cat >> ~/.bunfig.toml << 'EOF'
+          [install.scopes]
+          "@rzyns" = { url = "https://npm.pkg.github.com/", token = "$BUN_AUTH_TOKEN" }
+          EOF
 
       - name: Publish packages to GitHub Packages
+        env:
+          BUN_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for pkg in config core morph db api cli; do
             echo "--- Publishing @rzyns/strus-$pkg ---"
             cd packages/$pkg
-            bun publish --access public
+            bun publish
             cd ../..
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # -----------------------------------------------------------------------
       # Generate changelog (commits since last tag)
