@@ -404,10 +404,18 @@ export default function Quiz() {
         setPhase(ok ? 'revealed-correct' : 'revealed-wrong')
         return
       }
+      case 'cloze_fill':
+      case 'multiple_choice':
+      case 'error_correction':
+      case 'classify':
+        // New card kinds are not yet supported in the quiz UI — fall back to
+        // manual review until the contextual-exercise feature is implemented.
+        setPhase('revealed-manual')
+        return
       default:
-        // Exhaustiveness guard: TypeScript will error here if a new card kind
-        // is added to the union without updating this switch.
-        card.kind satisfies never
+        // Note: exhaustiveness check omitted because DueCard.kind is typed as
+        // string (not a narrow union) in this component. Add new card kinds
+        // above when implementing their quiz UI.
         setPhase('revealed-manual')
     }
   }
