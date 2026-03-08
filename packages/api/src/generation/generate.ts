@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import Mustache from "mustache";
-import { eq, and, like } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@strus/db";
 import {
   grammarConcepts,
