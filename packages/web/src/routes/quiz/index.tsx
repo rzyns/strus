@@ -336,6 +336,90 @@ function ClozeInput(props: ClozeInputProps) {
 }
 
 // ---------------------------------------------------------------------------
+// RevealedContextualContent — shared between revealed-correct and revealed-wrong
+// ---------------------------------------------------------------------------
+
+function RevealedContextualContent(props: {
+  card: DueCard
+  clozeAnswers: Record<number, string>
+  selectedOptionId: string | null
+}) {
+  return (
+    <>
+      {/* cloze_fill — per-gap breakdown */}
+      <Show when={props.card.kind === 'cloze_fill'}>
+        <For each={props.card.clozeGaps ?? []}>
+          {(gap) => {
+            const userAns = props.clozeAnswers[gap.gapIndex] ?? ''
+            const ok = gap.correctAnswers.some(a => a.toLowerCase() === userAns.toLowerCase())
+            return (
+              <div class={css({ mb: '2' })}>
+                <span class={css({ color: ok ? 'green.11' : 'red.11' })}>
+                  {ok ? '✓' : '✗'} Gap {gap.gapIndex}:
+                </span>
+                {' '}<strong>{gap.correctAnswers[0]}</strong>
+                <Show when={!ok && userAns !== ''}>
+                  <span class={css({ color: 'fg.muted' })}> (you wrote: {userAns})</span>
+                </Show>
+                <Show when={gap.explanation}>
+                  {(exp) => <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>}
+                </Show>
+              </div>
+            )
+          }}
+        </For>
+        <Show when={props.card.noteExplanation}>
+          {(exp) => <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>}
+        </Show>
+      </Show>
+
+      {/* multiple_choice — option review */}
+      <Show when={props.card.kind === 'multiple_choice'}>
+        <For each={props.card.choiceOptions ?? []}>
+          {(option) => (
+            <div class={css({
+              p: '2', mb: '2', borderRadius: 'l2',
+              bg: option.isCorrect ? 'green.2' : props.selectedOptionId === option.id ? 'red.2' : 'transparent',
+              border: '1px solid',
+              borderColor: option.isCorrect ? 'green.8' : props.selectedOptionId === option.id ? 'red.8' : 'border',
+            })}>
+              <span class={css({ fontWeight: option.isCorrect ? 'bold' : 'normal' })}>
+                {option.isCorrect ? '✓' : props.selectedOptionId === option.id ? '✗' : '·'} {option.optionText}
+              </span>
+              <Show when={option.explanation}>
+                {(exp) => <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>}
+              </Show>
+            </div>
+          )}
+        </For>
+      </Show>
+
+      {/* classify — concept button review */}
+      <Show when={props.card.kind === 'classify'}>
+        <div class={css({ mb: '2' })}>
+          <For each={props.card.classifyOptions ?? []}>
+            {(option) => (
+              <div class={css({
+                display: 'inline-block', m: '1', px: '3', py: '2', borderRadius: 'l2',
+                bg: option.isCorrect ? 'green.2' : props.selectedOptionId === option.id ? 'red.2' : 'transparent',
+                border: '1px solid',
+                borderColor: option.isCorrect ? 'green.8' : props.selectedOptionId === option.id ? 'red.8' : 'border',
+                fontWeight: option.isCorrect ? 'bold' : 'normal',
+              })}>
+                {option.isCorrect ? '✓ ' : props.selectedOptionId === option.id ? '✗ ' : ''}{option.name}
+              </div>
+            )}
+          </For>
+        </div>
+        <Show when={props.card.noteExplanation}>
+          {(exp) => <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>}
+        </Show>
+      </Show>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main quiz component
 // ---------------------------------------------------------------------------
 
@@ -483,7 +567,6 @@ export default function Quiz() {
         return
       }
       case 'cloze_fill': {
-        const card = currentCard()!
         const gaps = card.clozeGaps ?? []
         if (gaps.length === 0) { setPhase('revealed-manual'); return }
         const allCorrect = gaps.every(gap => {
@@ -494,14 +577,12 @@ export default function Quiz() {
         return
       }
       case 'multiple_choice': {
-        const card = currentCard()!
         const selected = (card.choiceOptions ?? []).find(o => o.id === selectedOptionId())
         if (!selected) return
         setPhase(selected.isCorrect ? 'revealed-correct' : 'revealed-wrong')
         return
       }
       case 'classify': {
-        const card = currentCard()!
         const selected = (card.classifyOptions ?? []).find(o => o.id === selectedOptionId())
         if (!selected) return
         setPhase(selected.isCorrect ? 'revealed-correct' : 'revealed-wrong')
@@ -935,7 +1016,14 @@ export default function Quiz() {
                           }
                         />
                         <div class={css({ mt: '4' })}>
-                          <Button variant="solid" onClick={checkAnswer}>
+                          <Button
+                            variant="solid"
+                            onClick={checkAnswer}
+                            disabled={
+                              submitting() ||
+                              Object.values(clozeAnswers()).filter(v => v.trim() !== '').length === 0
+                            }
+                          >
                             Submit
                           </Button>
                         </div>
@@ -969,9 +1057,13 @@ export default function Quiz() {
                         </div>
                       </Match>
                       <Match when={card().kind === 'classify'}>
-                        <p class={css({ fontSize: 'lg', mb: '4', fontStyle: 'italic' })}>
-                          "{card().sentenceText}"
-                        </p>
+                        <Show when={card().sentenceText}>
+                          {(text) => (
+                            <p class={css({ fontSize: 'lg', mb: '4', fontStyle: 'italic' })}>
+                              "{text()}"
+                            </p>
+                          )}
+                        </Show>
                         <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '3' })}>
                           What type of grammatical feature does the highlighted usage represent?
                         </p>
@@ -1047,77 +1139,11 @@ export default function Quiz() {
                         </p>
                       </Show>
                     </div>
-                    {/* cloze_fill — per-gap breakdown */}
-                    <Show when={card().kind === 'cloze_fill'}>
-                      <For each={card().clozeGaps ?? []}>
-                        {(gap) => {
-                          const userAns = clozeAnswers()[gap.gapIndex] ?? ''
-                          const ok = gap.correctAnswers.some(a => a.toLowerCase() === userAns.toLowerCase())
-                          return (
-                            <div class={css({ mb: '2' })}>
-                              <span class={css({ color: ok ? 'green.11' : 'red.11' })}>
-                                {ok ? '✓' : '✗'} Gap {gap.gapIndex}:
-                              </span>
-                              {' '}<strong>{gap.correctAnswers[0]}</strong>
-                              {!ok && userAns && <span class={css({ color: 'fg.muted' })}> (you wrote: {userAns})</span>}
-                              <Show when={gap.explanation}>
-                                {(exp) => <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>}
-                              </Show>
-                            </div>
-                          )
-                        }}
-                      </For>
-                      <Show when={card().noteExplanation}>
-                        {(exp) => (
-                          <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>
-                        )}
-                      </Show>
-                    </Show>
-                    {/* multiple_choice — option review */}
-                    <Show when={card().kind === 'multiple_choice'}>
-                      <For each={card().choiceOptions ?? []}>
-                        {(option) => (
-                          <div class={css({
-                            p: '2', mb: '2', borderRadius: 'l2',
-                            bg: option.isCorrect ? 'green.2' : selectedOptionId() === option.id ? 'red.2' : 'transparent',
-                            border: '1px solid',
-                            borderColor: option.isCorrect ? 'green.8' : selectedOptionId() === option.id ? 'red.8' : 'border',
-                          })}>
-                            <span class={css({ fontWeight: option.isCorrect ? 'bold' : 'normal' })}>
-                              {option.isCorrect ? '✓' : selectedOptionId() === option.id ? '✗' : '·'} {option.optionText}
-                            </span>
-                            <Show when={option.explanation}>
-                              {(exp) => (
-                                <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>
-                              )}
-                            </Show>
-                          </div>
-                        )}
-                      </For>
-                    </Show>
-                    {/* classify — option review */}
-                    <Show when={card().kind === 'classify'}>
-                      <div class={css({ mb: '2' })}>
-                        <For each={card().classifyOptions ?? []}>
-                          {(option) => (
-                            <div class={css({
-                              display: 'inline-block', m: '1', px: '3', py: '2', borderRadius: 'l2',
-                              bg: option.isCorrect ? 'green.2' : selectedOptionId() === option.id ? 'red.2' : 'transparent',
-                              border: '1px solid',
-                              borderColor: option.isCorrect ? 'green.8' : selectedOptionId() === option.id ? 'red.8' : 'border',
-                              fontWeight: option.isCorrect ? 'bold' : 'normal',
-                            })}>
-                              {option.isCorrect ? '✓ ' : selectedOptionId() === option.id ? '✗ ' : ''}{option.name}
-                            </div>
-                          )}
-                        </For>
-                      </div>
-                      <Show when={card().noteExplanation}>
-                        {(exp) => (
-                          <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>
-                        )}
-                      </Show>
-                    </Show>
+                    <RevealedContextualContent
+                      card={card()}
+                      clozeAnswers={clozeAnswers()}
+                      selectedOptionId={selectedOptionId()}
+                    />
                     <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '2', mt: '3' })}>
                       How easy was that recall?
                     </p>
@@ -1151,77 +1177,11 @@ export default function Quiz() {
                         </p>
                       </Show>
                     </div>
-                    {/* cloze_fill — per-gap breakdown */}
-                    <Show when={card().kind === 'cloze_fill'}>
-                      <For each={card().clozeGaps ?? []}>
-                        {(gap) => {
-                          const userAns = clozeAnswers()[gap.gapIndex] ?? ''
-                          const ok = gap.correctAnswers.some(a => a.toLowerCase() === userAns.toLowerCase())
-                          return (
-                            <div class={css({ mb: '2' })}>
-                              <span class={css({ color: ok ? 'green.11' : 'red.11' })}>
-                                {ok ? '✓' : '✗'} Gap {gap.gapIndex}:
-                              </span>
-                              {' '}<strong>{gap.correctAnswers[0]}</strong>
-                              {!ok && userAns && <span class={css({ color: 'fg.muted' })}> (you wrote: {userAns})</span>}
-                              <Show when={gap.explanation}>
-                                {(exp) => <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>}
-                              </Show>
-                            </div>
-                          )
-                        }}
-                      </For>
-                      <Show when={card().noteExplanation}>
-                        {(exp) => (
-                          <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>
-                        )}
-                      </Show>
-                    </Show>
-                    {/* multiple_choice — option review */}
-                    <Show when={card().kind === 'multiple_choice'}>
-                      <For each={card().choiceOptions ?? []}>
-                        {(option) => (
-                          <div class={css({
-                            p: '2', mb: '2', borderRadius: 'l2',
-                            bg: option.isCorrect ? 'green.2' : selectedOptionId() === option.id ? 'red.2' : 'transparent',
-                            border: '1px solid',
-                            borderColor: option.isCorrect ? 'green.8' : selectedOptionId() === option.id ? 'red.8' : 'border',
-                          })}>
-                            <span class={css({ fontWeight: option.isCorrect ? 'bold' : 'normal' })}>
-                              {option.isCorrect ? '✓' : selectedOptionId() === option.id ? '✗' : '·'} {option.optionText}
-                            </span>
-                            <Show when={option.explanation}>
-                              {(exp) => (
-                                <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>
-                              )}
-                            </Show>
-                          </div>
-                        )}
-                      </For>
-                    </Show>
-                    {/* classify — option review */}
-                    <Show when={card().kind === 'classify'}>
-                      <div class={css({ mb: '2' })}>
-                        <For each={card().classifyOptions ?? []}>
-                          {(option) => (
-                            <div class={css({
-                              display: 'inline-block', m: '1', px: '3', py: '2', borderRadius: 'l2',
-                              bg: option.isCorrect ? 'green.2' : selectedOptionId() === option.id ? 'red.2' : 'transparent',
-                              border: '1px solid',
-                              borderColor: option.isCorrect ? 'green.8' : selectedOptionId() === option.id ? 'red.8' : 'border',
-                              fontWeight: option.isCorrect ? 'bold' : 'normal',
-                            })}>
-                              {option.isCorrect ? '✓ ' : selectedOptionId() === option.id ? '✗ ' : ''}{option.name}
-                            </div>
-                          )}
-                        </For>
-                      </div>
-                      <Show when={card().noteExplanation}>
-                        {(exp) => (
-                          <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>
-                        )}
-                      </Show>
-                    </Show>
+                    <RevealedContextualContent
+                      card={card()}
+                      clozeAnswers={clozeAnswers()}
+                      selectedOptionId={selectedOptionId()}
+                    />
                     <p class={css({ fontSize: 'xs', color: 'fg.muted', mt: '2' })}>
                       Again → {formatNextDate(card().nextDates.again)}
                     </p>
