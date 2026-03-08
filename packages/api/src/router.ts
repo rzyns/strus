@@ -126,6 +126,7 @@ const StatsOutput = z.object({
   lemmaCount: z.number().int().describe("Total number of lemmas in the database"),
   listCount: z.number().int().describe("Total number of vocabulary lists"),
   dueCount: z.number().int().describe("Number of cards currently due for review"),
+  draftCount: z.number().int().describe("Number of contextual exercise notes with status='draft' awaiting review"),
 });
 
 const NoteOutput = z.object({
@@ -135,6 +136,12 @@ const NoteOutput = z.object({
   lemmaText: z.string().nullable().describe("Citation form of the associated lemma; null for basic notes"),
   front: z.string().nullable().describe("Prompt text for gloss/basic notes; null for morph notes"),
   back: z.string().nullable().describe("Answer text for gloss/basic notes; null for morph notes"),
+  status: z.string().nullable().describe("Moderation status: draft | approved | flagged | rejected. Null for morph/basic/gloss notes."),
+  sentenceId: z.string().nullable().describe("ID of the associated sentence; null for non-contextual notes"),
+  sentenceText: z.string().nullable().describe("Sentence text (with {{N}} gap markers for cloze); null if no sentence"),
+  conceptId: z.string().nullable().describe("ID of the grammar concept this note is tagged to; null if none"),
+  explanation: z.string().nullable().describe("Human-readable explanation of why an answer is correct; null if not set"),
+  generationMeta: z.string().nullable().describe("JSON string with generation metadata (model, batchId, etc.); null for hand-crafted notes"),
   createdAt: zIso.describe("When this note was created"),
   updatedAt: zIso.describe("When this note was last modified"),
 });
@@ -242,7 +249,11 @@ function mapCardDomain(card: Card) {
   };
 }
 
-function mapNote(row: typeof notes.$inferSelect, lemmaText: string | null = null) {
+function mapNote(
+  row: typeof notes.$inferSelect,
+  lemmaText: string | null = null,
+  sentenceText: string | null = null,
+) {
   return {
     id: row.id,
     kind: row.kind,
@@ -250,6 +261,12 @@ function mapNote(row: typeof notes.$inferSelect, lemmaText: string | null = null
     lemmaText,
     front: row.front,
     back: row.back,
+    status: row.status,
+    sentenceId: row.sentenceId,
+    sentenceText,
+    conceptId: row.conceptId,
+    explanation: row.explanation,
+    generationMeta: row.generationMeta,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -1713,11 +1730,19 @@ const statsOverview = os
       .select({ value: count() })
       .from(cards)
       .where(lte(cards.due, nowSecs));
+    const [draftResult] = await db
+      .select({ value: count() })
+      .from(notes)
+      .where(and(
+        inArray(notes.kind, ["cloze", "choice", "error", "classifier"]),
+        eq(notes.status, "draft"),
+      ));
 
     return {
       lemmaCount: lemmaResult?.value ?? 0,
       listCount: listResult?.value ?? 0,
       dueCount: dueResult?.value ?? 0,
+      draftCount: draftResult?.value ?? 0,
     };
   });
 
@@ -2236,6 +2261,7 @@ const notesList = os
     kind: z.enum(["morph", "gloss", "basic", "cloze", "choice", "error", "classifier"]).optional().describe("Filter by note kind"),
     listId: z.string().uuid().optional().describe("Filter to notes in this vocabulary list"),
     lemmaId: z.string().uuid().optional().describe("Filter to notes associated with this lemma"),
+    status: z.enum(["draft", "flagged", "approved", "rejected"]).optional().describe("Filter by moderation status"),
   }))
   .output(z.array(NoteOutput))
   .handler(async ({ input }) => {
@@ -2243,13 +2269,15 @@ const notesList = os
     const conditions = [];
     if (input.kind) conditions.push(eq(notes.kind, input.kind));
     if (input.lemmaId) conditions.push(eq(notes.lemmaId, input.lemmaId));
+    if (input.status) conditions.push(eq(notes.status, input.status));
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     if (input.listId) {
       const q = db
-        .select({ note: notes, lemmaText: lemmas.lemma })
+        .select({ note: notes, lemmaText: lemmas.lemma, sentenceText: sentences.text })
         .from(notes)
         .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
+        .leftJoin(sentences, eq(sentences.id, notes.sentenceId))
         .innerJoin(
           vocabListNotes,
           and(
@@ -2258,13 +2286,13 @@ const notesList = os
           ),
         );
       const rows = whereClause ? q.where(whereClause).all() : q.all();
-      return rows.map((r) => mapNote(r.note, r.lemmaText ?? null));
+      return rows.map((r) => mapNote(r.note, r.lemmaText ?? null, r.sentenceText ?? null));
     }
 
     const rows = whereClause
-      ? db.select({ note: notes, lemmaText: lemmas.lemma }).from(notes).leftJoin(lemmas, eq(lemmas.id, notes.lemmaId)).where(whereClause).all()
-      : db.select({ note: notes, lemmaText: lemmas.lemma }).from(notes).leftJoin(lemmas, eq(lemmas.id, notes.lemmaId)).all();
-    return rows.map((r) => mapNote(r.note, r.lemmaText ?? null));
+      ? db.select({ note: notes, lemmaText: lemmas.lemma, sentenceText: sentences.text }).from(notes).leftJoin(lemmas, eq(lemmas.id, notes.lemmaId)).leftJoin(sentences, eq(sentences.id, notes.sentenceId)).where(whereClause).all()
+      : db.select({ note: notes, lemmaText: lemmas.lemma, sentenceText: sentences.text }).from(notes).leftJoin(lemmas, eq(lemmas.id, notes.lemmaId)).leftJoin(sentences, eq(sentences.id, notes.sentenceId)).all();
+    return rows.map((r) => mapNote(r.note, r.lemmaText ?? null, r.sentenceText ?? null));
   });
 
 const notesGet = os
@@ -2278,6 +2306,19 @@ const notesGet = os
   .output(NoteOutput.extend({
     cards: z.array(CardOutput),
     lemma: z.string().nullable().describe("Lemma text for morph/gloss notes; null for basic notes"),
+    gaps: z.array(z.object({
+      id: z.string(),
+      gapIndex: z.number().int(),
+      correctAnswers: z.string().describe("JSON-encoded array of accepted answers"),
+      hint: z.string().nullable(),
+      explanation: z.string().nullable(),
+    })).optional().describe("Gap definitions for cloze notes; undefined for other kinds"),
+    options: z.array(z.object({
+      id: z.string(),
+      optionText: z.string(),
+      isCorrect: z.boolean(),
+      explanation: z.string().nullable(),
+    })).optional().describe("Answer options for choice notes; undefined for other kinds"),
   }))
   .handler(async ({ input }) => {
     const [row] = await db.select().from(notes).where(eq(notes.id, input.id)).limit(1);
@@ -2291,10 +2332,39 @@ const notesGet = os
       if (lemmaRow) lemmaText = lemmaRow.lemma;
     }
 
+    let sentenceText: string | null = null;
+    if (row.sentenceId) {
+      const [sentenceRow] = db.select().from(sentences).where(eq(sentences.id, row.sentenceId)).limit(1).all();
+      if (sentenceRow) sentenceText = sentenceRow.text;
+    }
+
+    let gaps: Array<{ id: string; gapIndex: number; correctAnswers: string; hint: string | null; explanation: string | null }> | undefined;
+    if (row.kind === "cloze") {
+      gaps = db.select({
+        id: clozeGaps.id,
+        gapIndex: clozeGaps.gapIndex,
+        correctAnswers: clozeGaps.correctAnswers,
+        hint: clozeGaps.hint,
+        explanation: clozeGaps.explanation,
+      }).from(clozeGaps).where(eq(clozeGaps.noteId, input.id)).all();
+    }
+
+    let options: Array<{ id: string; optionText: string; isCorrect: boolean; explanation: string | null }> | undefined;
+    if (row.kind === "choice") {
+      options = db.select({
+        id: choiceOptions.id,
+        optionText: choiceOptions.optionText,
+        isCorrect: choiceOptions.isCorrect,
+        explanation: choiceOptions.explanation,
+      }).from(choiceOptions).where(eq(choiceOptions.noteId, input.id)).all();
+    }
+
     return {
-      ...mapNote(row, lemmaText),
+      ...mapNote(row, lemmaText, sentenceText),
       cards: noteCards.map(mapCardRow),
       lemma: lemmaText,
+      gaps,
+      options,
     };
   });
 
