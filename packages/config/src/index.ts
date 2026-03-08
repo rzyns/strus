@@ -5,18 +5,12 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------
 
 /**
- * All environment variables consumed by strus services.
+ * All environment variables consumed by strus services, except STRUS_DB_PATH.
+ * Used by the CLI and any context that doesn't need DB access.
  *
- * @rzyns/strus-db  — STRUS_DB_PATH
- * @rzyns/strus-api — STRUS_DB_PATH, PORT
- * @rzyns/strus-cli — STRUS_API_URL
+ * @rzyns/strus-cli — STRUS_API_URL (and optional keys)
  */
-const ConfigSchema = z.object({
-  /** Absolute path to the SQLite database file. Required — no default. */
-  STRUS_DB_PATH: z
-    .string({ required_error: "STRUS_DB_PATH is required" })
-    .min(1, "STRUS_DB_PATH must not be empty"),
-
+const BaseConfigSchema = z.object({
   /** HTTP port the API server listens on. */
   PORT: z.coerce.number().int().min(1).max(65535).default(3457),
 
@@ -54,24 +48,46 @@ const ConfigSchema = z.object({
   STRUS_OPENAI_BASE_URL: z.string().url().optional(),
 });
 
-export type Config = z.infer<typeof ConfigSchema>;
+/**
+ * Full server config — extends BaseConfigSchema with the required STRUS_DB_PATH.
+ *
+ * @rzyns/strus-db  — STRUS_DB_PATH
+ * @rzyns/strus-api — STRUS_DB_PATH, PORT
+ */
+const ServerConfigSchema = BaseConfigSchema.extend({
+  /** Absolute path to the SQLite database file. Required — no default. */
+  STRUS_DB_PATH: z
+    .string({ required_error: "STRUS_DB_PATH is required" })
+    .min(1, "STRUS_DB_PATH must not be empty"),
+});
+
+export type CliConfig = z.infer<typeof BaseConfigSchema>;
+export type Config = z.infer<typeof ServerConfigSchema>;
 
 // ---------------------------------------------------------------------------
-// Parse
+// Parse helpers
+// ---------------------------------------------------------------------------
+
+function formatError(err: z.ZodError): string {
+  return err.issues
+    .map((i) => `  ${String(i.path[0] ?? "(unknown)")}: ${i.message}`)
+    .join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Public API
 // ---------------------------------------------------------------------------
 
 /**
  * Parse and validate strus configuration from `process.env`.
- * Throws a descriptive error and exits if any required variable is missing
- * or any value fails validation.
+ * Throws a descriptive error if any required variable is missing or invalid.
+ *
+ * Requires STRUS_DB_PATH — use for server/db packages.
  */
 export function getConfig(): Config {
-  const result = ConfigSchema.safeParse(process.env);
+  const result = ServerConfigSchema.safeParse(process.env);
   if (!result.success) {
-    const messages = result.error.issues
-      .map((i) => `  ${String(i.path[0] ?? "(unknown)")}: ${i.message}`)
-      .join("\n");
-    throw new Error(`strus configuration error:\n${messages}`);
+    throw new Error(`strus configuration error:\n${formatError(result.error)}`);
   }
   return result.data;
 }
@@ -92,8 +108,12 @@ export function getApiConfig(): Pick<Config, "STRUS_DB_PATH" | "PORT"> {
 }
 
 /**
- * Subset for the CLI.
+ * Subset for the CLI. Does NOT require STRUS_DB_PATH.
  */
-export function getCliConfig(): Pick<Config, "STRUS_API_URL"> {
-  return getConfig();
+export function getCliConfig(): Pick<CliConfig, "STRUS_API_URL"> {
+  const result = BaseConfigSchema.safeParse(process.env);
+  if (!result.success) {
+    throw new Error(`strus configuration error:\n${formatError(result.error)}`);
+  }
+  return result.data;
 }
