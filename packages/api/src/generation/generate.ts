@@ -12,10 +12,10 @@ import {
   choiceOptions,
   semanticClusterMembers,
   lemmas,
-} from "@strus/db";
-import type { DbClient } from "@strus/db";
-import { createCard } from "@strus/core";
-import { getConfig } from "@strus/config";
+} from "@rzyns/strus-db";
+import type { DbClient } from "@rzyns/strus-db";
+import { createCard } from "@rzyns/strus-core";
+import { getConfig } from "@rzyns/strus-config";
 import type { GenerationProvider } from "./provider.js";
 import {
   ClozeNoteSchema,
@@ -40,7 +40,7 @@ function renderTemplate(name: string, context: Record<string, unknown>): string 
 // Card insertion helper (mirrors router.ts pattern)
 // ---------------------------------------------------------------------------
 
-function insertCardValues(cardData: Omit<import("@strus/core").Card, "id">) {
+function insertCardValues(cardData: Omit<import("@rzyns/strus-core").Card, "id">) {
   return {
     id: randomUUID(),
     noteId: cardData.noteId,

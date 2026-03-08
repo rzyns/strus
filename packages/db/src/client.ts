@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
-import { getDbConfig } from "@strus/config";
+import { getDbConfig } from "@rzyns/strus-config";
 import * as schema from "./schema.js";
 
 export type DbClient = ReturnType<typeof createDb>;

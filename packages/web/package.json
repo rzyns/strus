@@ -1,5 +1,5 @@
 {
-  "name": "@strus/web",
+  "name": "@rzyns/strus-web",
   "version": "1.12.2",
   "private": true,
   "type": "module",
@@ -29,7 +29,7 @@
   "devDependencies": {
     "@orpc/server": "^1.13.5",
     "@pandacss/dev": "^0.53.0",
-    "@strus/api": "workspace:*",
+    "@rzyns/strus-api": "workspace:*",
     "typescript": "^5.7.0",
     "vite": "^6.0.0",
     "vite-plugin-solid": "^2.10.0"

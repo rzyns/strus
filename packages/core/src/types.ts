@@ -1,4 +1,4 @@
-import type { ParsedTag } from "@strus/morph";
+import type { ParsedTag } from "@rzyns/strus-morph";
 
 export interface VocabList {
   id: string;

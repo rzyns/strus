@@ -16,7 +16,7 @@
       },
     },
     "packages/api": {
-      "name": "@strus/api",
+      "name": "@rzyns/strus-api",
       "version": "1.12.2",
       "dependencies": {
         "@elysiajs/opentelemetry": "^1.4.10",
@@ -28,10 +28,10 @@
         "@orpc/openapi": "^1.13.5",
         "@orpc/server": "^1.13.5",
         "@orpc/zod": "^1.13.5",
-        "@strus/config": "workspace:*",
-        "@strus/core": "workspace:*",
-        "@strus/db": "workspace:*",
-        "@strus/morph": "workspace:*",
+        "@rzyns/strus-config": "workspace:*",
+        "@rzyns/strus-core": "workspace:*",
+        "@rzyns/strus-db": "workspace:*",
+        "@rzyns/strus-morph": "workspace:*",
         "@types/mustache": "^4.2.6",
         "drizzle-orm": "^0.45.1",
         "elysia": "^1.4.25",
@@ -45,15 +45,15 @@
       },
     },
     "packages/cli": {
-      "name": "@strus/cli",
+      "name": "@rzyns/strus-cli",
       "version": "1.12.2",
       "bin": {
         "strus": "./src/index.ts",
       },
       "dependencies": {
-        "@strus/api": "workspace:*",
-        "@strus/config": "workspace:*",
-        "@strus/core": "workspace:*",
+        "@rzyns/strus-api": "workspace:*",
+        "@rzyns/strus-config": "workspace:*",
+        "@rzyns/strus-core": "workspace:*",
         "commander": "^12.1.0",
         "zod": "^3.23.0",
       },
@@ -63,7 +63,7 @@
       },
     },
     "packages/config": {
-      "name": "@strus/config",
+      "name": "@rzyns/strus-config",
       "version": "1.12.2",
       "dependencies": {
         "zod": "^3.23.0",
@@ -74,10 +74,10 @@
       },
     },
     "packages/core": {
-      "name": "@strus/core",
+      "name": "@rzyns/strus-core",
       "version": "1.12.2",
       "dependencies": {
-        "@strus/morph": "workspace:*",
+        "@rzyns/strus-morph": "workspace:*",
         "ts-fsrs": "^5.2.3",
       },
       "devDependencies": {
@@ -86,11 +86,11 @@
       },
     },
     "packages/db": {
-      "name": "@strus/db",
+      "name": "@rzyns/strus-db",
       "version": "1.12.2",
       "dependencies": {
-        "@strus/config": "workspace:*",
-        "@strus/core": "workspace:*",
+        "@rzyns/strus-config": "workspace:*",
+        "@rzyns/strus-core": "workspace:*",
         "drizzle-orm": "^0.45.1",
       },
       "devDependencies": {
@@ -101,7 +101,7 @@
       },
     },
     "packages/morph": {
-      "name": "@strus/morph",
+      "name": "@rzyns/strus-morph",
       "version": "1.12.2",
       "dependencies": {
         "@rzyns/morfeusz-ts": "https://github.com/rzyns/morfeusz-ts/releases/download/v1.0.3/rzyns-morfeusz-ts-1.0.3.tgz",
@@ -112,7 +112,7 @@
       },
     },
     "packages/web": {
-      "name": "@strus/web",
+      "name": "@rzyns/strus-web",
       "version": "1.12.2",
       "dependencies": {
         "@ark-ui/solid": "^5.34.0",
@@ -133,7 +133,7 @@
       "devDependencies": {
         "@orpc/server": "^1.13.5",
         "@pandacss/dev": "^0.53.0",
-        "@strus/api": "workspace:*",
+        "@rzyns/strus-api": "workspace:*",
         "typescript": "^5.7.0",
         "vite": "^6.0.0",
         "vite-plugin-solid": "^2.10.0",
@@ -515,6 +515,20 @@
 
     "@rzyns/morfeusz-ts": ["@rzyns/morfeusz-ts@https://github.com/rzyns/morfeusz-ts/releases/download/v1.0.3/rzyns-morfeusz-ts-1.0.3.tgz", {}],
 
+    "@rzyns/strus-api": ["@rzyns/strus-api@workspace:packages/api"],
+
+    "@rzyns/strus-cli": ["@rzyns/strus-cli@workspace:packages/cli"],
+
+    "@rzyns/strus-config": ["@rzyns/strus-config@workspace:packages/config"],
+
+    "@rzyns/strus-core": ["@rzyns/strus-core@workspace:packages/core"],
+
+    "@rzyns/strus-db": ["@rzyns/strus-db@workspace:packages/db"],
+
+    "@rzyns/strus-morph": ["@rzyns/strus-morph@workspace:packages/morph"],
+
+    "@rzyns/strus-web": ["@rzyns/strus-web@workspace:packages/web"],
+
     "@simple-libs/child-process-utils": ["@simple-libs/child-process-utils@1.0.2", "", { "dependencies": { "@simple-libs/stream-utils": "1.2.0" } }, "sha512-/4R8QKnd/8agJynkNdJmNw2MBxuFTRcNFnE5Sg/G+jkSsV8/UBgULMzhizWWW42p8L5H7flImV2ATi79Ove2Tw=="],
 
     "@simple-libs/stream-utils": ["@simple-libs/stream-utils@1.2.0", "", {}, "sha512-KxXvfapcixpz6rVEB6HPjOUZT22yN6v0vI0urQSk1L8MlEWPDFCZkhw2xmkyoTGYeFw7tWTZd7e3lVzRZRN/EA=="],
@@ -526,20 +540,6 @@
     "@solidjs/router": ["@solidjs/router@0.15.4", "", { "peerDependencies": { "solid-js": "1.9.11" } }, "sha512-WOpgg9a9T638cR+5FGbFi/IV4l2FpmBs1GpIMSPa0Ce9vyJN7Wts+X2PqMf9IYn0zUj2MlSJtm1gp7/HI/n5TQ=="],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
-
-    "@strus/api": ["@strus/api@workspace:packages/api"],
-
-    "@strus/cli": ["@strus/cli@workspace:packages/cli"],
-
-    "@strus/config": ["@strus/config@workspace:packages/config"],
-
-    "@strus/core": ["@strus/core@workspace:packages/core"],
-
-    "@strus/db": ["@strus/db@workspace:packages/db"],
-
-    "@strus/morph": ["@strus/morph@workspace:packages/morph"],
-
-    "@strus/web": ["@strus/web@workspace:packages/web"],
 
     "@swc/helpers": ["@swc/helpers@0.5.19", "", { "dependencies": { "tslib": "2.8.1" } }, "sha512-QamiFeIK3txNjgUTNppE6MiG3p7TdninpZu0E0PbqVh1a9FNLT2FRhisaa4NcaX52XVhA5l7Pk58Ft7Sqi/2sA=="],
 

@@ -1,6 +1,6 @@
 /**
  * Standalone OpenAPI spec generator.
- * Run: pnpm --filter @strus/api run generate:spec
+ * Run: pnpm --filter @rzyns/strus-api run generate:spec
  * Output: packages/api/openapi.json
  */
 

@@ -1,5 +1,5 @@
 {
-  "name": "@strus/config",
+  "name": "@rzyns/strus-config",
   "version": "1.12.2",
   "private": true,
   "description": "Validated configuration for strus services",

@@ -1,5 +1,5 @@
 {
-  "name": "@strus/morph",
+  "name": "@rzyns/strus-morph",
   "version": "1.12.2",
   "private": true,
   "description": "Thin wrapper around the Morfeusz2 Polish morphological analyser CLI",

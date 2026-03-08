@@ -159,7 +159,7 @@ describe("validateGapMarkers", () => {
 // NOTE: validateMorphology is intentionally not tested here.
 // It requires @rzyns/morfeusz-ts (native TypeScript port of Morfeusz2 with
 // dictionary files at /usr/share/morfeusz2/dictionaries). Mocking the
-// `analyse` export from @strus/morph would require a bun mock() call that
+// `analyse` export from @rzyns/strus-morph would require a bun mock() call that
 // intercepts the module — doable but deferred until the CI environment has
 // the native dict files confirmed present.
 // ---------------------------------------------------------------------------

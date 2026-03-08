@@ -3,8 +3,8 @@ import { resolve, join } from "node:path";
 import Mustache from "mustache";
 import { record, setAttributes } from "@elysiajs/opentelemetry";
 import { SpanStatusCode } from "@opentelemetry/api";
-import type { MorphGender } from "@strus/morph";
-import { tagWordClass, tagGenderLabel } from "@strus/morph";
+import type { MorphGender } from "@rzyns/strus-morph";
+import { tagWordClass, tagGenderLabel } from "@rzyns/strus-morph";
 import { getSetting, SETTINGS_KEYS } from "./settings.js";
 
 // ---------------------------------------------------------------------------

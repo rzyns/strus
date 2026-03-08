@@ -7,9 +7,9 @@ import { z } from "zod";
 /**
  * All environment variables consumed by strus services.
  *
- * @strus/db  — STRUS_DB_PATH
- * @strus/api — STRUS_DB_PATH, PORT
- * @strus/cli — STRUS_API_URL
+ * @rzyns/strus-db  — STRUS_DB_PATH
+ * @rzyns/strus-api — STRUS_DB_PATH, PORT
+ * @rzyns/strus-cli — STRUS_API_URL
  */
 const ConfigSchema = z.object({
   /** Absolute path to the SQLite database file. Required — no default. */

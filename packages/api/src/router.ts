@@ -4,7 +4,7 @@ import { SpanStatusCode } from "@opentelemetry/api";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 import { count, eq, lte, ne, like, and, or, inArray, asc, sql, isNull } from "drizzle-orm";
-import { db } from "@strus/db";
+import { db } from "@rzyns/strus-db";
 import { createProvider } from "./generation/provider.js";
 import { generateBatch, createCardsForNote } from "./generation/generate.js";
 import {
@@ -22,8 +22,8 @@ import {
   choiceOptions,
   semanticClusters,
   semanticClusterMembers,
-} from "@strus/db";
-import { generate, parseTag, tagGender, analyseText, analyse } from "@strus/morph";
+} from "@rzyns/strus-db";
+import { generate, parseTag, tagGender, analyseText, analyse } from "@rzyns/strus-morph";
 import { generateAudio, generateImage, getMediaBaseUrl } from "./media.js";
 import { getSetting, setSetting, SETTINGS_KEYS, DEFAULTS } from "./settings.js";
 import {
@@ -33,7 +33,7 @@ import {
   Rating,
   CardState,
   type Card,
-} from "@strus/core";
+} from "@rzyns/strus-core";
 
 // ---------------------------------------------------------------------------
 // Primitive schema building blocks
@@ -2089,7 +2089,7 @@ const sentencesGet = os
 // ---------------------------------------------------------------------------
 
 /** Helper to insert a card row from a createCard() result. */
-function insertCardValues(cardData: Omit<import("@strus/core").Card, "id">) {
+function insertCardValues(cardData: Omit<import("@rzyns/strus-core").Card, "id">) {
   return {
     id: crypto.randomUUID(),
     noteId: cardData.noteId,

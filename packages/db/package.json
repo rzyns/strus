@@ -1,5 +1,5 @@
 {
-  "name": "@strus/db",
+  "name": "@rzyns/strus-db",
   "version": "1.12.2",
   "private": true,
   "description": "Drizzle ORM schema, migrations, and query helpers for strus",
@@ -18,9 +18,9 @@
     "seed:concepts": "bun run seeds/grammar-concepts.ts"
   },
   "dependencies": {
-    "@strus/core": "workspace:*",
+    "@rzyns/strus-core": "workspace:*",
     "drizzle-orm": "^0.45.1",
-    "@strus/config": "workspace:*"
+    "@rzyns/strus-config": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "^1.1.0",
