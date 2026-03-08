@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import Mustache from "mustache";
 import { eq, and } from "drizzle-orm";
-import { db } from "@strus/db";
 import {
   grammarConcepts,
   sentences,
@@ -12,7 +11,9 @@ import {
   clozeGaps,
   choiceOptions,
 } from "@strus/db";
+import type { DbClient } from "@strus/db";
 import { createCard } from "@strus/core";
+import { getConfig } from "@strus/config";
 import type { GenerationProvider } from "./provider.js";
 import {
   ClozeNoteSchema,
@@ -63,6 +64,7 @@ function insertCardValues(cardData: Omit<import("@strus/core").Card, "id">) {
 // ---------------------------------------------------------------------------
 
 async function getApprovedClozeExamples(
+  db: DbClient,
   conceptId: string,
   limit = 2,
 ): Promise<Array<{ sentence: string; gap_index: number; correct_answers: string; explanation: string }>> {
@@ -109,15 +111,16 @@ async function getApprovedClozeExamples(
 // ---------------------------------------------------------------------------
 
 async function generateCloze(opts: {
+  db: DbClient;
   concept: { id: string; name: string; description: string | null };
   batchId: string;
   difficulty: 1 | 2 | 3;
   provider: GenerationProvider;
 }): Promise<"approved" | "flagged"> {
-  const { concept, batchId, difficulty, provider } = opts;
+  const { db, concept, batchId, difficulty, provider } = opts;
 
   // 1. Few-shot examples
-  const examples = await getApprovedClozeExamples(concept.id);
+  const examples = await getApprovedClozeExamples(db, concept.id);
 
   // 2. Render template
   const prompt = renderTemplate("cloze-v1.txt", {
@@ -136,20 +139,20 @@ async function generateCloze(opts: {
   // 5. Insert sentence
   const sentenceId = randomUUID();
   const now = new Date();
-  const model = process.env.STRUS_GENERATION_MODEL ?? "gemini-2.0-flash-exp";
+  const { STRUS_GENERATION_MODEL } = getConfig();
 
   db.insert(sentences).values({
     id: sentenceId,
     text: result.sentence_text,
     translation: result.translation ?? null,
-    source: `llm:${model}`,
+    source: `llm:${STRUS_GENERATION_MODEL}`,
     createdAt: now,
   }).run();
 
   // 6. Insert note
   const noteId = randomUUID();
   const generationMeta = JSON.stringify({
-    model,
+    model: STRUS_GENERATION_MODEL,
     template: "cloze-v1",
     batchId,
     generatedAt: now.toISOString(),
@@ -205,11 +208,12 @@ async function generateCloze(opts: {
 // ---------------------------------------------------------------------------
 
 async function generateChoice(opts: {
+  db: DbClient;
   concept: { id: string; name: string; description: string | null };
   batchId: string;
   provider: GenerationProvider;
 }): Promise<"approved" | "flagged"> {
-  const { concept, batchId, provider } = opts;
+  const { db, concept, batchId, provider } = opts;
 
   // Render template (no few-shot for choice in this phase)
   const prompt = renderTemplate("choice-v1.txt", {
@@ -238,12 +242,12 @@ async function generateChoice(opts: {
   const status = allPassed ? "approved" : "flagged";
 
   const now = new Date();
-  const model = process.env.STRUS_GENERATION_MODEL ?? "gemini-2.0-flash-exp";
+  const { STRUS_GENERATION_MODEL } = getConfig();
 
   // Insert note
   const noteId = randomUUID();
   const generationMeta = JSON.stringify({
-    model,
+    model: STRUS_GENERATION_MODEL,
     template: "choice-v1",
     batchId,
     generatedAt: now.toISOString(),
@@ -296,8 +300,10 @@ export async function generateBatch(opts: {
   conceptId: string;
   count: number;
   difficulty?: 1 | 2 | 3;
+  db: DbClient;
   provider: GenerationProvider;
 }): Promise<BatchResult> {
+  const { db } = opts;
   const batchId = randomUUID();
 
   const [concept] = db
@@ -320,6 +326,7 @@ export async function generateBatch(opts: {
 
       if (opts.kind === "cloze") {
         status = await generateCloze({
+          db,
           concept,
           batchId,
           difficulty: opts.difficulty ?? 2,
@@ -327,6 +334,7 @@ export async function generateBatch(opts: {
         });
       } else {
         status = await generateChoice({
+          db,
           concept,
           batchId,
           provider: opts.provider,

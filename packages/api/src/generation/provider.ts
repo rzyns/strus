@@ -2,6 +2,7 @@ import { z } from "zod";
 import { GoogleGenAI, Type } from "@google/genai";
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
+import { getConfig } from "@strus/config";
 
 // ---------------------------------------------------------------------------
 // Provider interface
@@ -15,12 +16,9 @@ export interface GenerationProvider {
 // Zod → Gemini SchemaType converter
 // ---------------------------------------------------------------------------
 
-type GeminiSchemaType = typeof Type[keyof typeof Type];
-
 type GeminiSchema = {
-  type: GeminiSchemaType;
+  type: (typeof Type)[keyof typeof Type];
   description?: string;
-  nullable?: boolean;
   properties?: Record<string, GeminiSchema>;
   required?: string[];
   items?: GeminiSchema;
@@ -28,67 +26,50 @@ type GeminiSchema = {
 };
 
 function zodToGeminiSchema(schema: z.ZodTypeAny): GeminiSchema {
-  // Unwrap optional/nullable wrappers
-  if (schema instanceof z.ZodOptional) {
-    return { ...zodToGeminiSchema(schema.unwrap()), nullable: true };
+  if (schema instanceof z.ZodObject) {
+    const props: Record<string, GeminiSchema> = {};
+    const required: string[] = [];
+    for (const [key, value] of Object.entries(schema.shape)) {
+      props[key] = zodToGeminiSchema(value as z.ZodTypeAny);
+      // Only add to required if not optional/nullable/has default
+      if (
+        !(value instanceof z.ZodOptional) &&
+        !(value instanceof z.ZodNullable) &&
+        !(value instanceof z.ZodDefault)
+      ) {
+        required.push(key);
+      }
+    }
+    return {
+      type: Type.OBJECT,
+      properties: props,
+      ...(required.length > 0 ? { required } : {}),
+    };
   }
-  if (schema instanceof z.ZodNullable) {
-    return { ...zodToGeminiSchema(schema.unwrap()), nullable: true };
+
+  if (schema instanceof z.ZodArray) {
+    return { type: Type.ARRAY, items: zodToGeminiSchema(schema.element) };
   }
+
+  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable) {
+    // Unwrap and convert the inner type; Gemini doesn't have a nullable wrapper
+    return zodToGeminiSchema(schema.unwrap());
+  }
+
   if (schema instanceof z.ZodDefault) {
     return zodToGeminiSchema(schema._def.innerType);
   }
+
   if (schema instanceof z.ZodEffects) {
     return zodToGeminiSchema(schema.innerType());
   }
 
-  if (schema instanceof z.ZodObject) {
-    const shape = schema.shape as Record<string, z.ZodTypeAny>;
-    const properties: Record<string, GeminiSchema> = {};
-    const required: string[] = [];
-
-    for (const [key, value] of Object.entries(shape)) {
-      properties[key] = zodToGeminiSchema(value);
-      // A field is required unless it's explicitly optional or has a default
-      if (!(value instanceof z.ZodOptional) && !(value instanceof z.ZodDefault)) {
-        required.push(key);
-      }
-    }
-
-    const result: GeminiSchema = {
-      type: Type.OBJECT,
-      properties,
-    };
-    if (required.length > 0) {
-      result.required = required;
-    }
-    return result;
-  }
-
-  if (schema instanceof z.ZodArray) {
-    return {
-      type: Type.ARRAY,
-      items: zodToGeminiSchema(schema.element),
-    };
-  }
-
-  if (schema instanceof z.ZodString) {
-    return { type: Type.STRING };
-  }
-
-  if (schema instanceof z.ZodNumber) {
-    return { type: Type.NUMBER };
-  }
-
-  if (schema instanceof z.ZodBoolean) {
-    return { type: Type.BOOLEAN };
-  }
+  if (schema instanceof z.ZodString) return { type: Type.STRING };
+  if (schema instanceof z.ZodNumber) return { type: Type.NUMBER };
+  if (schema instanceof z.ZodBoolean) return { type: Type.BOOLEAN };
 
   if (schema instanceof z.ZodEnum) {
-    return {
-      type: Type.STRING,
-      enum: schema.options as string[],
-    };
+    return { type: Type.STRING, enum: schema.options as string[] };
   }
 
   if (schema instanceof z.ZodLiteral) {
@@ -98,8 +79,7 @@ function zodToGeminiSchema(schema: z.ZodTypeAny): GeminiSchema {
     if (typeof val === "boolean") return { type: Type.BOOLEAN };
   }
 
-  // Fallback: treat unknown as string
-  return { type: Type.STRING };
+  throw new Error(`Unsupported Zod type: ${schema.constructor.name}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -110,17 +90,17 @@ class GeminiProvider implements GenerationProvider {
   private ai: GoogleGenAI;
 
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY is required for GeminiProvider");
-    this.ai = new GoogleGenAI({ apiKey });
+    const { GEMINI_API_KEY } = getConfig();
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is required for GeminiProvider");
+    this.ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
   }
 
   async generateObject<T>(prompt: string, schema: z.ZodType<T>): Promise<T> {
-    const model = process.env.STRUS_GENERATION_MODEL ?? "gemini-2.0-flash-exp";
+    const { STRUS_GENERATION_MODEL } = getConfig();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const responseSchema = zodToGeminiSchema(schema as z.ZodTypeAny) as any;
     const result = await this.ai.models.generateContent({
-      model,
+      model: STRUS_GENERATION_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -140,16 +120,17 @@ class OpenAICompatProvider implements GenerationProvider {
   private client: OpenAI;
 
   constructor() {
+    const { STRUS_OPENAI_API_KEY, STRUS_OPENAI_BASE_URL } = getConfig();
     this.client = new OpenAI({
-      apiKey: process.env.STRUS_OPENAI_API_KEY ?? "ollama",
-      baseURL: process.env.STRUS_OPENAI_BASE_URL,
+      apiKey: STRUS_OPENAI_API_KEY ?? "ollama",
+      baseURL: STRUS_OPENAI_BASE_URL,
     });
   }
 
   async generateObject<T>(prompt: string, schema: z.ZodType<T>): Promise<T> {
-    const model = process.env.STRUS_GENERATION_MODEL ?? "gpt-4o-mini";
+    const { STRUS_GENERATION_MODEL } = getConfig();
     const completion = await this.client.chat.completions.parse({
-      model,
+      model: STRUS_GENERATION_MODEL,
       messages: [{ role: "user", content: prompt }],
       response_format: zodResponseFormat(schema as z.ZodType<T & Record<string, unknown>>, "output"),
     });
@@ -163,8 +144,8 @@ class OpenAICompatProvider implements GenerationProvider {
 // ---------------------------------------------------------------------------
 
 export function createProvider(): GenerationProvider {
-  const p = process.env.STRUS_GENERATION_PROVIDER ?? "gemini";
-  if (p === "gemini") return new GeminiProvider();
-  if (p === "openai-compatible") return new OpenAICompatProvider();
-  throw new Error(`Unknown STRUS_GENERATION_PROVIDER: ${p}`);
+  const { STRUS_GENERATION_PROVIDER } = getConfig();
+  if (STRUS_GENERATION_PROVIDER === "gemini") return new GeminiProvider();
+  if (STRUS_GENERATION_PROVIDER === "openai-compatible") return new OpenAICompatProvider();
+  throw new Error(`Unknown STRUS_GENERATION_PROVIDER: ${STRUS_GENERATION_PROVIDER}`);
 }

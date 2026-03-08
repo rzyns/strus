@@ -2903,6 +2903,7 @@ const generationGenerate = os
       kind: input.kind,
       conceptId: input.conceptId,
       count: input.count,
+      db,
       provider,
     };
     if (input.difficulty !== undefined) {
