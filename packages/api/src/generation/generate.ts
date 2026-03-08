@@ -60,6 +60,67 @@ function insertCardValues(cardData: Omit<import("@strus/core").Card, "id">) {
 }
 
 // ---------------------------------------------------------------------------
+// createCardsForNote — shared helper (idempotent)
+// ---------------------------------------------------------------------------
+
+/**
+ * Insert FSRS cards for an approved note.
+ * - cloze  → one cloze_fill card per gap
+ * - choice → one multiple_choice card
+ * - error  → one error_correction card
+ * - classifier → one classify card
+ *
+ * Returns the number of cards actually created (0 if they already exist).
+ */
+export async function createCardsForNote(
+  db: DbClient,
+  note: { id: string; kind: string },
+  gaps?: Array<{ id: string }>,
+): Promise<number> {
+  // Check idempotency — skip if any card already exists for this note
+  const existing = db
+    .select({ id: cards.id })
+    .from(cards)
+    .where(eq(cards.noteId, note.id))
+    .limit(1)
+    .all();
+
+  if (existing.length > 0) return 0;
+
+  let created = 0;
+
+  if (note.kind === "cloze") {
+    // Fetch gaps if not provided
+    const gapRows = gaps ?? db
+      .select({ id: clozeGaps.id })
+      .from(clozeGaps)
+      .where(eq(clozeGaps.noteId, note.id))
+      .all();
+
+    for (const gap of gapRows) {
+      const cardData = createCard(note.id, "cloze_fill");
+      db.insert(cards).values({
+        ...insertCardValues(cardData),
+        id: randomUUID(),
+        gapId: gap.id,
+      }).run();
+      created++;
+    }
+  } else if (note.kind === "choice") {
+    db.insert(cards).values(insertCardValues(createCard(note.id, "multiple_choice"))).run();
+    created++;
+  } else if (note.kind === "error") {
+    db.insert(cards).values(insertCardValues(createCard(note.id, "error_correction"))).run();
+    created++;
+  } else if (note.kind === "classifier") {
+    db.insert(cards).values(insertCardValues(createCard(note.id, "classify"))).run();
+    created++;
+  }
+
+  return created;
+}
+
+// ---------------------------------------------------------------------------
 // Few-shot example fetcher
 // ---------------------------------------------------------------------------
 
@@ -175,7 +236,8 @@ async function generateCloze(opts: {
     updatedAt: now,
   }).run();
 
-  // 7. Insert gaps (and cards if approved)
+  // 7. Insert gaps
+  const insertedGaps: Array<{ id: string }> = [];
   for (const gap of result.gaps) {
     const gapId = randomUUID();
     db.insert(clozeGaps).values({
@@ -189,15 +251,12 @@ async function generateCloze(opts: {
       explanation: gap.explanation,
       createdAt: now,
     }).run();
+    insertedGaps.push({ id: gapId });
+  }
 
-    if (status === "approved") {
-      const cardData = createCard(noteId, "cloze_fill");
-      db.insert(cards).values({
-        ...insertCardValues(cardData),
-        id: randomUUID(),
-        gapId,
-      }).run();
-    }
+  // 8. Create cards if approved
+  if (status === "approved") {
+    await createCardsForNote(db, { id: noteId, kind: "cloze" }, insertedGaps);
   }
 
   return status;
@@ -283,9 +342,9 @@ async function generateChoice(opts: {
     }).run();
   }
 
-  // Insert card if approved
+  // Create card if approved
   if (status === "approved") {
-    db.insert(cards).values(insertCardValues(createCard(noteId, "multiple_choice"))).run();
+    await createCardsForNote(db, { id: noteId, kind: "choice" });
   }
 
   return status;

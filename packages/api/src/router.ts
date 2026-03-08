@@ -6,7 +6,7 @@ import pkg from "../package.json" with { type: "json" };
 import { count, eq, lte, ne, like, and, or, inArray, asc, sql, isNull } from "drizzle-orm";
 import { db } from "@strus/db";
 import { createProvider } from "./generation/provider.js";
-import { generateBatch } from "./generation/generate.js";
+import { generateBatch, createCardsForNote } from "./generation/generate.js";
 import {
   vocabLists,
   lemmas,
@@ -2913,6 +2913,254 @@ const generationGenerate = os
   });
 
 // ---------------------------------------------------------------------------
+// notes.listDrafts — GET /notes/drafts
+// ---------------------------------------------------------------------------
+
+const notesListDrafts = os
+  .route({
+    method: "GET",
+    path: "/notes/drafts",
+    tags: ["Notes"],
+    summary: "List notes by status",
+    description: "Fetches notes (draft/flagged/approved/rejected) with their gaps or options included. Supports filtering by status, kind, and batchId.",
+  })
+  .input(
+    z.object({
+      status: z.enum(["draft", "flagged", "approved", "rejected"]).optional().describe("Filter by note status; omit for all statuses"),
+      kind: z.enum(["cloze", "choice", "error", "classifier"]).optional().describe("Filter by note kind"),
+      batchId: z.string().optional().describe("Filter by generation batch ID (matches generation_meta.batchId)"),
+      limit: z.number().int().min(1).max(100).default(20).describe("Maximum notes to return"),
+      offset: z.number().int().min(0).default(0).describe("Pagination offset"),
+    }),
+  )
+  .output(
+    z.object({
+      notes: z.array(
+        z.object({
+          id: z.string(),
+          kind: z.string(),
+          status: z.string(),
+          conceptId: z.string().nullable(),
+          sentenceId: z.string().nullable(),
+          explanation: z.string().nullable(),
+          generationMeta: z.string().nullable(),
+          createdAt: z.number(),
+          gaps: z.array(
+            z.object({
+              id: z.string(),
+              gapIndex: z.number(),
+              correctAnswers: z.string(),
+              hint: z.string().nullable(),
+              explanation: z.string().nullable(),
+            }),
+          ).optional(),
+          options: z.array(
+            z.object({
+              id: z.string(),
+              optionText: z.string(),
+              isCorrect: z.boolean(),
+              explanation: z.string().nullable(),
+            }),
+          ).optional(),
+          sentenceText: z.string().nullable().optional(),
+        }),
+      ),
+      total: z.number(),
+    }),
+  )
+  .handler(async ({ input }) => {
+    // Build filter conditions
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (input.status) conditions.push(eq(notes.status, input.status));
+    if (input.kind) conditions.push(eq(notes.kind, input.kind));
+
+    // Fetch notes (with batchId filter applied in-memory since SQLite JSON extract is fragile)
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    let rows = db
+      .select({
+        id: notes.id,
+        kind: notes.kind,
+        status: notes.status,
+        conceptId: notes.conceptId,
+        sentenceId: notes.sentenceId,
+        explanation: notes.explanation,
+        generationMeta: notes.generationMeta,
+        createdAt: notes.createdAt,
+        sentenceText: sentences.text,
+      })
+      .from(notes)
+      .leftJoin(sentences, eq(sentences.id, notes.sentenceId))
+      .where(whereClause)
+      .all();
+
+    // Filter by batchId in-memory
+    if (input.batchId) {
+      const batchId = input.batchId;
+      rows = rows.filter((r) => {
+        if (!r.generationMeta) return false;
+        try {
+          const meta = JSON.parse(r.generationMeta) as { batchId?: string };
+          return meta.batchId === batchId;
+        } catch {
+          return false;
+        }
+      });
+    }
+
+    const total = rows.length;
+    const pageRows = rows.slice(input.offset, input.offset + input.limit);
+
+    // Fetch gaps and options for the page
+    const noteIds = pageRows.map((r) => r.id);
+
+    const gapRows = noteIds.length > 0
+      ? db
+        .select({
+          id: clozeGaps.id,
+          noteId: clozeGaps.noteId,
+          gapIndex: clozeGaps.gapIndex,
+          correctAnswers: clozeGaps.correctAnswers,
+          hint: clozeGaps.hint,
+          explanation: clozeGaps.explanation,
+        })
+        .from(clozeGaps)
+        .where(inArray(clozeGaps.noteId, noteIds))
+        .all()
+      : [];
+
+    const optionRows = noteIds.length > 0
+      ? db
+        .select({
+          id: choiceOptions.id,
+          noteId: choiceOptions.noteId,
+          optionText: choiceOptions.optionText,
+          isCorrect: choiceOptions.isCorrect,
+          explanation: choiceOptions.explanation,
+        })
+        .from(choiceOptions)
+        .where(inArray(choiceOptions.noteId, noteIds))
+        .all()
+      : [];
+
+    // Group by noteId
+    const gapsByNote = new Map<string, typeof gapRows>();
+    for (const g of gapRows) {
+      const existing = gapsByNote.get(g.noteId) ?? [];
+      existing.push(g);
+      gapsByNote.set(g.noteId, existing);
+    }
+
+    const optionsByNote = new Map<string, typeof optionRows>();
+    for (const o of optionRows) {
+      const existing = optionsByNote.get(o.noteId) ?? [];
+      existing.push(o);
+      optionsByNote.set(o.noteId, existing);
+    }
+
+    const resultNotes = pageRows.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      status: r.status,
+      conceptId: r.conceptId,
+      sentenceId: r.sentenceId,
+      explanation: r.explanation,
+      generationMeta: r.generationMeta,
+      createdAt: r.createdAt instanceof Date ? Math.floor(r.createdAt.getTime() / 1000) : (r.createdAt as number),
+      sentenceText: r.sentenceText ?? null,
+      gaps: r.kind === "cloze" ? (gapsByNote.get(r.id) ?? []).map((g) => ({
+        id: g.id,
+        gapIndex: g.gapIndex,
+        correctAnswers: g.correctAnswers,
+        hint: g.hint,
+        explanation: g.explanation,
+      })) : undefined,
+      options: r.kind === "choice" ? (optionsByNote.get(r.id) ?? []).map((o) => ({
+        id: o.id,
+        optionText: o.optionText,
+        isCorrect: o.isCorrect,
+        explanation: o.explanation,
+      })) : undefined,
+    }));
+
+    return { notes: resultNotes, total };
+  });
+
+// ---------------------------------------------------------------------------
+// notes.review — POST /notes/review
+// ---------------------------------------------------------------------------
+
+const notesReview = os
+  .route({
+    method: "POST",
+    path: "/notes/review",
+    tags: ["Notes"],
+    summary: "Approve, flag, or reject a draft note",
+    description: "Transitions a note's status. On approve, FSRS cards are auto-created. Idempotent — re-approving a note that already has cards is safe.",
+  })
+  .input(
+    z.object({
+      noteId: z.string().uuid().describe("ID of the note to review"),
+      action: z.enum(["approve", "flag", "reject"]).describe("Triage action"),
+      reason: z.string().optional().describe("Optional human annotation for flag/reject actions"),
+    }),
+  )
+  .output(
+    z.object({
+      noteId: z.string(),
+      status: z.string(),
+      cardsCreated: z.number(),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const [note] = db
+      .select()
+      .from(notes)
+      .where(eq(notes.id, input.noteId))
+      .limit(1)
+      .all();
+
+    if (!note) {
+      throw new ORPCError("NOT_FOUND", { message: `Note not found: ${input.noteId}` });
+    }
+
+    const statusMap = {
+      approve: "approved",
+      flag: "flagged",
+      reject: "rejected",
+    } as const;
+
+    const newStatus = statusMap[input.action];
+    const now = new Date();
+
+    // Optionally append reason to generation_meta
+    let updatedMeta = note.generationMeta;
+    if (input.reason && (input.action === "flag" || input.action === "reject")) {
+      try {
+        const meta = updatedMeta ? (JSON.parse(updatedMeta) as Record<string, unknown>) : {};
+        meta["reviewReason"] = input.reason;
+        meta["reviewedAt"] = now.toISOString();
+        updatedMeta = JSON.stringify(meta);
+      } catch {
+        // If meta is malformed, just append a new object
+        updatedMeta = JSON.stringify({ reviewReason: input.reason, reviewedAt: now.toISOString() });
+      }
+    }
+
+    db.update(notes)
+      .set({ status: newStatus, generationMeta: updatedMeta, updatedAt: now })
+      .where(eq(notes.id, input.noteId))
+      .run();
+
+    let cardsCreated = 0;
+    if (input.action === "approve") {
+      cardsCreated = await createCardsForNote(db, { id: note.id, kind: note.kind });
+    }
+
+    return { noteId: input.noteId, status: newStatus, cardsCreated };
+  });
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -2946,6 +3194,8 @@ export const router = {
     createChoice: notesCreateChoice,
     createError: notesCreateError,
     createClassifier: notesCreateClassifier,
+    listDrafts: notesListDrafts,
+    review: notesReview,
   },
   lemmas: {
     list: lemmasList,

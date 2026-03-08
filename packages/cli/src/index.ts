@@ -1119,6 +1119,240 @@ generateCmd
   );
 
 // ---------------------------------------------------------------------------
+// strus review — human triage for LLM-generated notes
+// ---------------------------------------------------------------------------
+
+interface DraftNote {
+  id: string;
+  kind: string;
+  status: string;
+  conceptId: string | null;
+  sentenceId: string | null;
+  explanation: string | null;
+  generationMeta: string | null;
+  createdAt: number;
+  sentenceText?: string | null;
+  gaps?: Array<{
+    id: string;
+    gapIndex: number;
+    correctAnswers: string;
+    hint: string | null;
+    explanation: string | null;
+  }>;
+  options?: Array<{
+    id: string;
+    optionText: string;
+    isCorrect: boolean;
+    explanation: string | null;
+  }>;
+}
+
+function parseMeta(raw: string | null): Record<string, unknown> {
+  if (!raw) return {};
+  try { return JSON.parse(raw) as Record<string, unknown>; } catch { return {}; }
+}
+
+function renderNote(note: DraftNote, index: number, total: number): void {
+  const meta = parseMeta(note.generationMeta);
+  const batchId = (meta["batchId"] as string | undefined) ?? "(none)";
+  const validationResults = (meta["validationResults"] as Array<{ layer: string; pass: boolean }> | undefined) ?? [];
+
+  console.log("\n" + "─".repeat(45));
+  console.log(`Note #${index} of ${total}  [${note.kind} | ${note.status}]`);
+  console.log(`Concept: ${note.conceptId ?? "(none)"}`);
+  console.log(`Batch:   ${batchId}`);
+
+  if (note.sentenceText) {
+    console.log(`\nSentence: "${note.sentenceText}"`);
+  }
+
+  if (note.kind === "cloze" && note.gaps && note.gaps.length > 0) {
+    for (const gap of note.gaps) {
+      const answers = (() => {
+        try { return JSON.stringify(JSON.parse(gap.correctAnswers)); }
+        catch { return gap.correctAnswers; }
+      })();
+      console.log(`\nGap ${gap.gapIndex}:`);
+      console.log(`  Correct answers: ${answers}`);
+      if (gap.hint) console.log(`  Hint: ${gap.hint}`);
+      if (gap.explanation) console.log(`  Explanation: ${gap.explanation}`);
+    }
+  } else if (note.kind === "choice" && note.options && note.options.length > 0) {
+    // For choice notes, front is stored in the note itself — fetch from notes API if needed
+    console.log(`\nOptions:`);
+    for (const opt of note.options) {
+      const marker = opt.isCorrect ? "✓" : " ";
+      console.log(`  [${marker}] ${opt.optionText}${opt.explanation ? `  — ${opt.explanation}` : ""}`);
+    }
+  }
+
+  if (note.explanation) {
+    console.log(`\nExplanation: ${note.explanation}`);
+  }
+
+  if (validationResults.length > 0) {
+    const validationStr = validationResults
+      .map((r) => `${r.layer} ${r.pass ? "✓" : "✗"}`)
+      .join(" | ");
+    console.log(`\nValidation: ${validationStr}`);
+  }
+
+  console.log("─".repeat(45));
+  process.stdout.write("[a]pprove  [f]lag  [r]eject  [s]kip  [q]uit\n> ");
+}
+
+/** Read a single keypress from stdin (raw mode). Returns the key character. */
+function readKeypress(): Promise<string> {
+  return new Promise((resolve) => {
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.setEncoding("utf8");
+    const onData = (key: string) => {
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+      process.stdin.removeListener("data", onData);
+      resolve(key);
+    };
+    process.stdin.on("data", onData);
+  });
+}
+
+const reviewCmd = program
+  .command("review")
+  .description("Triage LLM-generated draft notes (approve/flag/reject)");
+
+// `strus review` — interactive mode
+reviewCmd
+  .command("queue", { isDefault: true })
+  .description("Interactive triage: walk through draft notes one by one")
+  .option("--batch <id>", "Filter by generation batch ID")
+  .option("--kind <kind>", "Filter by note kind (cloze|choice|error|classifier)")
+  .option("--status <status>", "Filter by status (default: draft)", "draft")
+  .action(
+    async (opts: { batch?: string; kind?: string; status?: string }) => {
+      const qs = new URLSearchParams();
+      qs.set("limit", "100");
+      qs.set("offset", "0");
+      if (opts.status) qs.set("status", opts.status);
+      if (opts.kind) qs.set("kind", opts.kind);
+      if (opts.batch) qs.set("batchId", opts.batch);
+
+      const result = await apiGet<{ notes: DraftNote[]; total: number }>(
+        `/api/notes/drafts?${qs.toString()}`,
+      );
+
+      const queue = result.notes;
+
+      if (queue.length === 0) {
+        console.log(`No notes found with status="${opts.status ?? "draft"}".`);
+        return;
+      }
+
+      let approved = 0;
+      let flagged = 0;
+      let rejected = 0;
+      let skipped = 0;
+      let reviewedCount = 0;
+      let quit = false;
+
+      for (const [idx, note] of queue.entries()) {
+        if (quit) break;
+        renderNote(note, idx + 1, queue.length);
+
+        let handled = false;
+        while (!handled) {
+          const key = (await readKeypress()).toLowerCase();
+          process.stdout.write("\n");
+
+          if (key === "q" || key === "\u0003" /* Ctrl-C */) {
+            console.log("Quitting triage...");
+            quit = true;
+            handled = true;
+            break;
+          }
+
+          if (key === "s") {
+            skipped++;
+            handled = true;
+            break;
+          }
+
+          let action: "approve" | "flag" | "reject" | null = null;
+          if (key === "a") action = "approve";
+          else if (key === "f") action = "flag";
+          else if (key === "r") action = "reject";
+
+          if (action) {
+            try {
+              const res = await apiPost<{ noteId: string; status: string; cardsCreated: number }>(
+                "/api/notes/review",
+                { noteId: note.id, action },
+              );
+              console.log(
+                `→ ${res.status}${action === "approve" && res.cardsCreated > 0 ? ` (${res.cardsCreated} card(s) created)` : ""}`,
+              );
+              reviewedCount++;
+              if (action === "approve") approved++;
+              else if (action === "flag") flagged++;
+              else if (action === "reject") rejected++;
+            } catch (err) {
+              console.error(`API error: ${String(err)}`);
+            }
+            handled = true;
+          } else {
+            process.stdout.write("Unknown key. Use [a]pprove [f]lag [r]eject [s]kip [q]uit\n> ");
+          }
+        }
+      }
+
+      console.log(
+        `\nSession complete. Reviewed: ${reviewedCount} | Approved: ${approved} | Flagged: ${flagged} | Rejected: ${rejected} | Skipped: ${skipped}`,
+      );
+    },
+  );
+
+// `strus review stats` — non-interactive counts
+reviewCmd
+  .command("stats")
+  .description("Show note counts by status")
+  .option("--batch <id>", "Filter by generation batch ID")
+  .action(async (opts: { batch?: string }) => {
+    const qs = new URLSearchParams();
+    qs.set("limit", "1000");
+    qs.set("offset", "0");
+    if (opts.batch) qs.set("batchId", opts.batch);
+
+    const result = await apiGet<{ notes: DraftNote[]; total: number }>(
+      `/api/notes/drafts?${qs.toString()}`,
+    );
+
+    const counts: Record<string, number> = {};
+    for (const note of result.notes) {
+      counts[note.status] = (counts[note.status] ?? 0) + 1;
+    }
+
+    const statuses = ["draft", "approved", "flagged", "rejected"];
+    const total = result.notes.length;
+
+    console.log(`\n${"Status".padEnd(12)}${"Count".padStart(6)}`);
+    console.log("─".repeat(12) + "  " + "─".repeat(5));
+    for (const s of statuses) {
+      if (counts[s] !== undefined) {
+        console.log(`${s.padEnd(12)}${String(counts[s]).padStart(6)}`);
+      }
+    }
+    // Any statuses not in the standard list
+    for (const [s, c] of Object.entries(counts)) {
+      if (!statuses.includes(s)) {
+        console.log(`${s.padEnd(12)}${String(c).padStart(6)}`);
+      }
+    }
+    console.log("─".repeat(12) + "  " + "─".repeat(5));
+    console.log(`${"total".padEnd(12)}${String(total).padStart(6)}`);
+    console.log();
+  });
+
+// ---------------------------------------------------------------------------
 // Run
 // ---------------------------------------------------------------------------
 
