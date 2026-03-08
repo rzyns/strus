@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import Mustache from "mustache";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import {
   grammarConcepts,
   sentences,
@@ -10,6 +10,8 @@ import {
   cards,
   clozeGaps,
   choiceOptions,
+  semanticClusterMembers,
+  lemmas,
 } from "@strus/db";
 import type { DbClient } from "@strus/db";
 import { createCard } from "@strus/core";
@@ -263,6 +265,54 @@ async function generateCloze(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// getClusterSiblings — fetch lemma strings from the same clusters
+// ---------------------------------------------------------------------------
+
+async function getClusterSiblings(
+  db: DbClient,
+  lemmaId: string,
+  limit: number,
+): Promise<string[]> {
+  // Find all clusters this lemma belongs to
+  const memberRows = db
+    .select({ clusterId: semanticClusterMembers.clusterId })
+    .from(semanticClusterMembers)
+    .where(eq(semanticClusterMembers.lemmaId, lemmaId))
+    .all();
+
+  if (memberRows.length === 0) return [];
+
+  const clusterIds = memberRows.map((r) => r.clusterId);
+
+  // Fetch all other members from those clusters
+  const siblingRows = db
+    .select({ lemmaId: semanticClusterMembers.lemmaId })
+    .from(semanticClusterMembers)
+    .where(inArray(semanticClusterMembers.clusterId, clusterIds))
+    .all()
+    .filter((r) => r.lemmaId !== lemmaId);
+
+  if (siblingRows.length === 0) return [];
+
+  const siblingLemmaIds = [...new Set(siblingRows.map((r) => r.lemmaId))];
+
+  // Fetch actual lemma strings
+  const lemmaRows = db
+    .select({ id: lemmas.id, lemma: lemmas.lemma })
+    .from(lemmas)
+    .where(inArray(lemmas.id, siblingLemmaIds))
+    .all();
+
+  // Shuffle and cap
+  const shuffled = lemmaRows
+    .map((l) => ({ sort: Math.random(), lemma: l.lemma }))
+    .sort((a, b) => a.sort - b.sort)
+    .map((l) => l.lemma);
+
+  return shuffled.slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
 // generateChoice — one choice note + options + card
 // ---------------------------------------------------------------------------
 
@@ -274,10 +324,25 @@ async function generateChoice(opts: {
 }): Promise<"approved" | "flagged"> {
   const { db, concept, batchId, provider } = opts;
 
-  // Render template (no few-shot for choice in this phase)
+  // Find cluster siblings from the concept's lemma (if concept has an associated note with a lemma)
+  const conceptNoteRows = db
+    .select({ lemmaId: notes.lemmaId })
+    .from(notes)
+    .where(and(eq(notes.conceptId, concept.id)))
+    .all()
+    .filter((n) => n.lemmaId !== null);
+
+  let clusterDistractors: string[] = [];
+  if (conceptNoteRows.length > 0) {
+    const firstLemmaId = conceptNoteRows[0]!.lemmaId as string;
+    clusterDistractors = await getClusterSiblings(db, firstLemmaId, 5);
+  }
+
+  // Render template
   const prompt = renderTemplate("choice-v1.txt", {
     concept_name: concept.name,
     sentence_context: null,
+    cluster_distractors: clusterDistractors.length > 0 ? clusterDistractors : null,
   });
 
   // Generate

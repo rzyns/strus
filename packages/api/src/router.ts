@@ -20,8 +20,10 @@ import {
   sentenceConcepts,
   clozeGaps,
   choiceOptions,
+  semanticClusters,
+  semanticClusterMembers,
 } from "@strus/db";
-import { generate, parseTag, tagGender, analyseText } from "@strus/morph";
+import { generate, parseTag, tagGender, analyseText, analyse } from "@strus/morph";
 import { generateAudio, generateImage, getMediaBaseUrl } from "./media.js";
 import { getSetting, setSetting, SETTINGS_KEYS, DEFAULTS } from "./settings.js";
 import {
@@ -2860,6 +2862,383 @@ const settingsSet = os
   });
 
 // ---------------------------------------------------------------------------
+// Semantic Cluster procedures
+// ---------------------------------------------------------------------------
+
+const ClusterOutput = z.object({
+  id: zId,
+  name: z.string(),
+  clusterType: z.string(),
+  description: z.string().nullable(),
+  createdAt: zIso,
+});
+
+const clustersCreate = os
+  .route({
+    method: "POST",
+    path: "/clusters",
+    tags: ["Clusters"],
+    summary: "Create a semantic cluster",
+  })
+  .input(z.object({
+    name: z.string().min(1).describe("Cluster name, e.g. 'motion verbs'"),
+    clusterType: z.string().min(1).describe("Cluster type: prefix_family | vom_group | aspect_pair | custom"),
+    description: z.string().optional().describe("Optional description"),
+  }))
+  .output(z.object({ id: zId, name: z.string() }))
+  .handler(async ({ input }) => {
+    const id = crypto.randomUUID();
+    const now = new Date();
+    db.insert(semanticClusters).values({
+      id,
+      name: input.name,
+      clusterType: input.clusterType,
+      description: input.description ?? null,
+      createdAt: now,
+    }).run();
+    return { id, name: input.name };
+  });
+
+const clustersList = os
+  .route({
+    method: "GET",
+    path: "/clusters",
+    tags: ["Clusters"],
+    summary: "List semantic clusters",
+  })
+  .input(z.object({
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }))
+  .output(z.object({
+    clusters: z.array(z.object({
+      id: zId,
+      name: z.string(),
+      clusterType: z.string(),
+      description: z.string().nullable(),
+      memberCount: z.number(),
+    })),
+    total: z.number(),
+  }))
+  .handler(async ({ input }) => {
+    const rows = db.select().from(semanticClusters)
+      .limit(input.limit)
+      .offset(input.offset)
+      .all();
+
+    const totalResult = db.select({ total: count() }).from(semanticClusters).all();
+    const total = totalResult[0]?.total ?? 0;
+
+    const clusters = rows.map((r) => {
+      const memberResult = db
+        .select({ memberCount: count() })
+        .from(semanticClusterMembers)
+        .where(eq(semanticClusterMembers.clusterId, r.id))
+        .all();
+      const memberCount = memberResult[0]?.memberCount ?? 0;
+      return {
+        id: r.id,
+        name: r.name,
+        clusterType: r.clusterType,
+        description: r.description,
+        memberCount,
+      };
+    });
+
+    return { clusters, total: total ?? 0 };
+  });
+
+const clustersGet = os
+  .route({
+    method: "GET",
+    path: "/clusters/{id}",
+    tags: ["Clusters"],
+    summary: "Get a semantic cluster with its members",
+  })
+  .input(z.object({ id: zId }))
+  .output(z.object({
+    id: zId,
+    name: z.string(),
+    clusterType: z.string(),
+    description: z.string().nullable(),
+    members: z.array(z.object({
+      lemmaId: zId,
+      lemma: z.string(),
+      pos: z.string().nullable(),
+    })),
+  }))
+  .handler(async ({ input }) => {
+    const [cluster] = db.select().from(semanticClusters)
+      .where(eq(semanticClusters.id, input.id))
+      .limit(1)
+      .all();
+    if (!cluster) throw new ORPCError("NOT_FOUND", { message: `Cluster not found: ${input.id}` });
+
+    const memberRows = db
+      .select({
+        lemmaId: semanticClusterMembers.lemmaId,
+        lemma: lemmas.lemma,
+        pos: lemmas.pos,
+      })
+      .from(semanticClusterMembers)
+      .innerJoin(lemmas, eq(lemmas.id, semanticClusterMembers.lemmaId))
+      .where(eq(semanticClusterMembers.clusterId, input.id))
+      .all();
+
+    return {
+      id: cluster.id,
+      name: cluster.name,
+      clusterType: cluster.clusterType,
+      description: cluster.description,
+      members: memberRows.map((m) => ({
+        lemmaId: m.lemmaId,
+        lemma: m.lemma,
+        pos: m.pos ?? null,
+      })),
+    };
+  });
+
+const clustersAddMember = os
+  .route({
+    method: "POST",
+    path: "/clusters/{clusterId}/members",
+    tags: ["Clusters"],
+    summary: "Add a lemma to a semantic cluster (idempotent)",
+  })
+  .input(z.object({
+    clusterId: zId,
+    lemmaId: zId,
+  }))
+  .output(z.object({ clusterId: zId, lemmaId: zId }))
+  .handler(async ({ input }) => {
+    // Verify cluster exists
+    const [cluster] = db.select({ id: semanticClusters.id }).from(semanticClusters)
+      .where(eq(semanticClusters.id, input.clusterId)).limit(1).all();
+    if (!cluster) throw new ORPCError("NOT_FOUND", { message: `Cluster not found: ${input.clusterId}` });
+
+    // Verify lemma exists
+    const [lemma] = db.select({ id: lemmas.id }).from(lemmas)
+      .where(eq(lemmas.id, input.lemmaId)).limit(1).all();
+    if (!lemma) throw new ORPCError("NOT_FOUND", { message: `Lemma not found: ${input.lemmaId}` });
+
+    // Idempotent insert — ignore if already exists
+    const existing = db.select().from(semanticClusterMembers)
+      .where(and(
+        eq(semanticClusterMembers.clusterId, input.clusterId),
+        eq(semanticClusterMembers.lemmaId, input.lemmaId),
+      ))
+      .limit(1)
+      .all();
+
+    if (existing.length === 0) {
+      db.insert(semanticClusterMembers).values({
+        clusterId: input.clusterId,
+        lemmaId: input.lemmaId,
+        role: null,
+      }).run();
+    }
+
+    return { clusterId: input.clusterId, lemmaId: input.lemmaId };
+  });
+
+const clustersRemoveMember = os
+  .route({
+    method: "DELETE",
+    path: "/clusters/{clusterId}/members/{lemmaId}",
+    tags: ["Clusters"],
+    summary: "Remove a lemma from a semantic cluster",
+  })
+  .input(z.object({
+    clusterId: zId,
+    lemmaId: zId,
+  }))
+  .output(z.object({ removed: z.boolean() }))
+  .handler(async ({ input }) => {
+    const existing = db.select().from(semanticClusterMembers)
+      .where(and(
+        eq(semanticClusterMembers.clusterId, input.clusterId),
+        eq(semanticClusterMembers.lemmaId, input.lemmaId),
+      ))
+      .limit(1)
+      .all();
+
+    if (existing.length === 0) return { removed: false };
+
+    db.delete(semanticClusterMembers)
+      .where(and(
+        eq(semanticClusterMembers.clusterId, input.clusterId),
+        eq(semanticClusterMembers.lemmaId, input.lemmaId),
+      ))
+      .run();
+
+    return { removed: true };
+  });
+
+const clustersSuggest = os
+  .route({
+    method: "GET",
+    path: "/clusters/suggest",
+    tags: ["Clusters"],
+    summary: "Suggest cluster candidates for a lemma",
+    description: "Pure DB scoring: same POS class (+0.4) + shared grammar concepts (+0.3 each, capped at +0.6) - already clustered (-0.1).",
+  })
+  .input(z.object({
+    lemmaId: zId,
+    limit: z.number().int().min(1).max(50).default(10),
+  }))
+  .output(z.object({
+    suggestions: z.array(z.object({
+      lemmaId: zId,
+      lemma: z.string(),
+      pos: z.string().nullable(),
+      score: z.number(),
+      reasons: z.array(z.string()),
+    })),
+  }))
+  .handler(async ({ input }) => {
+    // 1. Get target lemma
+    const [targetLemma] = db.select().from(lemmas)
+      .where(eq(lemmas.id, input.lemmaId))
+      .limit(1)
+      .all();
+    if (!targetLemma) throw new ORPCError("NOT_FOUND", { message: `Lemma not found: ${input.lemmaId}` });
+
+    // 2. Get POS class from Morfeusz2 analysis
+    let targetPosClass: string | null = null;
+    try {
+      const forms = await analyse(targetLemma.lemma);
+      if (forms.length > 0) {
+        const tag = forms[0]!.tag;
+        targetPosClass = tag.split(":")[0] ?? null;
+      }
+    } catch {
+      // Fallback to stored pos if Morfeusz2 fails
+      targetPosClass = targetLemma.pos ? targetLemma.pos.split(":")[0] ?? null : null;
+    }
+
+    // 3. Get grammar concepts for the target lemma (via notes.conceptId and sentence_concepts)
+    const targetNoteRows = db.select({ conceptId: notes.conceptId })
+      .from(notes)
+      .where(and(eq(notes.lemmaId, input.lemmaId)))
+      .all()
+      .filter((n) => n.conceptId !== null);
+    const targetConceptIds = new Set(targetNoteRows.map((n) => n.conceptId as string));
+
+    // Also pick up sentence_concepts linked via notes' sentences
+    const targetSentenceRows = db.select({ conceptId: sentenceConcepts.conceptId })
+      .from(sentenceConcepts)
+      .innerJoin(notes, eq(notes.sentenceId, sentenceConcepts.sentenceId))
+      .where(eq(notes.lemmaId, input.lemmaId))
+      .all();
+    for (const row of targetSentenceRows) {
+      targetConceptIds.add(row.conceptId);
+    }
+
+    // 4. Get clusters the target lemma is already in
+    const targetClusterRows = db.select({ clusterId: semanticClusterMembers.clusterId })
+      .from(semanticClusterMembers)
+      .where(eq(semanticClusterMembers.lemmaId, input.lemmaId))
+      .all();
+    const targetClusterIds = new Set(targetClusterRows.map((r) => r.clusterId));
+
+    // 5. Get all lemmas that share a cluster with the target (for -0.1 penalty)
+    const coClusteredLemmaIds = new Set<string>();
+    if (targetClusterIds.size > 0) {
+      const coRows = db.select({ lemmaId: semanticClusterMembers.lemmaId })
+        .from(semanticClusterMembers)
+        .where(inArray(semanticClusterMembers.clusterId, [...targetClusterIds]))
+        .all();
+      for (const r of coRows) {
+        if (r.lemmaId !== input.lemmaId) coClusteredLemmaIds.add(r.lemmaId);
+      }
+    }
+
+    // 6. Get all other lemmas
+    const allLemmas = db.select().from(lemmas)
+      .where(ne(lemmas.id, input.lemmaId))
+      .all();
+
+    // 7. Score each candidate
+    const scored: Array<{
+      lemmaId: string;
+      lemma: string;
+      pos: string | null;
+      score: number;
+      reasons: string[];
+    }> = [];
+
+    for (const candidate of allLemmas) {
+      let score = 0;
+      const reasons: string[] = [];
+
+      // POS class scoring
+      if (targetPosClass !== null) {
+        const candidatePosClass = candidate.pos ? candidate.pos.split(":")[0] ?? null : null;
+        if (candidatePosClass === targetPosClass) {
+          score += 0.4;
+          reasons.push("same POS class");
+        }
+      }
+
+      // Shared grammar concepts
+      const candidateNoteRows = db.select({ conceptId: notes.conceptId })
+        .from(notes)
+        .where(eq(notes.lemmaId, candidate.id))
+        .all()
+        .filter((n) => n.conceptId !== null);
+      const candidateConceptIds = new Set(candidateNoteRows.map((n) => n.conceptId as string));
+
+      const candidateSentenceRows = db.select({ conceptId: sentenceConcepts.conceptId })
+        .from(sentenceConcepts)
+        .innerJoin(notes, eq(notes.sentenceId, sentenceConcepts.sentenceId))
+        .where(eq(notes.lemmaId, candidate.id))
+        .all();
+      for (const row of candidateSentenceRows) {
+        candidateConceptIds.add(row.conceptId);
+      }
+
+      let conceptBonus = 0;
+      for (const cid of candidateConceptIds) {
+        if (targetConceptIds.has(cid)) {
+          // Look up concept name for reason string
+          const [concept] = db.select({ name: grammarConcepts.name })
+            .from(grammarConcepts)
+            .where(eq(grammarConcepts.id, cid))
+            .limit(1)
+            .all();
+          const bonus = Math.min(0.3, 0.6 - conceptBonus);
+          if (bonus > 0) {
+            conceptBonus += 0.3;
+            score += bonus;
+            reasons.push(`shares concept: ${concept?.name ?? cid}`);
+          }
+          if (conceptBonus >= 0.6) break;
+        }
+      }
+
+      // Penalty for already co-clustered
+      if (coClusteredLemmaIds.has(candidate.id)) {
+        score -= 0.1;
+        reasons.push("already in same cluster");
+      }
+
+      if (score > 0) {
+        scored.push({
+          lemmaId: candidate.id,
+          lemma: candidate.lemma,
+          pos: candidate.pos ?? null,
+          score: Math.max(0, Math.round(score * 100) / 100),
+          reasons,
+        });
+      }
+    }
+
+    // Sort descending by score, return top N
+    scored.sort((a, b) => b.score - a.score);
+    return { suggestions: scored.slice(0, input.limit) };
+  });
+
+// ---------------------------------------------------------------------------
 // Generation procedures
 // ---------------------------------------------------------------------------
 
@@ -3229,6 +3608,14 @@ export const router = {
   },
   generation: {
     generate: generationGenerate,
+  },
+  clusters: {
+    create: clustersCreate,
+    list: clustersList,
+    get: clustersGet,
+    addMember: clustersAddMember,
+    removeMember: clustersRemoveMember,
+    suggest: clustersSuggest,
   },
 };
 

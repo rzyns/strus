@@ -1353,6 +1353,152 @@ reviewCmd
   });
 
 // ---------------------------------------------------------------------------
+// strus cluster
+// ---------------------------------------------------------------------------
+
+const clusterCmd = program
+  .command("cluster")
+  .description("Manage semantic clusters");
+
+// strus cluster create
+clusterCmd
+  .command("create")
+  .description("Create a new semantic cluster")
+  .requiredOption("--name <name>", "Cluster name (e.g. 'motion verbs')")
+  .option("--type <type>", "Cluster type (prefix_family|vom_group|aspect_pair|custom)", "custom")
+  .option("--description <desc>", "Optional description")
+  .action(async (opts: { name: string; type: string; description?: string }) => {
+    const result = await apiPost<{ id: string; name: string }>("/api/clusters", {
+      name: opts.name,
+      clusterType: opts.type,
+      description: opts.description,
+    });
+    console.log(`Created cluster: ${result.name} (${result.id})`);
+  });
+
+// strus cluster list
+clusterCmd
+  .command("list")
+  .description("List semantic clusters")
+  .option("--limit <n>", "Max results", "50")
+  .option("--offset <n>", "Offset", "0")
+  .action(async (opts: { limit: string; offset: string }) => {
+    const qs = new URLSearchParams({ limit: opts.limit, offset: opts.offset });
+    const result = await apiGet<{
+      clusters: Array<{ id: string; name: string; clusterType: string; description: string | null; memberCount: number }>;
+      total: number;
+    }>(`/api/clusters?${qs}`);
+
+    if (result.clusters.length === 0) {
+      console.log("No clusters found.");
+      return;
+    }
+
+    console.log(`\n${"Name".padEnd(30)}${"Type".padEnd(16)}${"Members".padStart(8)}  ID`);
+    console.log("─".repeat(75));
+    for (const c of result.clusters) {
+      console.log(
+        `${c.name.padEnd(30)}${c.clusterType.padEnd(16)}${String(c.memberCount).padStart(8)}  ${c.id}`,
+      );
+    }
+    console.log(`\nTotal: ${result.total}`);
+  });
+
+// strus cluster show <id>
+clusterCmd
+  .command("show <id>")
+  .description("Show a semantic cluster with its members")
+  .action(async (id: string) => {
+    const cluster = await apiGet<{
+      id: string;
+      name: string;
+      clusterType: string;
+      description: string | null;
+      members: Array<{ lemmaId: string; lemma: string; pos: string | null }>;
+    }>(`/api/clusters/${id}`);
+
+    console.log(`\nCluster: ${cluster.name}`);
+    console.log(`Type:    ${cluster.clusterType}`);
+    if (cluster.description) console.log(`Desc:    ${cluster.description}`);
+    console.log(`ID:      ${cluster.id}`);
+    console.log(`Members: ${cluster.members.length}`);
+
+    if (cluster.members.length > 0) {
+      console.log("\n  Lemma                   POS              ID");
+      console.log("  " + "─".repeat(65));
+      for (const m of cluster.members) {
+        console.log(`  ${m.lemma.padEnd(24)}${(m.pos ?? "—").padEnd(16)} ${m.lemmaId}`);
+      }
+    }
+    console.log();
+  });
+
+// strus cluster add-member
+clusterCmd
+  .command("add-member")
+  .description("Add a lemma to a semantic cluster")
+  .requiredOption("--cluster <id>", "Cluster ID")
+  .requiredOption("--lemma <id>", "Lemma ID")
+  .action(async (opts: { cluster: string; lemma: string }) => {
+    const result = await apiPost<{ clusterId: string; lemmaId: string }>(
+      `/api/clusters/${opts.cluster}/members`,
+      { clusterId: opts.cluster, lemmaId: opts.lemma },
+    );
+    console.log(`Added lemma ${result.lemmaId} to cluster ${result.clusterId}`);
+  });
+
+// strus cluster remove-member
+clusterCmd
+  .command("remove-member")
+  .description("Remove a lemma from a semantic cluster")
+  .requiredOption("--cluster <id>", "Cluster ID")
+  .requiredOption("--lemma <id>", "Lemma ID")
+  .action(async (opts: { cluster: string; lemma: string }) => {
+    const result = await apiDelete<{ removed: boolean }>(
+      `/api/clusters/${opts.cluster}/members/${opts.lemma}`,
+    );
+    console.log(result.removed ? "Member removed." : "Member not found (already removed).");
+  });
+
+// strus cluster suggest
+clusterCmd
+  .command("suggest")
+  .description("Suggest cluster candidates for a lemma")
+  .requiredOption("--lemma <id>", "Lemma ID")
+  .option("--limit <n>", "Max suggestions", "10")
+  .action(async (opts: { lemma: string; limit: string }) => {
+    const qs = new URLSearchParams({ lemmaId: opts.lemma, limit: opts.limit });
+    const result = await apiGet<{
+      suggestions: Array<{
+        lemmaId: string;
+        lemma: string;
+        pos: string | null;
+        score: number;
+        reasons: string[];
+      }>;
+    }>(`/api/clusters/suggest?${qs}`);
+
+    if (result.suggestions.length === 0) {
+      console.log("No suggestions found.");
+      return;
+    }
+
+    // Get the target lemma name for the header
+    const firstSugg = result.suggestions[0];
+    console.log(`\nSuggestions (${result.suggestions.length}):\n`);
+
+    for (const [i, s] of result.suggestions.entries()) {
+      const posLabel = s.pos ? `[${s.pos}]` : "";
+      const scoreStr = s.score.toFixed(2);
+      const reasonStr = s.reasons.join("; ");
+      console.log(
+        `  ${String(i + 1).padStart(2)}. ${s.lemma.padEnd(20)} ${posLabel.padEnd(12)} score: ${scoreStr}  — ${reasonStr}`,
+      );
+    }
+    console.log();
+  });
+
+// ---------------------------------------------------------------------------
 // Run
 // ---------------------------------------------------------------------------
 
