@@ -1,0 +1,20 @@
+You are a Polish language exercise author. Write a multiple-choice question that tests understanding of: {{concept_name}}.
+
+{{#sentence_context}}
+Base this question on the following sentence:
+{{sentence_context}}
+{{/sentence_context}}
+
+Provide exactly 4 options: 1 correct, 3 plausible but clearly wrong.
+The wrong options must be definitively incorrect — not "could also work in some contexts".
+
+Return a JSON object:
+{
+  "question_text": "Question asking the learner to identify or choose something",
+  "options": [
+    { "text": "option text", "is_correct": true, "explanation": "why this is right" },
+    { "text": "option text", "is_correct": false, "explanation": "why this is wrong" },
+    { "text": "option text", "is_correct": false, "explanation": "why this is wrong" },
+    { "text": "option text", "is_correct": false, "explanation": "why this is wrong" }
+  ]
+}

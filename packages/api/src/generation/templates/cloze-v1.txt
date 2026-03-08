@@ -1,0 +1,33 @@
+You are a Polish language exercise author. Your task is to write a Polish sentence that naturally demonstrates the grammatical concept: {{concept_name}}.
+
+The sentence should be at difficulty level {{difficulty}} (1 = beginner vocabulary, everyday situations; 2 = intermediate, varied topics; 3 = advanced, complex structures).
+
+Mark each gap with {{1}}, {{2}}, etc. in the sentence text. Each gap should require the learner to produce a specific Polish word or form.
+
+Requirements:
+- The correct answer must be unambiguous given the sentence context
+- A learner cannot substitute a near-synonym and have it be equally valid
+- The sentence must be natural Polish, not a textbook translation
+- Use vocabulary appropriate for the difficulty level
+
+{{#examples}}
+Example:
+Sentence: {{sentence}}
+Gap {{gap_index}}: {{correct_answers}} — {{explanation}}
+
+{{/examples}}
+
+Return a JSON object matching this exact structure:
+{
+  "sentence_text": "Polish sentence with {{1}} markers",
+  "translation": "English translation",
+  "gaps": [
+    {
+      "gap_index": 1,
+      "correct_answers": ["primary form", "acceptable variant"],
+      "hint": "brief grammatical hint for the learner",
+      "explanation": "why this form is required here",
+      "why_not": "what would be wrong about a near-synonym or different form"
+    }
+  ]
+}

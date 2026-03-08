@@ -21,6 +21,7 @@
   "dependencies": {
     "@elysiajs/opentelemetry": "^1.4.10",
     "@elysiajs/static": "^1.4.7",
+    "@google/genai": "^1.44.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.213.0",
     "@opentelemetry/sdk-trace-node": "^2.6.0",
@@ -35,6 +36,7 @@
     "drizzle-orm": "^0.45.1",
     "elysia": "^1.4.25",
     "mustache": "^4.2.0",
+    "openai": "^6.27.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

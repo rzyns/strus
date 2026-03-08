@@ -34,6 +34,24 @@ const ConfigSchema = z.object({
 
   /** Base URL for serving media files. Defaults to http://localhost:{PORT}/media. */
   STRUS_MEDIA_BASE_URL: z.string().url().optional(),
+
+  // ---------------------------------------------------------------------------
+  // LLM generation pipeline
+  // ---------------------------------------------------------------------------
+
+  /** LLM provider for exercise generation. Default: "gemini". */
+  STRUS_GENERATION_PROVIDER: z
+    .enum(["gemini", "openai-compatible"])
+    .default("gemini"),
+
+  /** Model name passed to the provider. Default: "gemini-2.0-flash-exp". */
+  STRUS_GENERATION_MODEL: z.string().min(1).default("gemini-2.0-flash-exp"),
+
+  /** API key for OpenAI-compatible providers (e.g. OpenAI, Ollama ignores this). */
+  STRUS_OPENAI_API_KEY: z.string().min(1).optional(),
+
+  /** Base URL for OpenAI-compatible providers. Omit to use OpenAI default. */
+  STRUS_OPENAI_BASE_URL: z.string().url().optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
