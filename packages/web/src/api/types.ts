@@ -8,7 +8,7 @@
  * canonical oRPC idiom.
  */
 import type { InferRouterOutputs } from '@orpc/server'
-import type { Router } from '@strus/api/router'
+import type { Router } from '@rzyns/strus-api/router'
 
 type RouterOutputs = InferRouterOutputs<Router>
 

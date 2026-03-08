@@ -5,12 +5,12 @@
   "description": "Polish morphological spaced repetition system",
   "scripts": {
     "build": "bun run --filter '*' build",
-    "dev": "concurrently --names api,web --prefix-colors cyan,magenta \"bun run --filter @strus/api dev\" \"bun run --filter @strus/web dev\"",
+    "dev": "concurrently --names api,web --prefix-colors cyan,magenta \"bun run --filter @rzyns/strus-api dev\" \"bun run --filter @rzyns/strus-web dev\"",
     "test": "bun run --filter '*' test",
     "lint": "bun run --filter '*' lint",
     "typecheck": "bun run --filter '*' typecheck",
-    "db:migrate": "bun run --filter @strus/db migrate",
-    "db:generate": "bun run --filter @strus/db generate",
+    "db:migrate": "bun run --filter @rzyns/strus-db migrate",
+    "db:generate": "bun run --filter @rzyns/strus-db generate",
     "version": "bumpp --recursive --commit --tag --push"
   },
   "devDependencies": {

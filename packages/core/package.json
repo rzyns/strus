@@ -1,5 +1,5 @@
 {
-  "name": "@strus/core",
+  "name": "@rzyns/strus-core",
   "version": "1.12.2",
   "private": true,
   "description": "Domain types and FSRS scheduling logic for strus",
@@ -15,7 +15,7 @@
     "lint": "echo 'lint: ok'"
   },
   "dependencies": {
-    "@strus/morph": "workspace:*",
+    "@rzyns/strus-morph": "workspace:*",
     "ts-fsrs": "^5.2.3"
   },
   "devDependencies": {

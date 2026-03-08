@@ -2,7 +2,7 @@ import { z } from "zod";
 import { GoogleGenAI, Type } from "@google/genai";
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { getConfig } from "@strus/config";
+import { getConfig } from "@rzyns/strus-config";
 
 // ---------------------------------------------------------------------------
 // Provider interface

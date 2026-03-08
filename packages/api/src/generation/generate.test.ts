@@ -3,8 +3,8 @@ import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { eq } from "drizzle-orm";
-import { createDb } from "@strus/db";
-import { notes, cards, clozeGaps } from "@strus/db";
+import { createDb } from "@rzyns/strus-db";
+import { notes, cards, clozeGaps } from "@rzyns/strus-db";
 import { createCardsForNote } from "./generate.js";
 
 // ---------------------------------------------------------------------------

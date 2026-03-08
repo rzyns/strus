@@ -1,4 +1,4 @@
-import { analyse } from "@strus/morph";
+import { analyse } from "@rzyns/strus-morph";
 import type { GeneratedClozeNote, ValidationResult } from "./types.js";
 
 // ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@ import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { RPCHandler } from "@orpc/server/fetch";
 import { OpenAPIGenerator } from "@orpc/openapi";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
-import { db } from "@strus/db";
+import { db } from "@rzyns/strus-db";
 import { router } from "./router.js";
 import { staticPlugin } from "@elysiajs/static";
 import { existsSync, readFileSync } from "node:fs";
@@ -80,7 +80,7 @@ const rpcHandler = new RPCHandler(router);
 // Elysia app
 // ---------------------------------------------------------------------------
 
-import { getApiConfig } from "@strus/config";
+import { getApiConfig } from "@rzyns/strus-config";
 const { PORT } = getApiConfig();
 
 // Minimal Swagger UI (CDN) — points at our generated spec

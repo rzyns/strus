@@ -1,5 +1,5 @@
-import { db } from "@strus/db";
-import { settings } from "@strus/db";
+import { db } from "@rzyns/strus-db";
+import { settings } from "@rzyns/strus-db";
 import { eq } from "drizzle-orm";
 
 export const SETTINGS_KEYS = {

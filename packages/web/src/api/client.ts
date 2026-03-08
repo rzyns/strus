@@ -1,7 +1,7 @@
 import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/fetch'
 import type { RouterClient } from '@orpc/server'
-import type { Router } from '@strus/api/router'
+import type { Router } from '@rzyns/strus-api/router'
 
 const link = new RPCLink({ url: window.location.origin + '/rpc' })
 

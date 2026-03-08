@@ -1,5 +1,5 @@
 {
-  "name": "@strus/cli",
+  "name": "@rzyns/strus-cli",
   "version": "1.12.2",
   "private": true,
   "description": "Commander.js CLI for strus",
@@ -19,11 +19,11 @@
     "lint": "echo 'lint: ok'"
   },
   "dependencies": {
-    "@strus/api": "workspace:*",
-    "@strus/core": "workspace:*",
+    "@rzyns/strus-api": "workspace:*",
+    "@rzyns/strus-core": "workspace:*",
     "commander": "^12.1.0",
     "zod": "^3.23.0",
-    "@strus/config": "workspace:*"
+    "@rzyns/strus-config": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "^1.1.0",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * @strus/cli — Command-line interface for the strus SRS system.
+ * @rzyns/strus-cli — Command-line interface for the strus SRS system.
  *
  * The CLI communicates with the strus API server. By default it hits
  * http://localhost:3457, configurable via STRUS_API_URL.
@@ -9,15 +9,15 @@
  *       @orpc/client adapter is set up:
  *
  *   import { createClient } from '@orpc/client'
- *   import type { Router } from '@strus/api'
+ *   import type { Router } from '@rzyns/strus-api'
  *   const client = createClient<Router>({ url: API_URL + '/rpc' })
  */
 
 import { Command } from "commander";
 import * as readline from "readline";
-import { Rating } from "@strus/core";
+import { Rating } from "@rzyns/strus-core";
 
-import { getCliConfig } from "@strus/config";
+import { getCliConfig } from "@rzyns/strus-config";
 const { STRUS_API_URL: API_URL } = getCliConfig();
 
 // ---------------------------------------------------------------------------
