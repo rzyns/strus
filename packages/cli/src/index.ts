@@ -708,6 +708,359 @@ importCmd
   );
 
 // ---------------------------------------------------------------------------
+// strus concept — Grammar concept taxonomy
+// ---------------------------------------------------------------------------
+
+const conceptCmd = program.command("concept").description("Grammar concept taxonomy commands");
+
+conceptCmd
+  .command("create <name>")
+  .description("Create a grammar concept")
+  .option("--parent <id>", "Parent concept UUID (omit for root concept)")
+  .option("--description <text>", "Optional description")
+  .action(async (name: string, opts: { parent?: string; description?: string }) => {
+    const result = await apiPost<{
+      id: string;
+      name: string;
+      description: string | null;
+      parentId: string | null;
+      createdAt: string;
+    }>("/api/grammar-concepts", {
+      name,
+      ...(opts.parent ? { parentId: opts.parent } : {}),
+      ...(opts.description ? { description: opts.description } : {}),
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+conceptCmd
+  .command("list")
+  .description("List grammar concepts (roots by default; children when --parent is given)")
+  .option("--parent <id>", "List direct children of this concept UUID")
+  .action(async (opts: { parent?: string }) => {
+    const url = opts.parent
+      ? `/api/grammar-concepts?parentId=${encodeURIComponent(opts.parent)}`
+      : "/api/grammar-concepts";
+    const items = await apiGet<Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      parentId: string | null;
+      createdAt: string;
+    }>>(url);
+    if (items.length === 0) {
+      console.log("No concepts found.");
+      return;
+    }
+    for (const c of items) {
+      const desc = c.description ? `  — ${c.description}` : "";
+      const parent = c.parentId ? `  (parent: ${c.parentId})` : "";
+      console.log(`${c.id}  ${c.name}${parent}${desc}`);
+    }
+  });
+
+conceptCmd
+  .command("get <id>")
+  .description("Get a grammar concept by ID")
+  .action(async (id: string) => {
+    const c = await apiGet<{
+      id: string;
+      name: string;
+      description: string | null;
+      parentId: string | null;
+      createdAt: string;
+    }>(`/api/grammar-concepts/${encodeURIComponent(id)}`);
+    console.log(JSON.stringify(c, null, 2));
+  });
+
+conceptCmd
+  .command("children <id>")
+  .description("List direct children of a grammar concept")
+  .action(async (id: string) => {
+    const items = await apiGet<Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      parentId: string | null;
+      createdAt: string;
+    }>>(`/api/grammar-concepts/${encodeURIComponent(id)}/children`);
+    if (items.length === 0) {
+      console.log("No children found.");
+      return;
+    }
+    for (const c of items) {
+      const desc = c.description ? `  — ${c.description}` : "";
+      console.log(`${c.id}  ${c.name}${desc}`);
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// strus sentence — Sentence corpus
+// ---------------------------------------------------------------------------
+
+const sentenceCmd = program.command("sentence").description("Sentence corpus commands");
+
+sentenceCmd
+  .command("create")
+  .description("Create a sentence")
+  .requiredOption("--text <text>", "Sentence text (may include {{N}} gap markers for cloze)")
+  .option("--translation <text>", "English translation")
+  .option("--difficulty <n>", "Difficulty 1–5", (v) => parseInt(v, 10))
+  .option("--concept <id>", "Grammar concept UUID (repeatable)", (val, prev: string[]) => [...prev, val], [] as string[])
+  .action(async (opts: { text: string; translation?: string; difficulty?: number; concept: string[] }) => {
+    const result = await apiPost<{
+      id: string;
+      text: string;
+      translation: string | null;
+      source: string;
+      difficulty: number | null;
+      createdAt: string;
+    }>("/api/sentences", {
+      text: opts.text,
+      ...(opts.translation ? { translation: opts.translation } : {}),
+      ...(opts.difficulty !== undefined ? { difficulty: opts.difficulty } : {}),
+      ...(opts.concept.length > 0 ? { conceptIds: opts.concept } : {}),
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+sentenceCmd
+  .command("list")
+  .description("List sentences")
+  .option("--concept <id>", "Filter by grammar concept UUID")
+  .option("--difficulty <n>", "Filter by difficulty level", (v) => parseInt(v, 10))
+  .option("--limit <n>", "Max results (default: 50)", (v) => parseInt(v, 10))
+  .action(async (opts: { concept?: string; difficulty?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (opts.concept) qs.set("conceptId", opts.concept);
+    if (opts.difficulty !== undefined) qs.set("difficulty", String(opts.difficulty));
+    if (opts.limit !== undefined) qs.set("limit", String(opts.limit));
+    const url = `/api/sentences${qs.toString() ? `?${qs.toString()}` : ""}`;
+    const items = await apiGet<Array<{
+      id: string;
+      text: string;
+      translation: string | null;
+      source: string;
+      difficulty: number | null;
+      createdAt: string;
+    }>>(url);
+    if (items.length === 0) {
+      console.log("No sentences found.");
+      return;
+    }
+    for (const s of items) {
+      const diff = s.difficulty !== null ? ` [diff:${s.difficulty}]` : "";
+      const trans = s.translation ? `  →  ${s.translation.substring(0, 40)}` : "";
+      console.log(`${s.id}${diff}  ${s.text.substring(0, 60)}${trans}`);
+    }
+  });
+
+sentenceCmd
+  .command("get <id>")
+  .description("Get a sentence by ID")
+  .action(async (id: string) => {
+    const s = await apiGet<{
+      id: string;
+      text: string;
+      translation: string | null;
+      source: string;
+      difficulty: number | null;
+      createdAt: string;
+    }>(`/api/sentences/${encodeURIComponent(id)}`);
+    console.log(JSON.stringify(s, null, 2));
+  });
+
+// ---------------------------------------------------------------------------
+// strus note — extensions for new note kinds
+// ---------------------------------------------------------------------------
+
+const noteCmd = program.command("note").description("Note commands (including contextual note kinds)");
+
+/**
+ * Parse a gap spec string into its components.
+ * Format: "index=1,answers=chodzę|chadzam,hint=habitual motion"
+ * The hint value may contain commas — we split on the first occurrence
+ * of each known key.
+ */
+function parseGapSpec(spec: string): { gapIndex: number; correctAnswers: string[]; hint?: string } {
+  const parts: Record<string, string> = {};
+  // Split on comma boundaries that precede a known key (index=, answers=, hint=)
+  const segments = spec.split(/,(?=index=|answers=|hint=)/);
+  for (const seg of segments) {
+    const eqIdx = seg.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = seg.substring(0, eqIdx).trim();
+    const val = seg.substring(eqIdx + 1).trim();
+    parts[key] = val;
+  }
+  const gapIndex = parseInt(parts["index"] ?? "0", 10);
+  const correctAnswers = (parts["answers"] ?? "").split("|").map((a) => a.trim()).filter(Boolean);
+  const hint = parts["hint"];
+  return { gapIndex, correctAnswers, ...(hint ? { hint } : {}) };
+}
+
+noteCmd
+  .command("create-cloze")
+  .description("Create a cloze note (fill-in-the-gap). Each --gap creates one card.")
+  .requiredOption("--sentence <id>", "Sentence UUID (must contain {{N}} gap markers)")
+  .option("--concept <id>", "Primary grammar concept UUID")
+  .option("--explanation <text>", "General explanation shown after answer")
+  .option("--list <id>", "Vocabulary list UUID to add the note to")
+  .option(
+    "--gap <spec>",
+    'Gap spec: "index=1,answers=form1|form2,hint=..." (repeatable)',
+    (val: string, prev: string[]) => [...prev, val],
+    [] as string[],
+  )
+  .action(async (opts: {
+    sentence: string;
+    concept?: string;
+    explanation?: string;
+    list?: string;
+    gap: string[];
+  }) => {
+    if (opts.gap.length === 0) {
+      console.error("Error: at least one --gap spec is required");
+      process.exit(1);
+    }
+
+    const gaps = opts.gap.map(parseGapSpec);
+
+    const result = await apiPost<{
+      id: string;
+      kind: string;
+      createdAt: string;
+      clozeGaps: Array<{ id: string; gapIndex: number; correctAnswers: string[]; hint: string | null }>;
+    }>("/api/notes/cloze", {
+      sentenceId: opts.sentence,
+      ...(opts.concept ? { conceptId: opts.concept } : {}),
+      ...(opts.explanation ? { explanation: opts.explanation } : {}),
+      ...(opts.list ? { listId: opts.list } : {}),
+      gaps,
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+noteCmd
+  .command("create-choice")
+  .description("Create a multiple-choice note. Each --option is a JSON object.")
+  .option("--front <text>", "Question text (required if --sentence not provided)")
+  .option("--sentence <id>", "Sentence UUID for context (required if --front not provided)")
+  .option("--concept <id>", "Grammar concept UUID")
+  .option("--explanation <text>", "General rationale shown after answer")
+  .option("--list <id>", "Vocabulary list UUID to add the note to")
+  .option(
+    "--option <json>",
+    'Option JSON: \'{"text":"...","isCorrect":true,"explanation":"..."}\' (repeatable)',
+    (val: string, prev: string[]) => [...prev, val],
+    [] as string[],
+  )
+  .action(async (opts: {
+    front?: string;
+    sentence?: string;
+    concept?: string;
+    explanation?: string;
+    list?: string;
+    option: string[];
+  }) => {
+    if (opts.option.length < 2) {
+      console.error("Error: at least two --option specs are required");
+      process.exit(1);
+    }
+    if (!opts.front && !opts.sentence) {
+      console.error("Error: --front or --sentence is required");
+      process.exit(1);
+    }
+
+    const options = opts.option.map((o, i) => {
+      try {
+        const parsed = JSON.parse(o) as { text: string; isCorrect: boolean; explanation?: string };
+        return {
+          optionText: parsed.text,
+          isCorrect: parsed.isCorrect,
+          ...(parsed.explanation ? { explanation: parsed.explanation } : {}),
+          sortOrder: i,
+        };
+      } catch {
+        console.error(`Error: could not parse --option as JSON: ${o}`);
+        process.exit(1);
+      }
+    });
+
+    const result = await apiPost<{
+      id: string;
+      kind: string;
+      createdAt: string;
+      choiceOptions: Array<{ id: string; optionText: string; isCorrect: boolean; sortOrder: number }>;
+    }>("/api/notes/choice", {
+      ...(opts.front ? { front: opts.front } : {}),
+      ...(opts.sentence ? { sentenceId: opts.sentence } : {}),
+      ...(opts.concept ? { conceptId: opts.concept } : {}),
+      ...(opts.explanation ? { explanation: opts.explanation } : {}),
+      ...(opts.list ? { listId: opts.list } : {}),
+      options,
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+noteCmd
+  .command("create-error")
+  .description("Create an error-correction note (erroneous text → corrected version)")
+  .requiredOption("--front <text>", "The erroneous text shown to the user")
+  .requiredOption("--back <text>", "The corrected version revealed after answer")
+  .option("--concept <id>", "Grammar concept UUID")
+  .option("--explanation <text>", "Why the original was wrong")
+  .option("--list <id>", "Vocabulary list UUID to add the note to")
+  .action(async (opts: {
+    front: string;
+    back: string;
+    concept?: string;
+    explanation?: string;
+    list?: string;
+  }) => {
+    const result = await apiPost<{
+      id: string;
+      kind: string;
+      front: string | null;
+      back: string | null;
+      createdAt: string;
+    }>("/api/notes/error", {
+      front: opts.front,
+      back: opts.back,
+      ...(opts.concept ? { conceptId: opts.concept } : {}),
+      ...(opts.explanation ? { explanation: opts.explanation } : {}),
+      ...(opts.list ? { listId: opts.list } : {}),
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+noteCmd
+  .command("create-classifier")
+  .description("Create a classifier note (classify sentence into correct grammar concept)")
+  .requiredOption("--sentence <id>", "Sentence UUID to classify")
+  .requiredOption("--concept <id>", "The CORRECT grammar concept UUID for this sentence")
+  .option("--explanation <text>", "Explanation shown after answer")
+  .option("--list <id>", "Vocabulary list UUID to add the note to")
+  .action(async (opts: {
+    sentence: string;
+    concept: string;
+    explanation?: string;
+    list?: string;
+  }) => {
+    const result = await apiPost<{
+      id: string;
+      kind: string;
+      createdAt: string;
+    }>("/api/notes/classifier", {
+      sentenceId: opts.sentence,
+      conceptId: opts.concept,
+      ...(opts.explanation ? { explanation: opts.explanation } : {}),
+      ...(opts.list ? { listId: opts.list } : {}),
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+// ---------------------------------------------------------------------------
 // Run
 // ---------------------------------------------------------------------------
 

@@ -34,6 +34,26 @@ interface DueCard {
   lemmaAudioUrl: string | null
   noteId: string
   due: string
+  // New fields for contextual exercise card kinds:
+  sentenceText: string | null
+  clozeGaps: Array<{
+    gapIndex: number
+    hint: string | null
+    correctAnswers: string[]
+    explanation: string | null
+  }> | null
+  choiceOptions: Array<{
+    id: string
+    optionText: string
+    isCorrect: boolean
+    explanation: string | null
+  }> | null
+  classifyOptions: Array<{
+    id: string
+    name: string
+    isCorrect: boolean
+  }> | null
+  noteExplanation: string | null
   stability: number
   difficulty: number
   reps: number
@@ -263,6 +283,59 @@ function resolveKinds(
 }
 
 // ---------------------------------------------------------------------------
+// ClozeInput component
+// ---------------------------------------------------------------------------
+
+interface ClozeInputProps {
+  sentenceText: string
+  gaps: Array<{ gapIndex: number; hint: string | null; correctAnswers: string[]; explanation: string | null }>
+  answers: Record<number, string>
+  onAnswer: (gapIndex: number, value: string) => void
+}
+
+function ClozeInput(props: ClozeInputProps) {
+  const parts = () => {
+    const result: Array<{ type: 'text'; text: string } | { type: 'gap'; index: number }> = []
+    const regex = /\{\{(\d+)\}\}/g
+    let last = 0
+    let match: RegExpExecArray | null
+    while ((match = regex.exec(props.sentenceText)) !== null) {
+      if (match.index > last) result.push({ type: 'text', text: props.sentenceText.slice(last, match.index) })
+      result.push({ type: 'gap', index: parseInt(match[1]!) })
+      last = regex.lastIndex
+    }
+    if (last < props.sentenceText.length) result.push({ type: 'text', text: props.sentenceText.slice(last) })
+    return result
+  }
+
+  return (
+    <p class={css({ fontSize: 'lg', lineHeight: '2' })}>
+      <For each={parts()}>
+        {(part) => (
+          <>
+            {part.type === 'text' ? (
+              <span>{part.text}</span>
+            ) : (
+              <input
+                type="text"
+                value={props.answers[part.index] ?? ''}
+                onInput={e => props.onAnswer(part.index, e.currentTarget.value)}
+                placeholder={props.gaps.find(g => g.gapIndex === part.index)?.hint ?? '...'}
+                class={css({
+                  display: 'inline-block', w: '32', mx: '1', px: '2', py: '1',
+                  borderBottom: '2px solid', borderColor: 'blue.8', bg: 'transparent',
+                  fontSize: 'inherit', outline: 'none', textAlign: 'center',
+                })}
+              />
+            )}
+          </>
+        )}
+      </For>
+    </p>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main quiz component
 // ---------------------------------------------------------------------------
 
@@ -287,6 +360,11 @@ export default function Quiz() {
   const [answer, setAnswer] = createSignal('')
   const [error, setError] = createSignal<string | null>(null)
   const [submitting, setSubmitting] = createSignal(false)
+
+  // For cloze_fill: map of gapIndex → user's typed answer
+  const [clozeAnswers, setClozeAnswers] = createSignal<Record<number, string>>({})
+  // For multiple_choice and classify: the id of the selected option
+  const [selectedOptionId, setSelectedOptionId] = createSignal<string | null>(null)
 
   // Session stats
   const [reviewed, setReviewed] = createSignal(0)
@@ -404,12 +482,32 @@ export default function Quiz() {
         setPhase(ok ? 'revealed-correct' : 'revealed-wrong')
         return
       }
-      case 'cloze_fill':
-      case 'multiple_choice':
+      case 'cloze_fill': {
+        const card = currentCard()!
+        const gaps = card.clozeGaps ?? []
+        if (gaps.length === 0) { setPhase('revealed-manual'); return }
+        const allCorrect = gaps.every(gap => {
+          const userAns = (clozeAnswers()[gap.gapIndex] ?? '').trim()
+          return gap.correctAnswers.some(a => a.toLowerCase() === userAns.toLowerCase())
+        })
+        setPhase(allCorrect ? 'revealed-correct' : 'revealed-wrong')
+        return
+      }
+      case 'multiple_choice': {
+        const card = currentCard()!
+        const selected = (card.choiceOptions ?? []).find(o => o.id === selectedOptionId())
+        if (!selected) return
+        setPhase(selected.isCorrect ? 'revealed-correct' : 'revealed-wrong')
+        return
+      }
+      case 'classify': {
+        const card = currentCard()!
+        const selected = (card.classifyOptions ?? []).find(o => o.id === selectedOptionId())
+        if (!selected) return
+        setPhase(selected.isCorrect ? 'revealed-correct' : 'revealed-wrong')
+        return
+      }
       case 'error_correction':
-      case 'classify':
-        // New card kinds are not yet supported in the quiz UI — fall back to
-        // manual review until the contextual-exercise feature is implemented.
         setPhase('revealed-manual')
         return
       default:
@@ -450,6 +548,8 @@ export default function Quiz() {
       batch(() => {
         setIndex(next)
         setAnswer('')
+        setClozeAnswers({})
+        setSelectedOptionId(null)
         setPhase('asking')
       })
     }
@@ -808,39 +908,130 @@ export default function Quiz() {
 
                   {/* ── Asking ── */}
                   <Show when={phase() === 'asking'}>
-                    <Show when={card().kind !== 'basic_forward' && card().kind !== 'gloss_forward' && card().kind !== 'gloss_reverse'} fallback={
-                      <Button variant="solid" onClick={checkAnswer}>
-                        Reveal
-                      </Button>
-                    }>
-                      <div class={css({ display: 'flex', gap: '3', alignItems: 'stretch' })}>
-                        <input
-                          ref={(el) => { inputRef = el }}
-                          type="text"
-                          placeholder="Type the correct form…"
-                          value={answer()}
-                          onInput={(e) => setAnswer(e.currentTarget.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') checkAnswer() }}
-                          class={css({
-                            flex: '1',
-                            px: '3',
-                            py: '2',
-                            borderRadius: 'l2',
-                            border: '1px solid',
-                            borderColor: 'border',
-                            bg: 'bg',
-                            color: 'fg.default',
-                            fontSize: 'md',
-                            outline: 'none',
-                            _focus: { borderColor: 'accent.9', ring: '2px', ringColor: 'accent.a4' },
-                            _placeholder: { color: 'fg.subtle' },
-                          })}
-                        />
-                        <Button variant="solid" onClick={checkAnswer} disabled={answer().trim() === ''}>
-                          Submit
+                    <Switch>
+                      <Match when={card().kind === 'basic_forward' || card().kind === 'gloss_forward' || card().kind === 'gloss_reverse'}>
+                        <Button variant="solid" onClick={checkAnswer}>
+                          Reveal
                         </Button>
-                      </div>
-                    </Show>
+                      </Match>
+                      <Match when={card().kind === 'error_correction'}>
+                        <p class={css({ fontSize: 'lg', color: 'red.11' })}>{card().front}</p>
+                        <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '2' })}>
+                          Can you spot and correct the error?
+                        </p>
+                        <div class={css({ mt: '4' })}>
+                          <Button variant="solid" onClick={checkAnswer}>
+                            Reveal correction
+                          </Button>
+                        </div>
+                      </Match>
+                      <Match when={card().kind === 'cloze_fill'}>
+                        <ClozeInput
+                          sentenceText={card().sentenceText ?? ''}
+                          gaps={card().clozeGaps ?? []}
+                          answers={clozeAnswers()}
+                          onAnswer={(gapIndex, value) =>
+                            setClozeAnswers(prev => ({ ...prev, [gapIndex]: value }))
+                          }
+                        />
+                        <div class={css({ mt: '4' })}>
+                          <Button variant="solid" onClick={checkAnswer}>
+                            Submit
+                          </Button>
+                        </div>
+                      </Match>
+                      <Match when={card().kind === 'multiple_choice'}>
+                        <p class={css({ fontSize: 'lg', mb: '4' })}>{card().front}</p>
+                        <For each={card().choiceOptions ?? []}>
+                          {(option) => (
+                            <button
+                              onClick={() => setSelectedOptionId(option.id)}
+                              class={css({
+                                display: 'block', w: 'full', textAlign: 'left', p: '3', mb: '2',
+                                borderRadius: 'l2', border: '2px solid',
+                                borderColor: selectedOptionId() === option.id ? 'blue.8' : 'border',
+                                bg: selectedOptionId() === option.id ? 'blue.2' : 'bg',
+                                cursor: 'pointer',
+                              })}
+                            >
+                              {option.optionText}
+                            </button>
+                          )}
+                        </For>
+                        <div class={css({ mt: '2' })}>
+                          <Button
+                            variant="solid"
+                            onClick={checkAnswer}
+                            disabled={submitting() || !selectedOptionId()}
+                          >
+                            Check
+                          </Button>
+                        </div>
+                      </Match>
+                      <Match when={card().kind === 'classify'}>
+                        <p class={css({ fontSize: 'lg', mb: '4', fontStyle: 'italic' })}>
+                          "{card().sentenceText}"
+                        </p>
+                        <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '3' })}>
+                          What type of grammatical feature does the highlighted usage represent?
+                        </p>
+                        <For each={card().classifyOptions ?? []}>
+                          {(option) => (
+                            <button
+                              onClick={() => setSelectedOptionId(option.id)}
+                              class={css({
+                                display: 'inline-block', m: '1', px: '3', py: '2',
+                                borderRadius: 'l2', border: '2px solid',
+                                borderColor: selectedOptionId() === option.id ? 'blue.8' : 'border',
+                                bg: selectedOptionId() === option.id ? 'blue.2' : 'bg',
+                                cursor: 'pointer', fontSize: 'sm',
+                              })}
+                            >
+                              {option.name}
+                            </button>
+                          )}
+                        </For>
+                        <div class={css({ mt: '4' })}>
+                          <Button
+                            variant="solid"
+                            onClick={checkAnswer}
+                            disabled={submitting() || !selectedOptionId()}
+                          >
+                            Check
+                          </Button>
+                        </div>
+                      </Match>
+                      <Match when={true}>
+                        {/* morph_form and any other kinds with text input */}
+                        <div class={css({ display: 'flex', gap: '3', alignItems: 'stretch' })}>
+                          <input
+                            ref={(el) => { inputRef = el }}
+                            type="text"
+                            placeholder="Type the correct form…"
+                            value={answer()}
+                            onInput={(e) => setAnswer(e.currentTarget.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') checkAnswer() }}
+                            class={css({
+                              flex: '1',
+                              px: '3',
+                              py: '2',
+                              borderRadius: 'l2',
+                              border: '1px solid',
+                              borderColor: 'border',
+                              bg: 'bg',
+                              color: 'fg.default',
+                              fontSize: 'md',
+                              outline: 'none',
+                              _focus: { borderColor: 'accent.9', ring: '2px', ringColor: 'accent.a4' },
+                              _placeholder: { color: 'fg.subtle' },
+                            })}
+                          />
+                          <Button variant="solid" onClick={checkAnswer} disabled={answer().trim() === ''}>
+                            Submit
+                          </Button>
+                        </div>
+                      </Match>
+                    </Switch>
                   </Show>
 
                   {/* ── Correct reveal ── */}
@@ -850,11 +1041,84 @@ export default function Quiz() {
                       border: '1px solid', borderColor: 'green.6', mb: '2',
                     })}>
                       <p class={css({ color: 'green.11', fontWeight: 'semibold', mb: '1' })}>✓ Correct!</p>
-                      <p class={css({ color: 'green.10', fontSize: 'sm' })}>
-                        Your answer: <strong>{answer()}</strong>
-                      </p>
+                      <Show when={card().kind === 'morph_form'}>
+                        <p class={css({ color: 'green.10', fontSize: 'sm' })}>
+                          Your answer: <strong>{answer()}</strong>
+                        </p>
+                      </Show>
                     </div>
-                    <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '2' })}>
+                    {/* cloze_fill — per-gap breakdown */}
+                    <Show when={card().kind === 'cloze_fill'}>
+                      <For each={card().clozeGaps ?? []}>
+                        {(gap) => {
+                          const userAns = clozeAnswers()[gap.gapIndex] ?? ''
+                          const ok = gap.correctAnswers.some(a => a.toLowerCase() === userAns.toLowerCase())
+                          return (
+                            <div class={css({ mb: '2' })}>
+                              <span class={css({ color: ok ? 'green.11' : 'red.11' })}>
+                                {ok ? '✓' : '✗'} Gap {gap.gapIndex}:
+                              </span>
+                              {' '}<strong>{gap.correctAnswers[0]}</strong>
+                              {!ok && userAns && <span class={css({ color: 'fg.muted' })}> (you wrote: {userAns})</span>}
+                              <Show when={gap.explanation}>
+                                {(exp) => <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>}
+                              </Show>
+                            </div>
+                          )
+                        }}
+                      </For>
+                      <Show when={card().noteExplanation}>
+                        {(exp) => (
+                          <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>
+                        )}
+                      </Show>
+                    </Show>
+                    {/* multiple_choice — option review */}
+                    <Show when={card().kind === 'multiple_choice'}>
+                      <For each={card().choiceOptions ?? []}>
+                        {(option) => (
+                          <div class={css({
+                            p: '2', mb: '2', borderRadius: 'l2',
+                            bg: option.isCorrect ? 'green.2' : selectedOptionId() === option.id ? 'red.2' : 'transparent',
+                            border: '1px solid',
+                            borderColor: option.isCorrect ? 'green.8' : selectedOptionId() === option.id ? 'red.8' : 'border',
+                          })}>
+                            <span class={css({ fontWeight: option.isCorrect ? 'bold' : 'normal' })}>
+                              {option.isCorrect ? '✓' : selectedOptionId() === option.id ? '✗' : '·'} {option.optionText}
+                            </span>
+                            <Show when={option.explanation}>
+                              {(exp) => (
+                                <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>
+                              )}
+                            </Show>
+                          </div>
+                        )}
+                      </For>
+                    </Show>
+                    {/* classify — option review */}
+                    <Show when={card().kind === 'classify'}>
+                      <div class={css({ mb: '2' })}>
+                        <For each={card().classifyOptions ?? []}>
+                          {(option) => (
+                            <div class={css({
+                              display: 'inline-block', m: '1', px: '3', py: '2', borderRadius: 'l2',
+                              bg: option.isCorrect ? 'green.2' : selectedOptionId() === option.id ? 'red.2' : 'transparent',
+                              border: '1px solid',
+                              borderColor: option.isCorrect ? 'green.8' : selectedOptionId() === option.id ? 'red.8' : 'border',
+                              fontWeight: option.isCorrect ? 'bold' : 'normal',
+                            })}>
+                              {option.isCorrect ? '✓ ' : selectedOptionId() === option.id ? '✗ ' : ''}{option.name}
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                      <Show when={card().noteExplanation}>
+                        {(exp) => (
+                          <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>
+                        )}
+                      </Show>
+                    </Show>
+                    <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '2', mt: '3' })}>
                       How easy was that recall?
                     </p>
                     <RatingButtons
@@ -875,16 +1139,89 @@ export default function Quiz() {
                       border: '1px solid', borderColor: 'red.6', mb: '4',
                     })}>
                       <p class={css({ color: 'red.11', fontWeight: 'semibold', mb: '1' })}>✗ Incorrect</p>
-                      <Show when={answer().trim() !== ''}>
-                        <p class={css({ color: 'red.10', fontSize: 'sm', mb: '1' })}>
-                          Your answer: <strong>{answer()}</strong>
+                      <Show when={card().kind === 'morph_form'}>
+                        <Show when={answer().trim() !== ''}>
+                          <p class={css({ color: 'red.10', fontSize: 'sm', mb: '1' })}>
+                            Your answer: <strong>{answer()}</strong>
+                          </p>
+                        </Show>
+                        <p class={css({ color: 'fg.default', fontSize: 'sm' })}>
+                          Correct form{card().forms.length > 1 ? 's' : ''}:{' '}
+                          <strong>{card().forms.join(' / ')}</strong>
                         </p>
                       </Show>
-                      <p class={css({ color: 'fg.default', fontSize: 'sm' })}>
-                        Correct form{card().forms.length > 1 ? 's' : ''}:{' '}
-                        <strong>{card().forms.join(' / ')}</strong>
-                      </p>
                     </div>
+                    {/* cloze_fill — per-gap breakdown */}
+                    <Show when={card().kind === 'cloze_fill'}>
+                      <For each={card().clozeGaps ?? []}>
+                        {(gap) => {
+                          const userAns = clozeAnswers()[gap.gapIndex] ?? ''
+                          const ok = gap.correctAnswers.some(a => a.toLowerCase() === userAns.toLowerCase())
+                          return (
+                            <div class={css({ mb: '2' })}>
+                              <span class={css({ color: ok ? 'green.11' : 'red.11' })}>
+                                {ok ? '✓' : '✗'} Gap {gap.gapIndex}:
+                              </span>
+                              {' '}<strong>{gap.correctAnswers[0]}</strong>
+                              {!ok && userAns && <span class={css({ color: 'fg.muted' })}> (you wrote: {userAns})</span>}
+                              <Show when={gap.explanation}>
+                                {(exp) => <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>}
+                              </Show>
+                            </div>
+                          )
+                        }}
+                      </For>
+                      <Show when={card().noteExplanation}>
+                        {(exp) => (
+                          <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>
+                        )}
+                      </Show>
+                    </Show>
+                    {/* multiple_choice — option review */}
+                    <Show when={card().kind === 'multiple_choice'}>
+                      <For each={card().choiceOptions ?? []}>
+                        {(option) => (
+                          <div class={css({
+                            p: '2', mb: '2', borderRadius: 'l2',
+                            bg: option.isCorrect ? 'green.2' : selectedOptionId() === option.id ? 'red.2' : 'transparent',
+                            border: '1px solid',
+                            borderColor: option.isCorrect ? 'green.8' : selectedOptionId() === option.id ? 'red.8' : 'border',
+                          })}>
+                            <span class={css({ fontWeight: option.isCorrect ? 'bold' : 'normal' })}>
+                              {option.isCorrect ? '✓' : selectedOptionId() === option.id ? '✗' : '·'} {option.optionText}
+                            </span>
+                            <Show when={option.explanation}>
+                              {(exp) => (
+                                <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>
+                              )}
+                            </Show>
+                          </div>
+                        )}
+                      </For>
+                    </Show>
+                    {/* classify — option review */}
+                    <Show when={card().kind === 'classify'}>
+                      <div class={css({ mb: '2' })}>
+                        <For each={card().classifyOptions ?? []}>
+                          {(option) => (
+                            <div class={css({
+                              display: 'inline-block', m: '1', px: '3', py: '2', borderRadius: 'l2',
+                              bg: option.isCorrect ? 'green.2' : selectedOptionId() === option.id ? 'red.2' : 'transparent',
+                              border: '1px solid',
+                              borderColor: option.isCorrect ? 'green.8' : selectedOptionId() === option.id ? 'red.8' : 'border',
+                              fontWeight: option.isCorrect ? 'bold' : 'normal',
+                            })}>
+                              {option.isCorrect ? '✓ ' : selectedOptionId() === option.id ? '✗ ' : ''}{option.name}
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                      <Show when={card().noteExplanation}>
+                        {(exp) => (
+                          <p class={css({ mt: '3', fontSize: 'sm', fontStyle: 'italic' })}>{exp()}</p>
+                        )}
+                      </Show>
+                    </Show>
                     <p class={css({ fontSize: 'xs', color: 'fg.muted', mt: '2' })}>
                       Again → {formatNextDate(card().nextDates.again)}
                     </p>
@@ -922,15 +1259,31 @@ export default function Quiz() {
                       p: '4', borderRadius: 'l2', bg: 'bg.subtle',
                       border: '1px solid', borderColor: 'border', mb: '2',
                     })}>
-                      <Show when={card().kind === 'basic_forward' || card().kind === 'gloss_forward' || card().kind === 'gloss_reverse'} fallback={
-                        <p class={css({ color: 'fg.muted', fontSize: 'sm' })}>
-                          No forms on record — rate your recall honestly.
-                        </p>
-                      }>
-                        <p class={css({ fontSize: 'lg', fontWeight: 'semibold', color: 'fg.default' })}>
-                          {card().back}
-                        </p>
-                      </Show>
+                      <Switch>
+                        <Match when={card().kind === 'basic_forward' || card().kind === 'gloss_forward' || card().kind === 'gloss_reverse'}>
+                          <p class={css({ fontSize: 'lg', fontWeight: 'semibold', color: 'fg.default' })}>
+                            {card().back}
+                          </p>
+                        </Match>
+                        <Match when={card().kind === 'error_correction'}>
+                          <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>Correction:</p>
+                          <p class={css({ fontSize: 'lg', color: 'green.11', fontWeight: 'medium' })}>
+                            {card().back}
+                          </p>
+                          <Show when={card().noteExplanation}>
+                            {(exp) => (
+                              <p class={css({ mt: '2', fontSize: 'sm', fontStyle: 'italic', color: 'fg.muted' })}>
+                                {exp()}
+                              </p>
+                            )}
+                          </Show>
+                        </Match>
+                        <Match when={true}>
+                          <p class={css({ color: 'fg.muted', fontSize: 'sm' })}>
+                            No forms on record — rate your recall honestly.
+                          </p>
+                        </Match>
+                      </Switch>
                     </div>
                     <A
                       href={`/notes/${card().noteId}`}
