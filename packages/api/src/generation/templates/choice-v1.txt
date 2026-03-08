@@ -5,6 +5,12 @@ Base this question on the following sentence:
 {{sentence_context}}
 {{/sentence_context}}
 
+{{#cluster_distractors}}
+Real confusable words from the same semantic cluster (prefer these as wrong options):
+{{#.}}- {{.}}
+{{/.}}
+{{/cluster_distractors}}
+
 Provide exactly 4 options: 1 correct, 3 plausible but clearly wrong.
 The wrong options must be definitively incorrect — not "could also work in some contexts".
 
