@@ -136,7 +136,7 @@ const NoteOutput = z.object({
   lemmaText: z.string().nullable().describe("Citation form of the associated lemma; null for basic notes"),
   front: z.string().nullable().describe("Prompt text for gloss/basic notes; null for morph notes"),
   back: z.string().nullable().describe("Answer text for gloss/basic notes; null for morph notes"),
-  status: z.string().nullable().describe("Moderation status: draft | approved | flagged | rejected. Null for morph/basic/gloss notes."),
+  status: z.string().nullable().describe("Moderation status: draft | approved | flagged | rejected. Always non-null; morph/basic/gloss notes always return 'approved'."),
   sentenceId: z.string().nullable().describe("ID of the associated sentence; null for non-contextual notes"),
   sentenceText: z.string().nullable().describe("Sentence text (with {{N}} gap markers for cloze); null if no sentence"),
   conceptId: z.string().nullable().describe("ID of the grammar concept this note is tagged to; null if none"),
@@ -2575,7 +2575,7 @@ const notesCreateCloze = os
         generationMeta: null,
         createdAt: now,
         updatedAt: now,
-      }),
+      }, null, sentence.text),
       clozeGaps: insertedGaps,
     };
   });
@@ -2668,6 +2668,10 @@ const notesCreateChoice = os
       db.insert(vocabListNotes).values({ listId: input.listId, noteId: id }).run();
     }
 
+    const sentenceText = input.sentenceId
+      ? (db.select({ text: sentences.text }).from(sentences).where(eq(sentences.id, input.sentenceId)).limit(1).all()[0]?.text ?? null)
+      : null;
+
     return {
       ...mapNote({
         id,
@@ -2684,7 +2688,7 @@ const notesCreateChoice = os
         generationMeta: null,
         createdAt: now,
         updatedAt: now,
-      }),
+      }, null, sentenceText),
       choiceOptions: insertedOptions,
     };
   });
@@ -2733,6 +2737,10 @@ const notesCreateError = os
       db.insert(vocabListNotes).values({ listId: input.listId, noteId: id }).run();
     }
 
+    const sentenceText = input.sentenceId
+      ? (db.select({ text: sentences.text }).from(sentences).where(eq(sentences.id, input.sentenceId)).limit(1).all()[0]?.text ?? null)
+      : null;
+
     return mapNote({
       id,
       kind: "error",
@@ -2748,7 +2756,7 @@ const notesCreateError = os
       generationMeta: null,
       createdAt: now,
       updatedAt: now,
-    });
+    }, null, sentenceText);
   });
 
 const notesCreateClassifier = os
@@ -2770,7 +2778,7 @@ const notesCreateClassifier = os
   .output(NoteOutput)
   .handler(async ({ input }) => {
     // Verify sentence exists
-    const [sentence] = db.select({ id: sentences.id }).from(sentences)
+    const [sentence] = db.select({ id: sentences.id, text: sentences.text }).from(sentences)
       .where(eq(sentences.id, input.sentenceId)).limit(1).all();
     if (!sentence) throw new ORPCError("NOT_FOUND", { message: `Sentence not found: ${input.sentenceId}` });
 
@@ -2825,7 +2833,7 @@ const notesCreateClassifier = os
       generationMeta: null,
       createdAt: now,
       updatedAt: now,
-    });
+    }, null, sentence.text);
   });
 
 // ---------------------------------------------------------------------------
