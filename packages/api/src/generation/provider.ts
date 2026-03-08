@@ -25,7 +25,7 @@ type GeminiSchema = {
   enum?: string[];
 };
 
-function zodToGeminiSchema(schema: z.ZodTypeAny): GeminiSchema {
+export function zodToGeminiSchema(schema: z.ZodTypeAny): GeminiSchema {
   if (schema instanceof z.ZodObject) {
     const props: Record<string, GeminiSchema> = {};
     const required: string[] = [];

@@ -15,7 +15,7 @@
     "start": "bun run src/index.ts",
     "generate:spec": "bun run scripts/generate-spec.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test --preload ./src/test-setup.ts",
     "lint": "echo 'lint: ok'"
   },
   "dependencies": {
