@@ -3,7 +3,7 @@ import { record } from "@elysiajs/opentelemetry";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
-import { count, eq, lte, ne, like, and, or, inArray, asc, sql } from "drizzle-orm";
+import { count, eq, lte, ne, like, and, or, inArray, asc, sql, isNull } from "drizzle-orm";
 import { db } from "@strus/db";
 import {
   vocabLists,
@@ -13,6 +13,11 @@ import {
   notes,
   reviews,
   vocabListNotes,
+  grammarConcepts,
+  sentences,
+  sentenceConcepts,
+  clozeGaps,
+  choiceOptions,
 } from "@strus/db";
 import { generate, parseTag, tagGender, analyseText } from "@strus/morph";
 import { generateAudio, generateImage, getMediaBaseUrl } from "./media.js";
@@ -128,6 +133,23 @@ const NoteOutput = z.object({
   back: z.string().nullable().describe("Answer text for gloss/basic notes; null for morph notes"),
   createdAt: zIso.describe("When this note was created"),
   updatedAt: zIso.describe("When this note was last modified"),
+});
+
+const GrammarConceptOutput = z.object({
+  id: zId,
+  name: z.string().describe("Human-readable concept name, e.g. 'True Reflexive'"),
+  description: z.string().nullable().describe("Longer explanation; null if not set"),
+  parentId: zId.nullable().describe("Parent concept ID; null for root concepts"),
+  createdAt: zIso.describe("When this concept was created"),
+});
+
+const SentenceOutput = z.object({
+  id: zId,
+  text: z.string().describe("Sentence text, possibly with {{N}} gap markers for cloze"),
+  translation: z.string().nullable().describe("English translation; null if not set"),
+  source: z.string().describe("Provenance: 'handcrafted', 'llm:...', etc."),
+  difficulty: z.number().int().nullable().describe("Difficulty 1–5; null if not rated"),
+  createdAt: zIso.describe("When this sentence was created"),
 });
 
 // ---------------------------------------------------------------------------
@@ -859,6 +881,26 @@ const NextDatesOutput = z.object({
   easy: zIso,
 }).describe("Projected due dates for each rating, computed at session load time");
 
+const ClozeGapRenderOutput = z.object({
+  gapIndex: z.number().int(),
+  hint: z.string().nullable(),
+  correctAnswers: z.array(z.string()),
+  explanation: z.string().nullable(),
+});
+
+const ChoiceOptionRenderOutput = z.object({
+  id: zId,
+  optionText: z.string(),
+  isCorrect: z.boolean(),
+  explanation: z.string().nullable(),
+});
+
+const ClassifyOptionRenderOutput = z.object({
+  id: zId,
+  name: z.string(),
+  isCorrect: z.boolean(),
+});
+
 const DueCardOutput = CardOutput.extend({
   lemmaText: z
     .string()
@@ -880,6 +922,16 @@ const DueCardOutput = CardOutput.extend({
   imageUrl: z.string().nullable().describe("URL to mnemonic image for the lemma; null if not yet generated"),
   imagePrompt: z.string().nullable().describe("Generated image prompt sent to the image model; null if not yet generated"),
   nextDates: NextDatesOutput,
+  sentenceText: z.string().nullable()
+    .describe("Sentence text with {{N}} markers for cloze_fill; plain text for classify; null for other kinds"),
+  clozeGaps: z.array(ClozeGapRenderOutput).nullable()
+    .describe("Gaps for cloze_fill cards; null for other kinds"),
+  choiceOptions: z.array(ChoiceOptionRenderOutput).nullable()
+    .describe("Shuffled options for multiple_choice cards; null for other kinds"),
+  classifyOptions: z.array(ClassifyOptionRenderOutput).nullable()
+    .describe("Sibling concepts for classify cards; null for other kinds"),
+  noteExplanation: z.string().nullable()
+    .describe("Note-level explanation shown after answer for new card kinds; null otherwise"),
 });
 
 /**
@@ -1261,6 +1313,145 @@ const sessionDue = os
       }
     }
 
+    // ----------------------------------------------------------------
+    // Batch fetches for new card kinds (cloze_fill, multiple_choice,
+    // error_correction, classify)
+    // ----------------------------------------------------------------
+    const newKindCards = session.filter((r) =>
+      r.card.kind === "cloze_fill" ||
+      r.card.kind === "multiple_choice" ||
+      r.card.kind === "error_correction" ||
+      r.card.kind === "classify"
+    );
+
+    // Map noteId → {sentenceId, conceptId, explanation} for new-kind notes
+    const newKindNoteIds = [...new Set(newKindCards.map((r) => r.card.noteId))];
+    type NewKindNoteMeta = { sentenceId: string | null; conceptId: string | null; explanation: string | null };
+    const noteMetaById = new Map<string, NewKindNoteMeta>();
+    if (newKindNoteIds.length > 0) {
+      const noteRows = db
+        .select({ id: notes.id, sentenceId: notes.sentenceId, conceptId: notes.conceptId, explanation: notes.explanation })
+        .from(notes)
+        .where(inArray(notes.id, newKindNoteIds))
+        .all();
+      for (const n of noteRows) {
+        noteMetaById.set(n.id, { sentenceId: n.sentenceId, conceptId: n.conceptId, explanation: n.explanation });
+      }
+    }
+
+    // Batch-fetch sentences
+    const sentenceIds = [...new Set(
+      newKindCards
+        .map((r) => noteMetaById.get(r.card.noteId)?.sentenceId)
+        .filter((id): id is string => id != null)
+    )];
+    const sentenceTextById = new Map<string, string>();
+    if (sentenceIds.length > 0) {
+      const sentenceRows = db.select({ id: sentences.id, text: sentences.text })
+        .from(sentences)
+        .where(inArray(sentences.id, sentenceIds))
+        .all();
+      for (const s of sentenceRows) {
+        sentenceTextById.set(s.id, s.text);
+      }
+    }
+
+    // Batch-fetch cloze_gaps (for cloze_fill cards)
+    const clozeNoteIds = [...new Set(
+      session.filter((r) => r.card.kind === "cloze_fill").map((r) => r.card.noteId)
+    )];
+    // Map noteId → gap[] (sorted by gapIndex)
+    const clozeGapsByNoteId = new Map<string, Array<{ gapIndex: number; hint: string | null; correctAnswers: string[]; explanation: string | null }>>();
+    if (clozeNoteIds.length > 0) {
+      const gapRows = db.select().from(clozeGaps)
+        .where(inArray(clozeGaps.noteId, clozeNoteIds))
+        .all();
+      for (const g of gapRows) {
+        const existing = clozeGapsByNoteId.get(g.noteId);
+        const gap = {
+          gapIndex: g.gapIndex,
+          hint: g.hint,
+          correctAnswers: JSON.parse(g.correctAnswers) as string[],
+          explanation: g.explanation,
+        };
+        if (existing !== undefined) existing.push(gap);
+        else clozeGapsByNoteId.set(g.noteId, [gap]);
+      }
+    }
+
+    // Batch-fetch choice_options (for multiple_choice cards)
+    const choiceNoteIds = [...new Set(
+      session.filter((r) => r.card.kind === "multiple_choice").map((r) => r.card.noteId)
+    )];
+    type ChoiceOptRow = { id: string; optionText: string; isCorrect: boolean; explanation: string | null };
+    const choiceOptionsByNoteId = new Map<string, ChoiceOptRow[]>();
+    if (choiceNoteIds.length > 0) {
+      const optRows = db.select().from(choiceOptions)
+        .where(inArray(choiceOptions.noteId, choiceNoteIds))
+        .all();
+      for (const o of optRows) {
+        const existing = choiceOptionsByNoteId.get(o.noteId);
+        const opt: ChoiceOptRow = { id: o.id, optionText: o.optionText, isCorrect: o.isCorrect, explanation: o.explanation };
+        if (existing !== undefined) existing.push(opt);
+        else choiceOptionsByNoteId.set(o.noteId, [opt]);
+      }
+    }
+
+    // Batch-fetch concepts for classify cards (siblings by parentId)
+    const classifyNoteIds = [...new Set(
+      session.filter((r) => r.card.kind === "classify").map((r) => r.card.noteId)
+    )];
+    // Map noteId → classifyOptions[]
+    const classifyOptionsByNoteId = new Map<string, Array<{ id: string; name: string; isCorrect: boolean }>>();
+    if (classifyNoteIds.length > 0) {
+      // Collect conceptIds for all classifier notes
+      const conceptIds = [...new Set(
+        classifyNoteIds
+          .map((nid) => noteMetaById.get(nid)?.conceptId)
+          .filter((id): id is string => id != null)
+      )];
+      if (conceptIds.length > 0) {
+        // Fetch the correct concepts to get their parentIds
+        const correctConceptRows = db.select().from(grammarConcepts)
+          .where(inArray(grammarConcepts.id, conceptIds))
+          .all();
+        const conceptById = new Map(correctConceptRows.map((c) => [c.id, c]));
+
+        // Collect parentIds (skip root concepts — already validated at creation time)
+        const parentIds = [...new Set(
+          correctConceptRows.map((c) => c.parentId).filter((pid): pid is string => pid != null)
+        )];
+
+        // Fetch all siblings (children of the same parent)
+        const siblingRows = parentIds.length > 0
+          ? db.select().from(grammarConcepts)
+              .where(inArray(grammarConcepts.parentId, parentIds))
+              .all()
+          : [];
+
+        // Group siblings by parentId
+        const siblingsByParentId = new Map<string, typeof siblingRows>();
+        for (const s of siblingRows) {
+          if (!s.parentId) continue;
+          const g = siblingsByParentId.get(s.parentId);
+          if (g !== undefined) g.push(s);
+          else siblingsByParentId.set(s.parentId, [s]);
+        }
+
+        // Build classifyOptions for each classifier note
+        for (const noteId of classifyNoteIds) {
+          const meta = noteMetaById.get(noteId);
+          if (!meta?.conceptId) continue;
+          const correctConcept = conceptById.get(meta.conceptId);
+          if (!correctConcept?.parentId) continue;
+          const siblings = siblingsByParentId.get(correctConcept.parentId) ?? [];
+          const options = siblings.map((s) => ({ id: s.id, name: s.name, isCorrect: s.id === meta.conceptId }));
+          shuffle(options);
+          classifyOptionsByNoteId.set(noteId, options);
+        }
+      }
+    }
+
     const now = new Date(nowSecs * 1000);
     const baseUrl = getMediaBaseUrl();
 
@@ -1334,6 +1525,31 @@ const sessionDue = os
       const audioPath = formInfo?.audioPath ?? null;
       const imagePath = r.lemmaId ? lemmaImagePaths.get(r.lemmaId) ?? null : null;
 
+      // Populate new-kind fields
+      const noteMeta = noteMetaById.get(r.card.noteId);
+      let sentenceText: string | null = null;
+      let clozeGapsOut: Array<{ gapIndex: number; hint: string | null; correctAnswers: string[]; explanation: string | null }> | null = null;
+      let choiceOptionsOut: Array<{ id: string; optionText: string; isCorrect: boolean; explanation: string | null }> | null = null;
+      let classifyOptionsOut: Array<{ id: string; name: string; isCorrect: boolean }> | null = null;
+      const noteExplanation = noteMeta?.explanation ?? null;
+
+      if (r.card.kind === "cloze_fill") {
+        const sid = noteMeta?.sentenceId;
+        sentenceText = sid ? (sentenceTextById.get(sid) ?? null) : null;
+        clozeGapsOut = clozeGapsByNoteId.get(r.card.noteId) ?? null;
+      } else if (r.card.kind === "multiple_choice") {
+        const opts = choiceOptionsByNoteId.get(r.card.noteId);
+        if (opts) {
+          const shuffled = [...opts];
+          shuffle(shuffled);
+          choiceOptionsOut = shuffled;
+        }
+      } else if (r.card.kind === "classify") {
+        const sid = noteMeta?.sentenceId;
+        sentenceText = sid ? (sentenceTextById.get(sid) ?? null) : null;
+        classifyOptionsOut = classifyOptionsByNoteId.get(r.card.noteId) ?? null;
+      }
+
       return {
         ...mapCardRow(r.card),
         formId: formInfo?.id ?? null,
@@ -1359,6 +1575,11 @@ const sessionDue = os
           good: dates[Rating.Good].toISOString(),
           easy: dates[Rating.Easy].toISOString(),
         },
+        sentenceText,
+        clozeGaps: clozeGapsOut,
+        choiceOptions: choiceOptionsOut,
+        classifyOptions: classifyOptionsOut,
+        noteExplanation,
       };
     });
   });
@@ -1668,6 +1889,198 @@ const importCommit = os
   });
 
 // ---------------------------------------------------------------------------
+// Grammar Concepts procedures
+// ---------------------------------------------------------------------------
+
+const grammarConceptsList = os
+  .route({
+    method: "GET",
+    path: "/grammar-concepts",
+    tags: ["Grammar Concepts"],
+    summary: "List grammar concepts",
+    description: "Returns root concepts when parentId is omitted; direct children when parentId is provided.",
+  })
+  .input(z.object({
+    parentId: zId.optional().describe("Filter to direct children of this concept; omit for root concepts"),
+  }))
+  .output(z.array(GrammarConceptOutput))
+  .handler(async ({ input }) => {
+    const rows = input.parentId
+      ? db.select().from(grammarConcepts).where(eq(grammarConcepts.parentId, input.parentId)).all()
+      : db.select().from(grammarConcepts).where(isNull(grammarConcepts.parentId)).all();
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      parentId: r.parentId,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  });
+
+const grammarConceptsCreate = os
+  .route({
+    method: "POST",
+    path: "/grammar-concepts",
+    tags: ["Grammar Concepts"],
+    summary: "Create a grammar concept",
+  })
+  .input(z.object({
+    name: z.string().min(1).describe("Concept name"),
+    description: z.string().optional().describe("Optional explanation"),
+    parentId: zId.optional().describe("Parent concept ID; omit for a root concept"),
+  }))
+  .output(GrammarConceptOutput)
+  .handler(async ({ input }) => {
+    if (input.parentId) {
+      const [parent] = db.select({ id: grammarConcepts.id }).from(grammarConcepts)
+        .where(eq(grammarConcepts.id, input.parentId)).limit(1).all();
+      if (!parent) throw new ORPCError("NOT_FOUND", { message: `Parent concept not found: ${input.parentId}` });
+    }
+    const id = crypto.randomUUID();
+    const now = new Date();
+    db.insert(grammarConcepts).values({
+      id,
+      name: input.name,
+      description: input.description ?? null,
+      parentId: input.parentId ?? null,
+      createdAt: now,
+    }).run();
+    return { id, name: input.name, description: input.description ?? null, parentId: input.parentId ?? null, createdAt: now.toISOString() };
+  });
+
+const grammarConceptsGet = os
+  .route({
+    method: "GET",
+    path: "/grammar-concepts/{id}",
+    tags: ["Grammar Concepts"],
+    summary: "Get a grammar concept",
+  })
+  .input(z.object({ id: zId }))
+  .output(GrammarConceptOutput)
+  .handler(async ({ input }) => {
+    const [row] = db.select().from(grammarConcepts).where(eq(grammarConcepts.id, input.id)).limit(1).all();
+    if (!row) throw new ORPCError("NOT_FOUND", { message: `Grammar concept not found: ${input.id}` });
+    return { id: row.id, name: row.name, description: row.description, parentId: row.parentId, createdAt: row.createdAt.toISOString() };
+  });
+
+const grammarConceptsChildren = os
+  .route({
+    method: "GET",
+    path: "/grammar-concepts/{id}/children",
+    tags: ["Grammar Concepts"],
+    summary: "Get direct children of a grammar concept",
+  })
+  .input(z.object({ id: zId }))
+  .output(z.array(GrammarConceptOutput))
+  .handler(async ({ input }) => {
+    const [parent] = db.select({ id: grammarConcepts.id }).from(grammarConcepts)
+      .where(eq(grammarConcepts.id, input.id)).limit(1).all();
+    if (!parent) throw new ORPCError("NOT_FOUND", { message: `Grammar concept not found: ${input.id}` });
+    const rows = db.select().from(grammarConcepts).where(eq(grammarConcepts.parentId, input.id)).all();
+    return rows.map((r) => ({ id: r.id, name: r.name, description: r.description, parentId: r.parentId, createdAt: r.createdAt.toISOString() }));
+  });
+
+// ---------------------------------------------------------------------------
+// Sentences procedures
+// ---------------------------------------------------------------------------
+
+function mapSentence(row: typeof sentences.$inferSelect): z.infer<typeof SentenceOutput> {
+  return {
+    id: row.id,
+    text: row.text,
+    translation: row.translation,
+    source: row.source,
+    difficulty: row.difficulty,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+const sentencesList = os
+  .route({
+    method: "GET",
+    path: "/sentences",
+    tags: ["Sentences"],
+    summary: "List sentences",
+    description: "Returns sentences, optionally filtered by grammar concept and/or difficulty.",
+  })
+  .input(z.object({
+    conceptId: zId.optional().describe("Filter to sentences tagged with this grammar concept"),
+    difficulty: z.coerce.number().int().min(1).max(5).optional().describe("Filter by difficulty level"),
+    limit: z.coerce.number().int().min(1).max(500).default(50).describe("Max results (default: 50)"),
+  }))
+  .output(z.array(SentenceOutput))
+  .handler(async ({ input }) => {
+    if (input.conceptId) {
+      const rows = db
+        .select({ sentence: sentences })
+        .from(sentences)
+        .innerJoin(sentenceConcepts, eq(sentenceConcepts.sentenceId, sentences.id))
+        .where(and(
+          eq(sentenceConcepts.conceptId, input.conceptId),
+          ...(input.difficulty !== undefined ? [eq(sentences.difficulty, input.difficulty)] : []),
+        ))
+        .limit(input.limit)
+        .all();
+      return rows.map((r) => mapSentence(r.sentence));
+    }
+    const conditions = input.difficulty !== undefined ? [eq(sentences.difficulty, input.difficulty)] : [];
+    const rows = conditions.length > 0
+      ? db.select().from(sentences).where(and(...conditions)).limit(input.limit).all()
+      : db.select().from(sentences).limit(input.limit).all();
+    return rows.map(mapSentence);
+  });
+
+const sentencesCreate = os
+  .route({
+    method: "POST",
+    path: "/sentences",
+    tags: ["Sentences"],
+    summary: "Create a sentence",
+    description: "Creates a sentence and optionally tags it with grammar concepts.",
+  })
+  .input(z.object({
+    text: z.string().min(3).describe("Sentence text; may contain {{N}} gap markers for cloze use"),
+    translation: z.string().optional().describe("English translation"),
+    source: z.string().default("handcrafted").describe("Provenance (default: handcrafted)"),
+    difficulty: z.number().int().min(1).max(5).optional().describe("Difficulty 1–5"),
+    conceptIds: z.array(zId).optional().describe("Grammar concepts to tag this sentence with"),
+  }))
+  .output(SentenceOutput)
+  .handler(async ({ input }) => {
+    const id = crypto.randomUUID();
+    const now = new Date();
+    db.insert(sentences).values({
+      id,
+      text: input.text,
+      translation: input.translation ?? null,
+      source: input.source,
+      difficulty: input.difficulty ?? null,
+      createdAt: now,
+    }).run();
+    if (input.conceptIds && input.conceptIds.length > 0) {
+      for (const conceptId of input.conceptIds) {
+        db.insert(sentenceConcepts).values({ sentenceId: id, conceptId }).run();
+      }
+    }
+    return { id, text: input.text, translation: input.translation ?? null, source: input.source, difficulty: input.difficulty ?? null, createdAt: now.toISOString() };
+  });
+
+const sentencesGet = os
+  .route({
+    method: "GET",
+    path: "/sentences/{id}",
+    tags: ["Sentences"],
+    summary: "Get a sentence",
+  })
+  .input(z.object({ id: zId }))
+  .output(SentenceOutput)
+  .handler(async ({ input }) => {
+    const [row] = db.select().from(sentences).where(eq(sentences.id, input.id)).limit(1).all();
+    if (!row) throw new ORPCError("NOT_FOUND", { message: `Sentence not found: ${input.id}` });
+    return mapSentence(row);
+  });
+
+// ---------------------------------------------------------------------------
 // Notes procedures
 // ---------------------------------------------------------------------------
 
@@ -1947,6 +2360,401 @@ const notesUpdate = os
   });
 
 // ---------------------------------------------------------------------------
+// New note creation procedures (cloze / choice / error / classifier)
+// ---------------------------------------------------------------------------
+
+const ClozeNoteOutput = NoteOutput.extend({
+  clozeGaps: z.array(z.object({
+    id: zId,
+    gapIndex: z.number().int(),
+    correctAnswers: z.array(z.string()),
+    hint: z.string().nullable(),
+    explanation: z.string().nullable(),
+    difficulty: z.number().int().nullable(),
+  })),
+});
+
+const ChoiceNoteOutput = NoteOutput.extend({
+  choiceOptions: z.array(z.object({
+    id: zId,
+    optionText: z.string(),
+    isCorrect: z.boolean(),
+    explanation: z.string().nullable(),
+    sortOrder: z.number().int(),
+  })),
+});
+
+const notesCreateCloze = os
+  .route({
+    method: "POST",
+    path: "/notes/cloze",
+    tags: ["Notes"],
+    summary: "Create a cloze note",
+    description:
+      "Creates a cloze note from a sentence. Each gap generates one cloze_fill card. " +
+      "Gap markers {{N}} must be present in the sentence text for each gap index.",
+  })
+  .input(z.object({
+    sentenceId: zId.describe("UUID of the sentence this cloze is based on"),
+    conceptId: zId.optional().describe("Primary grammar concept this note exercises"),
+    explanation: z.string().optional().describe("Shown after answer; general note on the rule"),
+    listId: zId.optional(),
+    gaps: z.array(z.object({
+      gapIndex: z.number().int().min(1).describe("1-based; must match {{N}} marker in sentence text"),
+      correctAnswers: z.array(z.string().min(1)).min(1).describe("Accepted answer variants"),
+      hint: z.string().optional(),
+      conceptId: zId.optional().describe("More specific concept for this gap"),
+      difficulty: z.number().int().min(1).max(5).optional(),
+      explanation: z.string().optional().describe("Gap-specific rationale; overrides note-level explanation"),
+    })).min(1),
+  }))
+  .output(ClozeNoteOutput)
+  .handler(async ({ input }) => {
+    // 1. Verify sentence exists
+    const [sentence] = db.select().from(sentences).where(eq(sentences.id, input.sentenceId)).limit(1).all();
+    if (!sentence) throw new ORPCError("NOT_FOUND", { message: `Sentence not found: ${input.sentenceId}` });
+
+    // 2. Validate gap markers exist in sentence text
+    for (const gap of input.gaps) {
+      const marker = `{{${gap.gapIndex}}}`;
+      if (!sentence.text.includes(marker)) {
+        throw new ORPCError("BAD_REQUEST", {
+          message: `Gap marker "${marker}" not found in sentence text: "${sentence.text}"`,
+        });
+      }
+    }
+
+    const id = crypto.randomUUID();
+    const now = new Date();
+
+    // 3. Insert note
+    db.insert(notes).values({
+      id,
+      kind: "cloze",
+      lemmaId: null,
+      front: null,
+      back: null,
+      sentenceId: input.sentenceId,
+      conceptId: input.conceptId ?? null,
+      explanation: input.explanation ?? null,
+      status: "approved",
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    // 4. Insert gaps and cards
+    const insertedGaps: Array<{
+      id: string;
+      gapIndex: number;
+      correctAnswers: string[];
+      hint: string | null;
+      explanation: string | null;
+      difficulty: number | null;
+    }> = [];
+
+    for (const gap of input.gaps) {
+      const gapId = crypto.randomUUID();
+      db.insert(clozeGaps).values({
+        id: gapId,
+        noteId: id,
+        gapIndex: gap.gapIndex,
+        correctAnswers: JSON.stringify(gap.correctAnswers),
+        hint: gap.hint ?? null,
+        conceptId: gap.conceptId ?? null,
+        difficulty: gap.difficulty ?? null,
+        explanation: gap.explanation ?? null,
+        createdAt: now,
+      }).run();
+
+      // One card per gap
+      const cardData = createCard(id, "cloze_fill");
+      db.insert(cards).values({ ...insertCardValues(cardData), id: crypto.randomUUID(), gapId }).run();
+
+      insertedGaps.push({
+        id: gapId,
+        gapIndex: gap.gapIndex,
+        correctAnswers: gap.correctAnswers,
+        hint: gap.hint ?? null,
+        explanation: gap.explanation ?? null,
+        difficulty: gap.difficulty ?? null,
+      });
+    }
+
+    // 5. Optional list association
+    if (input.listId) {
+      db.insert(vocabListNotes).values({ listId: input.listId, noteId: id }).run();
+    }
+
+    return {
+      ...mapNote({
+        id,
+        kind: "cloze",
+        lemmaId: null,
+        front: null,
+        back: null,
+        lastReviewedAt: null,
+        sentenceId: input.sentenceId,
+        conceptId: input.conceptId ?? null,
+        clusterId: null,
+        explanation: input.explanation ?? null,
+        status: "approved",
+        generationMeta: null,
+        createdAt: now,
+        updatedAt: now,
+      }),
+      clozeGaps: insertedGaps,
+    };
+  });
+
+const notesCreateChoice = os
+  .route({
+    method: "POST",
+    path: "/notes/choice",
+    tags: ["Notes"],
+    summary: "Create a multiple-choice note",
+    description:
+      "Creates a multiple-choice note. At least one option must be marked correct. " +
+      "Either front or sentenceId (or both) must be provided.",
+  })
+  .input(z.object({
+    front: z.string().min(1).optional().describe("Question text; required if sentenceId not provided"),
+    sentenceId: zId.optional().describe("Source sentence for context; if provided, front may be omitted"),
+    conceptId: zId.optional(),
+    explanation: z.string().optional().describe("General rationale shown after answer"),
+    listId: zId.optional(),
+    options: z.array(z.object({
+      optionText: z.string().min(1),
+      isCorrect: z.boolean(),
+      explanation: z.string().optional().describe("Why this option is right or wrong"),
+      sortOrder: z.number().int().optional().default(0),
+    })).min(2).describe("At least 2 options, at least 1 must be correct"),
+  }))
+  .output(ChoiceNoteOutput)
+  .handler(async ({ input }) => {
+    // Validate: need front or sentenceId
+    if (!input.front && !input.sentenceId) {
+      throw new ORPCError("BAD_REQUEST", { message: "Either front or sentenceId must be provided" });
+    }
+    // Validate: at least one correct option
+    if (!input.options.some((o) => o.isCorrect)) {
+      throw new ORPCError("BAD_REQUEST", { message: "At least one option must be marked isCorrect: true" });
+    }
+
+    const id = crypto.randomUUID();
+    const now = new Date();
+
+    // 1. Insert note
+    db.insert(notes).values({
+      id,
+      kind: "choice",
+      lemmaId: null,
+      front: input.front ?? null,
+      back: null,
+      sentenceId: input.sentenceId ?? null,
+      conceptId: input.conceptId ?? null,
+      explanation: input.explanation ?? null,
+      status: "approved",
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    // 2. Insert options
+    const insertedOptions: Array<{
+      id: string;
+      optionText: string;
+      isCorrect: boolean;
+      explanation: string | null;
+      sortOrder: number;
+    }> = [];
+
+    for (const opt of input.options) {
+      const optId = crypto.randomUUID();
+      db.insert(choiceOptions).values({
+        id: optId,
+        noteId: id,
+        optionText: opt.optionText,
+        isCorrect: opt.isCorrect,
+        explanation: opt.explanation ?? null,
+        sortOrder: opt.sortOrder ?? 0,
+      }).run();
+      insertedOptions.push({
+        id: optId,
+        optionText: opt.optionText,
+        isCorrect: opt.isCorrect,
+        explanation: opt.explanation ?? null,
+        sortOrder: opt.sortOrder ?? 0,
+      });
+    }
+
+    // 3. One card for the note
+    db.insert(cards).values(insertCardValues(createCard(id, "multiple_choice"))).run();
+
+    // 4. Optional list association
+    if (input.listId) {
+      db.insert(vocabListNotes).values({ listId: input.listId, noteId: id }).run();
+    }
+
+    return {
+      ...mapNote({
+        id,
+        kind: "choice",
+        lemmaId: null,
+        front: input.front ?? null,
+        back: null,
+        lastReviewedAt: null,
+        sentenceId: input.sentenceId ?? null,
+        conceptId: input.conceptId ?? null,
+        clusterId: null,
+        explanation: input.explanation ?? null,
+        status: "approved",
+        generationMeta: null,
+        createdAt: now,
+        updatedAt: now,
+      }),
+      choiceOptions: insertedOptions,
+    };
+  });
+
+const notesCreateError = os
+  .route({
+    method: "POST",
+    path: "/notes/error",
+    tags: ["Notes"],
+    summary: "Create an error-correction note",
+    description: "Creates an error-correction note. Front is the erroneous text; back is the corrected version.",
+  })
+  .input(z.object({
+    front: z.string().min(1).describe("The erroneous text shown to the user"),
+    back: z.string().min(1).describe("The corrected version revealed after answer"),
+    sentenceId: zId.optional().describe("Source sentence if applicable"),
+    conceptId: zId.optional(),
+    explanation: z.string().optional().describe("Why the original was wrong"),
+    listId: zId.optional(),
+  }))
+  .output(NoteOutput)
+  .handler(async ({ input }) => {
+    const id = crypto.randomUUID();
+    const now = new Date();
+
+    // 1. Insert note
+    db.insert(notes).values({
+      id,
+      kind: "error",
+      lemmaId: null,
+      front: input.front,
+      back: input.back,
+      sentenceId: input.sentenceId ?? null,
+      conceptId: input.conceptId ?? null,
+      explanation: input.explanation ?? null,
+      status: "approved",
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    // 2. One error_correction card
+    db.insert(cards).values(insertCardValues(createCard(id, "error_correction"))).run();
+
+    // 3. Optional list association
+    if (input.listId) {
+      db.insert(vocabListNotes).values({ listId: input.listId, noteId: id }).run();
+    }
+
+    return mapNote({
+      id,
+      kind: "error",
+      lemmaId: null,
+      front: input.front,
+      back: input.back,
+      lastReviewedAt: null,
+      sentenceId: input.sentenceId ?? null,
+      conceptId: input.conceptId ?? null,
+      clusterId: null,
+      explanation: input.explanation ?? null,
+      status: "approved",
+      generationMeta: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+const notesCreateClassifier = os
+  .route({
+    method: "POST",
+    path: "/notes/classifier",
+    tags: ["Notes"],
+    summary: "Create a classifier note",
+    description:
+      "Creates a classifier note. The user sees the sentence and must classify it into the correct concept. " +
+      "The concept must have a parent (siblings are required as wrong options in the quiz).",
+  })
+  .input(z.object({
+    sentenceId: zId.describe("The sentence the user will classify"),
+    conceptId: zId.describe("The CORRECT concept classification for this sentence"),
+    explanation: z.string().optional(),
+    listId: zId.optional(),
+  }))
+  .output(NoteOutput)
+  .handler(async ({ input }) => {
+    // Verify sentence exists
+    const [sentence] = db.select({ id: sentences.id }).from(sentences)
+      .where(eq(sentences.id, input.sentenceId)).limit(1).all();
+    if (!sentence) throw new ORPCError("NOT_FOUND", { message: `Sentence not found: ${input.sentenceId}` });
+
+    // Verify concept exists and has a parent (siblings required for classify quiz)
+    const [concept] = db.select().from(grammarConcepts)
+      .where(eq(grammarConcepts.id, input.conceptId)).limit(1).all();
+    if (!concept) throw new ORPCError("NOT_FOUND", { message: `Grammar concept not found: ${input.conceptId}` });
+    if (!concept.parentId) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `Concept "${concept.name}" is a root concept — classifiers require a concept with a parent (for sibling quiz options)`,
+      });
+    }
+
+    const id = crypto.randomUUID();
+    const now = new Date();
+
+    // 1. Insert note
+    db.insert(notes).values({
+      id,
+      kind: "classifier",
+      lemmaId: null,
+      front: null,
+      back: null,
+      sentenceId: input.sentenceId,
+      conceptId: input.conceptId,
+      explanation: input.explanation ?? null,
+      status: "approved",
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    // 2. One classify card
+    db.insert(cards).values(insertCardValues(createCard(id, "classify"))).run();
+
+    // 3. Optional list association
+    if (input.listId) {
+      db.insert(vocabListNotes).values({ listId: input.listId, noteId: id }).run();
+    }
+
+    return mapNote({
+      id,
+      kind: "classifier",
+      lemmaId: null,
+      front: null,
+      back: null,
+      lastReviewedAt: null,
+      sentenceId: input.sentenceId,
+      conceptId: input.conceptId,
+      clusterId: null,
+      explanation: input.explanation ?? null,
+      status: "approved",
+      generationMeta: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+// ---------------------------------------------------------------------------
 // Cards procedures
 // ---------------------------------------------------------------------------
 
@@ -2062,12 +2870,27 @@ export const router = {
     delete: listsDelete,
     addLemma: listsAddLemma,
   },
+  grammarConcepts: {
+    list: grammarConceptsList,
+    create: grammarConceptsCreate,
+    get: grammarConceptsGet,
+    children: grammarConceptsChildren,
+  },
+  sentences: {
+    list: sentencesList,
+    create: sentencesCreate,
+    get: sentencesGet,
+  },
   notes: {
     list: notesList,
     create: notesCreate,
     get: notesGet,
     delete: notesDelete,
     update: notesUpdate,
+    createCloze: notesCreateCloze,
+    createChoice: notesCreateChoice,
+    createError: notesCreateError,
+    createClassifier: notesCreateClassifier,
   },
   lemmas: {
     list: lemmasList,

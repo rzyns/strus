@@ -41,7 +41,7 @@ export interface Note {
 export interface Card {
   id: string;
   noteId: string;
-  kind: "morph_form" | "gloss_forward" | "gloss_reverse" | "basic_forward";
+  kind: "morph_form" | "gloss_forward" | "gloss_reverse" | "basic_forward" | "cloze_fill" | "multiple_choice" | "error_correction" | "classify";
   /** Only set for kind='morph_form' */
   tag?: string;
   state: CardState;
