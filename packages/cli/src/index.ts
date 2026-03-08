@@ -1061,6 +1061,64 @@ noteCmd
   });
 
 // ---------------------------------------------------------------------------
+// Generate command — LLM-powered batch note generation
+// ---------------------------------------------------------------------------
+
+const generateCmd = program
+  .command("generate")
+  .description("Batch-generate contextual exercise notes via LLM");
+
+generateCmd
+  .requiredOption("--concept <uuid>", "Grammar concept UUID to generate exercises for")
+  .requiredOption("--kind <kind>", "Exercise kind: cloze or choice")
+  .option("--count <n>", "Number of notes to generate (1–20)", "5")
+  .option("--difficulty <n>", "Difficulty level 1–3 (1=beginner, 2=intermediate, 3=advanced)")
+  .action(
+    async (opts: {
+      concept: string;
+      kind: string;
+      count: string;
+      difficulty?: string;
+    }) => {
+      if (opts.kind !== "cloze" && opts.kind !== "choice") {
+        console.error(`Error: --kind must be "cloze" or "choice", got "${opts.kind}"`);
+        process.exit(1);
+      }
+
+      const count = parseInt(opts.count, 10);
+      if (isNaN(count) || count < 1 || count > 20) {
+        console.error(`Error: --count must be an integer between 1 and 20`);
+        process.exit(1);
+      }
+
+      const body: Record<string, unknown> = {
+        conceptId: opts.concept,
+        kind: opts.kind,
+        count,
+      };
+
+      if (opts.difficulty !== undefined) {
+        const difficulty = parseInt(opts.difficulty, 10);
+        if (isNaN(difficulty) || difficulty < 1 || difficulty > 3) {
+          console.error(`Error: --difficulty must be 1, 2, or 3`);
+          process.exit(1);
+        }
+        body["difficulty"] = difficulty;
+      }
+
+      const result = await apiPost<{
+        batchId: string;
+        generated: number;
+        approved: number;
+        flagged: number;
+        failed: number;
+      }>("/api/generation/generate", body);
+
+      console.log(JSON.stringify(result, null, 2));
+    },
+  );
+
+// ---------------------------------------------------------------------------
 // Run
 // ---------------------------------------------------------------------------
 

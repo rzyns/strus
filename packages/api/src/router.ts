@@ -5,6 +5,8 @@ import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 import { count, eq, lte, ne, like, and, or, inArray, asc, sql, isNull } from "drizzle-orm";
 import { db } from "@strus/db";
+import { createProvider } from "./generation/provider.js";
+import { generateBatch } from "./generation/generate.js";
 import {
   vocabLists,
   lemmas,
@@ -2858,6 +2860,58 @@ const settingsSet = os
   });
 
 // ---------------------------------------------------------------------------
+// Generation procedures
+// ---------------------------------------------------------------------------
+
+const generationGenerate = os
+  .route({
+    method: "POST",
+    path: "/generation/generate",
+    tags: ["Generation"],
+    summary: "Batch-generate contextual exercise notes via LLM",
+    description:
+      "Generates cloze or multiple-choice notes for a given grammar concept using the " +
+      "configured LLM provider (Gemini or OpenAI-compatible). Notes are validated via " +
+      "Morfeusz2 and rule-based checks; passing notes are auto-approved, failing ones are flagged.",
+  })
+  .input(
+    z.object({
+      conceptId: z.string().uuid().describe("Grammar concept UUID to generate exercises for"),
+      kind: z.enum(["cloze", "choice"]).describe("Exercise type: cloze fill-in-the-blank or multiple choice"),
+      count: z.number().int().min(1).max(20).default(5).describe("Number of notes to generate"),
+      difficulty: z
+        .number()
+        .int()
+        .min(1)
+        .max(3)
+        .optional()
+        .describe("Difficulty level 1–3 (1=beginner, 2=intermediate, 3=advanced); default 2"),
+    }),
+  )
+  .output(
+    z.object({
+      batchId: z.string().describe("UUID identifying this generation batch"),
+      generated: z.number().int().describe("Total notes successfully generated (before validation)"),
+      approved: z.number().int().describe("Notes that passed all validation checks"),
+      flagged: z.number().int().describe("Notes that failed one or more validation checks"),
+      failed: z.number().int().describe("Notes that errored during generation"),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const provider = createProvider();
+    const batchOpts: Parameters<typeof generateBatch>[0] = {
+      kind: input.kind,
+      conceptId: input.conceptId,
+      count: input.count,
+      provider,
+    };
+    if (input.difficulty !== undefined) {
+      batchOpts.difficulty = input.difficulty as 1 | 2 | 3;
+    }
+    return generateBatch(batchOpts);
+  });
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -2921,6 +2975,9 @@ export const router = {
   settings: {
     get: settingsGet,
     set: settingsSet,
+  },
+  generation: {
+    generate: generationGenerate,
   },
 };
 
