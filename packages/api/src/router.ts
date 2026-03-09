@@ -592,6 +592,57 @@ const listsAddLemma = os
 
 // ---------------------------------------------------------------------------
 // Lemmas procedures
+const listsAddNote = os
+  .route({
+    method: "POST",
+    path: "/lists/{listId}/notes",
+    tags: ["Lists"],
+    summary: "Add a note to a vocabulary list",
+    description:
+      "Associates an existing note directly with a vocabulary list. " +
+      "Idempotent — calling twice with the same IDs returns success both times.",
+  })
+  .input(z.object({
+    listId: zId.describe("ID of the vocabulary list"),
+    noteId: zId.describe("ID of the note to add"),
+  }))
+  .output(SuccessOutput)
+  .handler(async ({ input }) => {
+    // Verify the list exists
+    const [list] = await db
+      .select({ id: vocabLists.id })
+      .from(vocabLists)
+      .where(eq(vocabLists.id, input.listId))
+      .limit(1);
+
+    if (!list) {
+      throw new ORPCError("NOT_FOUND", {
+        message: `Vocabulary list not found: ${input.listId}`,
+      });
+    }
+
+    // Verify the note exists
+    const [note] = await db
+      .select({ id: notes.id })
+      .from(notes)
+      .where(eq(notes.id, input.noteId))
+      .limit(1);
+
+    if (!note) {
+      throw new ORPCError("NOT_FOUND", {
+        message: `Note not found: ${input.noteId}`,
+      });
+    }
+
+    // Insert idempotently (primaryKey constraint on (listId, noteId))
+    await db
+      .insert(vocabListNotes)
+      .values({ listId: input.listId, noteId: input.noteId })
+      .onConflictDoNothing();
+
+    return { success: true as const };
+  });
+
 // ---------------------------------------------------------------------------
 
 const lemmasList = os
@@ -3635,6 +3686,7 @@ export const router = {
     get: listsGet,
     delete: listsDelete,
     addLemma: listsAddLemma,
+    addNote: listsAddNote,
   },
   grammarConcepts: {
     list: grammarConceptsList,

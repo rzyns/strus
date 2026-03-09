@@ -163,6 +163,19 @@ listCmd
     console.log(`Added lemma ${lemmaId} to list ${listId}`);
   });
 
+listCmd
+  .command("add-note")
+  .description("Add a note directly to a vocabulary list")
+  .requiredOption("--list <listId>", "ID of the vocabulary list")
+  .requiredOption("--note <noteId>", "ID of the note to add")
+  .action(async (opts: { list: string; note: string }) => {
+    await apiPost<{ success: true }>(
+      `/api/lists/${encodeURIComponent(opts.list)}/notes`,
+      { listId: opts.list, noteId: opts.note },
+    );
+    console.log(`Added note ${opts.note} to list ${opts.list}`);
+  });
+
 // ---------------------------------------------------------------------------
 // strus lemma
 // ---------------------------------------------------------------------------
