@@ -45,3 +45,9 @@ export type DueCard = RouterOutputs['session']['due'][number]
 // ---------------------------------------------------------------------------
 
 export type VocabListItem = RouterOutputs['lists']['list'][number]
+
+// ---------------------------------------------------------------------------
+// Draft notes (review queue)
+// ---------------------------------------------------------------------------
+
+export type DraftNoteItem = RouterOutputs['notes']['listDrafts']['notes'][number]

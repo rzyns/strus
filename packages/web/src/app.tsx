@@ -10,6 +10,7 @@ const LemmasIndex = lazy(() => import('./routes/lemmas/index'))
 const LemmaDetail = lazy(() => import('./routes/lemmas/[id]'))
 const NotesIndex = lazy(() => import('./routes/notes/index'))
 const NoteDetail = lazy(() => import('./routes/notes/[id]'))
+const Review = lazy(() => import('./routes/review/index'))
 const Import = lazy(() => import('./routes/import'))
 const Quiz = lazy(() => import('./routes/quiz/index'))
 const Settings = lazy(() => import('./routes/settings/index'))
@@ -36,6 +37,7 @@ export function App() {
       <Route path="/lemmas/:id" component={LemmaDetail} />
       <Route path="/notes" component={NotesIndex} />
       <Route path="/notes/:id" component={NoteDetail} />
+      <Route path="/review" component={Review} />
       <Route path="/import" component={Import} />
       <Route path="/quiz" component={Quiz} />
       <Route path="/settings" component={Settings} />
