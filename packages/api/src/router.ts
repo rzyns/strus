@@ -3403,6 +3403,7 @@ const generationGenerate = os
       approved: z.number().int().describe("Notes that passed all validation checks"),
       flagged: z.number().int().describe("Notes that failed one or more validation checks"),
       failed: z.number().int().describe("Notes that errored during generation"),
+      errors: z.array(z.string()).describe("Error messages from failed generation attempts"),
     }),
   )
   .handler(async ({ input }) => {

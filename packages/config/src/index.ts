@@ -38,8 +38,8 @@ const BaseConfigSchema = z.object({
     .enum(["gemini", "openai-compatible"])
     .default("gemini"),
 
-  /** Model name passed to the provider. Default: "gemini-2.0-flash-exp". */
-  STRUS_GENERATION_MODEL: z.string().min(1).default("gemini-2.0-flash-exp"),
+  /** Model name passed to the provider. Default: "gemini-2.5-flash". */
+  STRUS_GENERATION_MODEL: z.string().min(1).default("gemini-2.5-flash"),
 
   /** API key for OpenAI-compatible providers (e.g. OpenAI, Ollama ignores this). */
   STRUS_OPENAI_API_KEY: z.string().min(1).optional(),

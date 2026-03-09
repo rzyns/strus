@@ -443,6 +443,7 @@ export async function generateBatch(opts: {
   let approved = 0;
   let flagged = 0;
   let failed = 0;
+  const errors: string[] = [];
 
   for (let i = 0; i < opts.count; i++) {
     try {
@@ -471,10 +472,12 @@ export async function generateBatch(opts: {
 
       console.log(`[generation] batch ${batchId} item ${i + 1}/${opts.count} → ${status}`);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error(`[generation] batch ${batchId} item ${i + 1} failed:`, err);
+      errors.push(msg);
       failed++;
     }
   }
 
-  return { batchId, generated, approved, flagged, failed };
+  return { batchId, generated, approved, flagged, failed, errors };
 }
