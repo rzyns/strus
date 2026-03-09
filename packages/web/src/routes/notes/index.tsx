@@ -12,15 +12,22 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import * as Table from '../../components/ui/table'
 import { CreateNoteDialog } from '../../components/CreateNoteDialog'
 
-const KIND_OPTIONS = ['', 'morph', 'basic', 'gloss'] as const
+const KIND_OPTIONS = ['', 'morph', 'basic', 'gloss', 'cloze', 'choice', 'error', 'classifier'] as const
 
-const KIND_COLORS: Record<string, string> = {
-  morph: 'blue',
-  basic: 'green',
-  gloss: 'purple',
+const STATUS_OPTIONS = ['', 'draft', 'approved', 'flagged', 'rejected'] as const
+
+const KIND_STYLE: Record<string, { bg: string; color: string }> = {
+  morph:      { bg: 'blue.3',   color: 'blue.11'   },
+  basic:      { bg: 'green.3',  color: 'green.11'  },
+  gloss:      { bg: 'purple.3', color: 'purple.11' },
+  cloze:      { bg: 'teal.3',   color: 'teal.11'   },
+  choice:     { bg: 'violet.3', color: 'violet.11' },
+  error:      { bg: 'red.3',    color: 'red.11'    },
+  classifier: { bg: 'orange.3', color: 'orange.11' },
 }
 
 function KindBadge(props: { kind: string }) {
+  const style = () => KIND_STYLE[props.kind] ?? { bg: 'gray.3', color: 'gray.11' }
   return (
     <span class={css({
       display: 'inline-block',
@@ -29,8 +36,8 @@ function KindBadge(props: { kind: string }) {
       borderRadius: 'l2',
       fontSize: 'xs',
       fontWeight: 'medium',
-      bg: props.kind === 'morph' ? 'blue.3' : props.kind === 'basic' ? 'green.3' : 'purple.3',
-      color: props.kind === 'morph' ? 'blue.11' : props.kind === 'basic' ? 'green.11' : 'purple.11',
+      bg: style().bg,
+      color: style().color,
     })}>
       {props.kind}
     </span>
@@ -40,6 +47,7 @@ function KindBadge(props: { kind: string }) {
 export default function NotesIndex() {
   const [notes, { refetch }] = createResource<NoteListItem[]>(() => api.notes.list({}))
   const [kindFilter, setKindFilter] = createSignal('')
+  const [statusFilter, setStatusFilter] = createSignal('')
   const [deleteId, setDeleteId] = createSignal<string | null>(null)
   const [deleting, setDeleting] = createSignal(false)
   const [showCreate, setShowCreate] = createSignal(false)
@@ -48,8 +56,11 @@ export default function NotesIndex() {
     const data = notes()
     if (!data) return []
     const k = kindFilter()
-    if (!k) return data
-    return data.filter((n) => n.kind === k)
+    const s = statusFilter()
+    let result = data
+    if (k) result = result.filter((n) => n.kind === k)
+    if (s) result = result.filter((n) => n.status === s)
+    return result
   })
 
   const handleDelete = async () => {
@@ -77,7 +88,10 @@ export default function NotesIndex() {
       const parts = [note.lemmaText, note.back].filter(Boolean)
       return parts.length > 0 ? truncate(parts.join(' → ')) : '—'
     }
-    // basic
+    if (note.kind === 'basic') return note.front ? truncate(note.front) : '—'
+    // Contextual kinds: use sentence text if available
+    if (note.sentenceText) return truncate(note.sentenceText)
+    // Fallback for contextual kinds without sentence text
     if (note.front) return truncate(note.front)
     return '—'
   }
@@ -97,6 +111,11 @@ export default function NotesIndex() {
             {(k) => <option value={k}>{k || 'All kinds'}</option>}
           </For>
         </select>
+        <select class={selectStyle} value={statusFilter()} onChange={(e) => setStatusFilter(e.currentTarget.value)}>
+          <For each={[...STATUS_OPTIONS]}>
+            {(s) => <option value={s}>{s || 'All statuses'}</option>}
+          </For>
+        </select>
       </div>
 
       <ErrorBoundary fallback={(err) => <ErrorState message={String(err)} onRetry={refetch} />}>
@@ -107,8 +126,8 @@ export default function NotesIndex() {
                 fallback={
                   <EmptyState
                     heading="No notes found"
-                    description={kindFilter() ? 'Try a different filter.' : 'Create your first basic note to get started.'}
-                    {...(!kindFilter() ? { action: { label: 'New basic note', onClick: () => setShowCreate(true) } } : {})}
+                    description={kindFilter() || statusFilter() ? 'Try a different filter.' : 'Create your first basic note to get started.'}
+                    {...(!kindFilter() && !statusFilter() ? { action: { label: 'New basic note', onClick: () => setShowCreate(true) } } : {})}
                   />
                 }
               >

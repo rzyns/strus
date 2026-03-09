@@ -1,5 +1,5 @@
 import { createResource, createSignal, Suspense, ErrorBoundary, Show } from 'solid-js'
-import { useNavigate } from '@solidjs/router'
+import { A, useNavigate } from '@solidjs/router'
 import { css } from '../../styled-system/css'
 import { api } from '../api/client'
 import { Card } from '../components/Card'
@@ -24,6 +24,41 @@ function DashboardContent(props: { onNewNote: () => void }) {
         <Show when={stats()}>
           {(data) => (
             <>
+              <Show when={(data().draftCount ?? 0) > 0}>
+                <div class={css({
+                  mb: '6',
+                  p: '4',
+                  bg: 'amber.2',
+                  border: '1px solid',
+                  borderColor: 'amber.6',
+                  borderRadius: 'l3',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                })}>
+                  <div>
+                    <p class={css({ fontWeight: 'semibold', color: 'amber.11', fontSize: 'sm' })}>
+                      ⏳ Review queue
+                    </p>
+                    <p class={css({ color: 'amber.10', fontSize: 'sm', mt: '0.5' })}>
+                      {data().draftCount} exercise{data().draftCount === 1 ? '' : 's'} waiting for review
+                    </p>
+                  </div>
+                  <A
+                    href="/review"
+                    class={css({
+                      fontSize: 'sm',
+                      fontWeight: 'medium',
+                      color: 'amber.11',
+                      textDecoration: 'none',
+                      _hover: { textDecoration: 'underline' },
+                    })}
+                  >
+                    Review now →
+                  </A>
+                </div>
+              </Show>
+
               <div class={css({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4', mb: '8' })}>
                 <div class={css({
                   bg: 'bg',
