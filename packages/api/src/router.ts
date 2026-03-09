@@ -2985,8 +2985,8 @@ const clustersList = os
     summary: "List semantic clusters",
   })
   .input(z.object({
-    limit: z.number().int().min(1).max(100).default(50),
-    offset: z.number().int().min(0).default(0),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    offset: z.coerce.number().int().min(0).default(0),
   }))
   .output(z.object({
     clusters: z.array(z.object({
