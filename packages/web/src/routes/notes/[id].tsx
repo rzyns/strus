@@ -544,6 +544,8 @@ export default function NoteDetail() {
     } catch (err) {
       setTriageError(String(err))
       setTriagePhase('idle')
+      setTriagePendingAction(null)
+      setTriageReason('')
     }
   }
 
