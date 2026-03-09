@@ -1125,6 +1125,7 @@ generateCmd
         approved: number;
         flagged: number;
         failed: number;
+        errors: string[];
       }>("/api/generation/generate", body);
 
       console.log(JSON.stringify(result, null, 2));
