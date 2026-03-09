@@ -76,6 +76,45 @@ describe("validateSentenceLength", () => {
     });
     expect(result.layer).toBe("length");
   });
+
+  test("single gap — passes once gap is substituted (7 words)", () => {
+    // "Ona {{1}} do szkoły autobusem każdego ranka."
+    // filled: "Ona chodzi do szkoły autobusem każdego ranka." = 7 words → pass
+    const result = validateSentenceLength({
+      sentence_text: "Ona {{1}} do szkoły autobusem każdego ranka.",
+      translation: null,
+      gaps: [{ gap_index: 1, correct_answers: ["chodzi"], hint: null, explanation: "", why_not: null }],
+    });
+    expect(result.pass).toBe(true);
+    expect(result.reason).toContain("7");
+  });
+
+  test("multiple gaps — sentence too short even when filled (4 words)", () => {
+    // "{{1}} {{2}} do domu."
+    // filled: "Ona idzie do domu." = 4 words → fail (min 5)
+    const result = validateSentenceLength({
+      sentence_text: "{{1}} {{2}} do domu.",
+      translation: null,
+      gaps: [
+        { gap_index: 1, correct_answers: ["Ona"], hint: null, explanation: "", why_not: null },
+        { gap_index: 2, correct_answers: ["idzie"], hint: null, explanation: "", why_not: null },
+      ],
+    });
+    expect(result.pass).toBe(false);
+    expect(result.reason).toContain("Too short");
+  });
+
+  test("multi-word answer — 'bawią się' counts as two words (8 words total)", () => {
+    // "Dzieci {{1}} razem na podwórku po szkole."
+    // filled: "Dzieci bawią się razem na podwórku po szkole." = 8 words → pass
+    const result = validateSentenceLength({
+      sentence_text: "Dzieci {{1}} razem na podwórku po szkole.",
+      translation: null,
+      gaps: [{ gap_index: 1, correct_answers: ["bawią się"], hint: null, explanation: "", why_not: null }],
+    });
+    expect(result.pass).toBe(true);
+    expect(result.reason).toContain("8");
+  });
 });
 
 // ---------------------------------------------------------------------------
