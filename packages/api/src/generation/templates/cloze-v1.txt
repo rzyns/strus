@@ -6,15 +6,15 @@ The sentence should be at difficulty level <%difficulty%> (1 = beginner vocabula
 Mark each gap using EXACTLY this format: {{1}}, {{2}}, etc. — double curly braces around the gap number. Place the marker directly in the sentence where the missing word belongs. Do not use blank spaces, underscores, <gap_1>, or any other placeholder format.
 
 Example of correct marker usage:
-  "Ona {{1}} do szkoły każdego dnia." → gap 1 answer: "chodzi"
-  "Dzieci {{1}} się i {{2}} razem." → gap 1 answer: "bawią", gap 2 answer: "śmieją"
+  "Ona {{1}} do szkoły autobusem każdego ranka." → gap 1 answer: "chodzi"
+  "Dzieci {{1}} razem na podwórku po szkole." → gap 1 answer: "bawią się"
 
 Requirements:
 - The correct answer must be unambiguous given the sentence context
 - A learner cannot substitute a near-synonym and have it be equally valid
 - The sentence must be natural Polish, not a textbook translation
 - Use vocabulary appropriate for the difficulty level
-- The sentence must be at least 5 words long
+- The sentence must contain at least 6 words when the gap is filled in (i.e. with {{1}} replaced by the answer)
 
 <%#examples%>
 Example:

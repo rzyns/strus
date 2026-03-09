@@ -32,26 +32,34 @@ export async function validateMorphology(
 }
 
 /**
- * Sentence length guard: 5–40 words. Very short sentences are usually
- * underspecified; very long ones are unwieldy in a cloze context.
+ * Sentence length guard: 5–40 words. Measured on the *filled* sentence —
+ * each {{N}} marker is replaced with its first correct answer before counting.
+ * This avoids counting gap markers as words and gives the true readable length.
  */
 export function validateSentenceLength(draft: GeneratedClozeNote): ValidationResult {
-  const words = draft.sentence_text.split(/\s+/).filter(Boolean).length;
+  // Replace each {{N}} marker with its first correct answer
+  let filled = draft.sentence_text;
+  for (const gap of draft.gaps) {
+    const answer = gap.correct_answers[0] ?? "X";
+    filled = filled.replace(`{{${gap.gap_index}}}`, answer);
+  }
+
+  const words = filled.split(/\s+/).filter(Boolean).length;
   if (words < 5) {
     return {
       layer: "length",
       pass: false,
-      reason: `Too short: ${words} words (min 5)`,
+      reason: `Too short: ${words} words when filled (min 5); sentence: "${draft.sentence_text}"`,
     };
   }
   if (words > 40) {
     return {
       layer: "length",
       pass: false,
-      reason: `Too long: ${words} words (max 40)`,
+      reason: `Too long: ${words} words when filled (max 40)`,
     };
   }
-  return { layer: "length", pass: true, reason: `${words} words` };
+  return { layer: "length", pass: true, reason: `${words} words when filled` };
 }
 
 /**
