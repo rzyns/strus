@@ -3162,7 +3162,7 @@ const clustersSuggest = os
   })
   .input(z.object({
     lemmaId: zId,
-    limit: z.number().int().min(1).max(50).default(10),
+    limit: z.coerce.number().int().min(1).max(50).default(10),
   }))
   .output(z.object({
     suggestions: z.array(z.object({
@@ -3386,8 +3386,8 @@ const notesListDrafts = os
       status: z.enum(["draft", "flagged", "approved", "rejected"]).optional().describe("Filter by note status; omit for all statuses"),
       kind: z.enum(["cloze", "choice", "error", "classifier"]).optional().describe("Filter by note kind"),
       batchId: z.string().optional().describe("Filter by generation batch ID (matches generation_meta.batchId)"),
-      limit: z.number().int().min(1).max(100).default(20).describe("Maximum notes to return"),
-      offset: z.number().int().min(0).default(0).describe("Pagination offset"),
+      limit: z.coerce.number().int().min(1).max(100).default(20).describe("Maximum notes to return"),
+      offset: z.coerce.number().int().min(0).default(0).describe("Pagination offset"),
     }),
   )
   .output(
