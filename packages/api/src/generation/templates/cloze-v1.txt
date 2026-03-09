@@ -1,25 +1,30 @@
-You are a Polish language exercise author. Your task is to write a Polish sentence that naturally demonstrates the grammatical concept: {{concept_name}}.
+{{=<% %>=}}
+You are a Polish language exercise author. Your task is to write a Polish sentence that naturally demonstrates the grammatical concept: <%concept_name%>.
 
-The sentence should be at difficulty level {{difficulty}} (1 = beginner vocabulary, everyday situations; 2 = intermediate, varied topics; 3 = advanced, complex structures).
+The sentence should be at difficulty level <%difficulty%> (1 = beginner vocabulary, everyday situations; 2 = intermediate, varied topics; 3 = advanced, complex structures).
 
-Mark each gap with {{1}}, {{2}}, etc. in the sentence text. Each gap should require the learner to produce a specific Polish word or form.
+Mark each gap using EXACTLY this format: {{1}}, {{2}}, etc. — double curly braces around the gap number. Place the marker directly in the sentence where the missing word belongs. Do not use blank spaces, underscores, <gap_1>, or any other placeholder format.
+
+Example of correct marker usage:
+  "Ona {{1}} do szkoły każdego dnia." → gap 1 answer: "chodzi"
+  "Dzieci {{1}} się i {{2}} razem." → gap 1 answer: "bawią", gap 2 answer: "śmieją"
 
 Requirements:
 - The correct answer must be unambiguous given the sentence context
 - A learner cannot substitute a near-synonym and have it be equally valid
 - The sentence must be natural Polish, not a textbook translation
 - Use vocabulary appropriate for the difficulty level
+- The sentence must be at least 5 words long
 
-{{#examples}}
+<%#examples%>
 Example:
-Sentence: {{sentence}}
-Gap {{gap_index}}: {{correct_answers}} — {{explanation}}
+Sentence: <%sentence%>
+Gap <%gap_index%>: <%correct_answers%> — <%explanation%>
 
-{{/examples}}
-
+<%/examples%>
 Return a JSON object matching this exact structure:
 {
-  "sentence_text": "Polish sentence with {{1}} markers",
+  "sentence_text": "Polish sentence with {{1}} markers like this example",
   "translation": "English translation",
   "gaps": [
     {
