@@ -1,4 +1,4 @@
-import { createResource, createSignal, createMemo, For, Show, Suspense, ErrorBoundary, type JSX } from 'solid-js'
+import { createResource, createSignal, createMemo, For, Show, Switch, Match, Suspense, ErrorBoundary, type JSX } from 'solid-js'
 import { useParams, useNavigate, A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
@@ -16,6 +16,298 @@ const ratingMeta: Record<number, { label: string; color: string; bg: string }> =
   2: { label: 'Hard', color: 'orange.11', bg: 'orange.3' },
   3: { label: 'Good', color: 'green.11', bg: 'green.3' },
   4: { label: 'Easy', color: 'teal.11', bg: 'teal.3' },
+}
+
+// ---------------------------------------------------------------------------
+// Kind helpers
+// ---------------------------------------------------------------------------
+
+const CONTEXTUAL_KINDS = ['cloze', 'choice', 'error', 'classifier'] as const
+type ContextualKind = typeof CONTEXTUAL_KINDS[number]
+
+function isContextualKind(kind: string): kind is ContextualKind {
+  return (CONTEXTUAL_KINDS as readonly string[]).includes(kind)
+}
+
+function kindTitle(kind: string): string {
+  switch (kind) {
+    case 'morph': return 'Morph Note'
+    case 'basic': return 'Basic Note'
+    case 'gloss': return 'Gloss Note'
+    case 'cloze': return 'Cloze Exercise'
+    case 'choice': return 'Multiple Choice Exercise'
+    case 'error': return 'Error Correction Exercise'
+    case 'classifier': return 'Classifier Exercise'
+    default: return kind
+  }
+}
+
+function kindBadgeColors(kind: string): { bg: string; color: string } {
+  switch (kind) {
+    case 'morph': return { bg: 'blue.3', color: 'blue.11' }
+    case 'basic': return { bg: 'green.3', color: 'green.11' }
+    case 'gloss': return { bg: 'purple.3', color: 'purple.11' }
+    case 'cloze': return { bg: 'teal.3', color: 'teal.11' }
+    case 'choice': return { bg: 'violet.3', color: 'violet.11' }
+    case 'error': return { bg: 'red.3', color: 'red.11' }
+    case 'classifier': return { bg: 'orange.3', color: 'orange.11' }
+    default: return { bg: 'gray.3', color: 'gray.11' }
+  }
+}
+
+function statusBadgeInfo(status: string | null): { bg: string; color: string; label: string } | null {
+  switch (status) {
+    case 'draft': return { bg: 'amber.3', color: 'amber.11', label: 'Draft — pending review' }
+    case 'approved': return { bg: 'green.3', color: 'green.11', label: 'Approved' }
+    case 'flagged': return { bg: 'orange.3', color: 'orange.11', label: 'Flagged' }
+    case 'rejected': return { bg: 'red.3', color: 'red.11', label: 'Rejected' }
+    default: return null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Contextual note body renderers
+// ---------------------------------------------------------------------------
+
+type GapItem = { id: string; gapIndex: number; correctAnswers: string; hint: string | null; explanation: string | null }
+type OptionItem = { id: string; optionText: string; isCorrect: boolean; explanation: string | null }
+
+function ClozeBody(props: { sentenceText: string | null; gaps: GapItem[]; explanation: string | null }): JSX.Element {
+  const gapAnswers = (): Record<number, string> => {
+    const map: Record<number, string> = {}
+    for (const g of props.gaps) {
+      try {
+        const answers = JSON.parse(g.correctAnswers) as string[]
+        map[g.gapIndex] = answers[0] ?? '?'
+      } catch {
+        map[g.gapIndex] = g.correctAnswers
+      }
+    }
+    return map
+  }
+
+  const parts = (): Array<{ type: 'text'; text: string } | { type: 'gap'; index: number }> => {
+    const sentence = props.sentenceText ?? ''
+    const result: Array<{ type: 'text'; text: string } | { type: 'gap'; index: number }> = []
+    const regex = /\{\{(\d+)\}\}/g
+    let last = 0
+    let match: RegExpExecArray | null
+    while ((match = regex.exec(sentence)) !== null) {
+      if (match.index > last) result.push({ type: 'text', text: sentence.slice(last, match.index) })
+      result.push({ type: 'gap', index: parseInt(match[1]!) })
+      last = regex.lastIndex
+    }
+    if (last < sentence.length) result.push({ type: 'text', text: sentence.slice(last) })
+    return result
+  }
+
+  return (
+    <div class={css({ mb: '6', p: '4', border: '1px solid', borderColor: 'border', borderRadius: 'l3', bg: 'bg.subtle' })}>
+      <p class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.muted', mb: '2' })}>Sentence</p>
+      <p class={css({ fontSize: 'lg', lineHeight: '2', mb: '4' })}>
+        <For each={parts()}>
+          {(part) => (
+            <>
+              {part.type === 'text' ? (
+                <span>{part.text}</span>
+              ) : (
+                <span class={css({
+                  display: 'inline-block',
+                  px: '2', py: '0.5', mx: '0.5',
+                  borderRadius: 'l2',
+                  bg: 'green.3', color: 'green.11',
+                  fontWeight: 'semibold', fontSize: 'sm',
+                })}>
+                  {gapAnswers()[part.index] ?? '?'}
+                </span>
+              )}
+            </>
+          )}
+        </For>
+      </p>
+
+      <Show when={props.gaps.length > 0}>
+        <div class={css({ mb: '3' })}>
+          <p class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.muted', mb: '2' })}>Gaps</p>
+          <For each={props.gaps}>
+            {(gap) => (
+              <div class={css({ fontSize: 'sm', color: 'fg.default', mb: '1', pl: '2', borderLeft: '2px solid', borderColor: 'green.6' })}>
+                <span class={css({ fontWeight: 'medium' })}>Gap {gap.gapIndex}:</span>{' '}
+                {gapAnswers()[gap.gapIndex] ?? '?'}
+                <Show when={gap.hint}>
+                  {(h) => <span class={css({ color: 'fg.muted' })}> · Hint: {h()}</span>}
+                </Show>
+                <Show when={gap.explanation}>
+                  {(e) => <span class={css({ color: 'fg.muted' })}> — {e()}</span>}
+                </Show>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+
+      <Show when={props.explanation}>
+        {(exp) => (
+          <p class={css({ fontSize: 'sm', fontStyle: 'italic', color: 'fg.muted' })}>{exp()}</p>
+        )}
+      </Show>
+    </div>
+  )
+}
+
+function ChoiceBody(props: { sentenceText: string | null; front: string | null; options: OptionItem[]; explanation: string | null }): JSX.Element {
+  return (
+    <div class={css({ mb: '6', p: '4', border: '1px solid', borderColor: 'border', borderRadius: 'l3', bg: 'bg.subtle' })}>
+      <Show when={props.sentenceText}>
+        {(text) => (
+          <p class={css({ fontSize: 'md', fontStyle: 'italic', color: 'fg.muted', mb: '3' })}>
+            "{text()}"
+          </p>
+        )}
+      </Show>
+      <Show when={props.front}>
+        {(prompt) => (
+          <p class={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '4' })}>{prompt()}</p>
+        )}
+      </Show>
+      <div class={css({ display: 'flex', flexDir: 'column', gap: '2', mb: '3' })}>
+        <For each={props.options}>
+          {(option) => (
+            <div class={css({
+              p: '3', borderRadius: 'l2',
+              border: '1px solid',
+              borderColor: option.isCorrect ? 'green.7' : 'border',
+              bg: option.isCorrect ? 'green.2' : 'bg',
+            })}>
+              <span class={css({ fontWeight: option.isCorrect ? 'semibold' : 'normal' })}>
+                {option.isCorrect ? '✅ ' : '❌ '}{option.optionText}
+              </span>
+              <Show when={option.explanation}>
+                {(exp) => (
+                  <p class={css({ fontSize: 'sm', color: 'fg.muted', mt: '1' })}>{exp()}</p>
+                )}
+              </Show>
+            </div>
+          )}
+        </For>
+      </div>
+      <Show when={props.explanation}>
+        {(exp) => (
+          <p class={css({ fontSize: 'sm', fontStyle: 'italic', color: 'fg.muted' })}>{exp()}</p>
+        )}
+      </Show>
+    </div>
+  )
+}
+
+function ErrorBody(props: { front: string | null; back: string | null; explanation: string | null }): JSX.Element {
+  return (
+    <div class={css({ mb: '6' })}>
+      <div class={css({ display: 'flex', gap: '3', flexWrap: 'wrap', mb: '3' })}>
+        <div class={css({ flex: '1', minW: '180px', p: '3', borderRadius: 'l2', bg: 'red.2', border: '1px solid', borderColor: 'red.6' })}>
+          <p class={css({ fontSize: 'xs', fontWeight: 'semibold', color: 'red.10', mb: '1', textTransform: 'uppercase', letterSpacing: 'wider' })}>
+            Erroneous
+          </p>
+          <p class={css({ fontSize: 'lg', color: 'red.11' })}>{props.front ?? '—'}</p>
+        </div>
+        <div class={css({ flex: '1', minW: '180px', p: '3', borderRadius: 'l2', bg: 'green.2', border: '1px solid', borderColor: 'green.6' })}>
+          <p class={css({ fontSize: 'xs', fontWeight: 'semibold', color: 'green.10', mb: '1', textTransform: 'uppercase', letterSpacing: 'wider' })}>
+            Correction
+          </p>
+          <p class={css({ fontSize: 'lg', color: 'green.11' })}>{props.back ?? '—'}</p>
+        </div>
+      </div>
+      <Show when={props.explanation}>
+        {(exp) => (
+          <p class={css({ fontSize: 'sm', fontStyle: 'italic', color: 'fg.muted' })}>{exp()}</p>
+        )}
+      </Show>
+    </div>
+  )
+}
+
+function ClassifierBody(props: { sentenceText: string | null; conceptName: string | undefined; conceptLoading: boolean; explanation: string | null }): JSX.Element {
+  return (
+    <div class={css({ mb: '6', p: '4', border: '1px solid', borderColor: 'border', borderRadius: 'l3', bg: 'bg.subtle' })}>
+      <Show when={props.sentenceText}>
+        {(text) => (
+          <p class={css({ fontSize: 'lg', fontStyle: 'italic', mb: '4' })}>"{text()}"</p>
+        )}
+      </Show>
+      <p class={css({ fontSize: 'sm', color: 'fg.default', mb: '2' })}>
+        <span class={css({ fontWeight: 'medium' })}>Correct category: </span>
+        <Show
+          when={!props.conceptLoading}
+          fallback={<Spinner size="sm" />}
+        >
+          <span>{props.conceptName ?? '—'}</span>
+        </Show>
+      </p>
+      <Show when={props.explanation}>
+        {(exp) => (
+          <p class={css({ fontSize: 'sm', fontStyle: 'italic', color: 'fg.muted' })}>{exp()}</p>
+        )}
+      </Show>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Contextual card preview (for Preview tab)
+// ---------------------------------------------------------------------------
+
+function ContextualCardPreview(props: {
+  kind: string
+  sentenceText: string | null
+  front: string | null
+  back: string | null
+  gaps: GapItem[] | undefined
+  options: OptionItem[] | undefined
+  explanation: string | null
+  conceptName: string | undefined
+  conceptLoading: boolean
+}): JSX.Element {
+  return (
+    <div class={css({
+      p: '4', border: '1px solid', borderColor: 'border', borderRadius: 'l3', bg: 'bg',
+    })}>
+      <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '3' })}>
+        {props.kind.replace('_', ' ')}
+      </p>
+      <Switch>
+        <Match when={props.kind === 'cloze_fill'}>
+          <ClozeBody
+            sentenceText={props.sentenceText}
+            gaps={props.gaps ?? []}
+            explanation={props.explanation}
+          />
+        </Match>
+        <Match when={props.kind === 'multiple_choice'}>
+          <ChoiceBody
+            sentenceText={props.sentenceText}
+            front={props.front}
+            options={props.options ?? []}
+            explanation={props.explanation}
+          />
+        </Match>
+        <Match when={props.kind === 'error_correction'}>
+          <ErrorBody
+            front={props.front}
+            back={props.back}
+            explanation={props.explanation}
+          />
+        </Match>
+        <Match when={props.kind === 'classify'}>
+          <ClassifierBody
+            sentenceText={props.sentenceText}
+            conceptName={props.conceptName}
+            conceptLoading={props.conceptLoading}
+            explanation={props.explanation}
+          />
+        </Match>
+      </Switch>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +398,8 @@ function QuizCardPreview(props: QuizCardPreviewProps): JSX.Element {
   )
 }
 
+const CONTEXTUAL_CARD_KINDS = ['cloze_fill', 'multiple_choice', 'error_correction', 'classify'] as const
+
 export default function NoteDetail() {
   const params = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -123,6 +417,12 @@ export default function NoteDetail() {
     (lemmaId: string) => api.lemmas.get({ id: lemmaId })
   )
 
+  // Fetch grammar concept name for contextual note kinds (cloze/choice/error/classifier)
+  const [concept] = createResource(
+    () => note()?.conceptId ?? undefined,
+    (conceptId: string) => api.grammarConcepts.get({ id: conceptId })
+  )
+
   // Cards / Preview tab state
   const [detailTab, setDetailTab] = createSignal<'cards' | 'preview'>('cards')
 
@@ -130,6 +430,12 @@ export default function NoteDetail() {
   const [expandedCards, setExpandedCards] = createSignal<Set<string>>(new Set())
   const [reviewCache, setReviewCache] = createSignal<Record<string, ReviewItem[]>>({})
   const [loadingReviews, setLoadingReviews] = createSignal<Set<string>>(new Set())
+
+  // Triage state for contextual kinds
+  const [triagePhase, setTriagePhase] = createSignal<'idle' | 'reasoning' | 'submitting'>('idle')
+  const [triagePendingAction, setTriagePendingAction] = createSignal<'flag' | 'reject' | null>(null)
+  const [triageReason, setTriageReason] = createSignal('')
+  const [triageError, setTriageError] = createSignal<string | null>(null)
 
   const toggleCardReviews = async (cardId: string) => {
     const expanded = expandedCards()
@@ -222,6 +528,27 @@ export default function NoteDetail() {
     }
   }
 
+  const handleTriage = async (action: 'approve' | 'flag' | 'reject', reason?: string) => {
+    setTriagePhase('submitting')
+    setTriageError(null)
+    try {
+      await api.notes.review({
+        noteId: params.id,
+        action,
+        ...(reason ? { reason } : {}),
+      })
+      setTriagePhase('idle')
+      setTriagePendingAction(null)
+      setTriageReason('')
+      refetch()
+    } catch (err) {
+      setTriageError(String(err))
+      setTriagePhase('idle')
+      setTriagePendingAction(null)
+      setTriageReason('')
+    }
+  }
+
   const inputStyle = css({
     display: 'block', w: 'full', px: '3', py: '2', fontSize: 'sm',
     borderRadius: 'l2', border: '1px solid', borderColor: 'border',
@@ -240,18 +567,42 @@ export default function NoteDetail() {
                 {/* Header */}
                 <div class={css({ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: '6' })}>
                   <div>
-                    <div class={css({ display: 'flex', gap: '2', alignItems: 'center', mb: '2' })}>
+                    <div class={css({ display: 'flex', gap: '2', alignItems: 'center', flexWrap: 'wrap', mb: '2' })}>
                       <h1 class={css({ fontSize: '2xl', fontWeight: 'bold', color: 'fg.default' })}>
-                        {data().kind === 'basic' ? 'Basic Note' : data().kind === 'morph' ? 'Morph Note' : 'Gloss Note'}
+                        {kindTitle(data().kind)}
                       </h1>
                       <span class={css({
                         display: 'inline-block', px: '2', py: '0.5', borderRadius: 'l2', fontSize: 'xs', fontWeight: 'medium',
-                        bg: data().kind === 'morph' ? 'blue.3' : data().kind === 'basic' ? 'green.3' : 'purple.3',
-                        color: data().kind === 'morph' ? 'blue.11' : data().kind === 'basic' ? 'green.11' : 'purple.11',
+                        bg: kindBadgeColors(data().kind).bg,
+                        color: kindBadgeColors(data().kind).color,
                       })}>
                         {data().kind}
                       </span>
+                      {/* Status badge — only for contextual kinds */}
+                      <Show when={isContextualKind(data().kind) && statusBadgeInfo(data().status)}>
+                        {(badge) => (
+                          <span class={css({
+                            display: 'inline-block', px: '2', py: '0.5', borderRadius: 'l2', fontSize: 'xs', fontWeight: 'medium',
+                            bg: badge().bg,
+                            color: badge().color,
+                          })}>
+                            {badge().label}
+                          </span>
+                        )}
+                      </Show>
                     </div>
+                    {/* Concept — only for contextual kinds with a conceptId */}
+                    <Show when={isContextualKind(data().kind) && data().conceptId}>
+                      <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
+                        Concept:{' '}
+                        <Show
+                          when={!concept.loading}
+                          fallback={<Spinner size="sm" />}
+                        >
+                          <span class={css({ color: 'fg.default' })}>{concept()?.name ?? data().conceptId}</span>
+                        </Show>
+                      </p>
+                    </Show>
                     <Show when={data().lemmaId}>
                       {(lemmaId) => (
                         <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '1' })}>
@@ -288,7 +639,95 @@ export default function NoteDetail() {
                   </div>
                 </div>
 
-                {/* Front/Back content */}
+                {/* Inline triage — only for contextual kinds */}
+                <Show when={isContextualKind(data().kind)}>
+                  <div class={css({ mb: '6' })}>
+                    <Switch>
+                      <Match when={triagePhase() === 'idle'}>
+                        <div class={css({ display: 'flex', gap: '2', flexWrap: 'wrap', alignItems: 'center' })}>
+                          <Button variant="solid" onClick={() => handleTriage('approve')}>
+                            ✅ Approve
+                          </Button>
+                          <Button variant="outline" onClick={() => { setTriagePendingAction('flag'); setTriagePhase('reasoning') }}>
+                            🚩 Flag
+                          </Button>
+                          <Button variant="danger" onClick={() => { setTriagePendingAction('reject'); setTriagePhase('reasoning') }}>
+                            ❌ Reject
+                          </Button>
+                        </div>
+                        <Show when={triageError()}>
+                          {(err) => (
+                            <p class={css({ fontSize: 'sm', color: 'red.11', mt: '2' })}>{err()}</p>
+                          )}
+                        </Show>
+                      </Match>
+                      <Match when={triagePhase() === 'reasoning'}>
+                        <div class={css({
+                          p: '4', borderRadius: 'l2', bg: 'bg.subtle',
+                          border: '1px solid', borderColor: 'border',
+                        })}>
+                          <p class={css({ fontSize: 'sm', fontWeight: 'medium', mb: '2', color: 'fg.default' })}>
+                            Reason for {triagePendingAction()} (optional):
+                          </p>
+                          <input
+                            type="text"
+                            value={triageReason()}
+                            onInput={(e) => setTriageReason(e.currentTarget.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                const action = triagePendingAction()
+                                if (action) handleTriage(action, triageReason() || undefined)
+                              }
+                              if (e.key === 'Escape') {
+                                e.preventDefault()
+                                setTriagePhase('idle')
+                                setTriagePendingAction(null)
+                                setTriageReason('')
+                              }
+                            }}
+                            placeholder="Optional reason…"
+                            class={css({
+                              display: 'block', w: 'full', px: '3', py: '2', mb: '3',
+                              fontSize: 'sm', borderRadius: 'l2', border: '1px solid',
+                              borderColor: 'border', bg: 'bg', color: 'fg.default', outline: 'none',
+                              _focus: { borderColor: 'accent.9', boxShadow: '0 0 0 1px {colors.accent.9}' },
+                            })}
+                          />
+                          <div class={css({ display: 'flex', gap: '2' })}>
+                            <Button
+                              variant="solid"
+                              onClick={() => {
+                                const action = triagePendingAction()
+                                if (action) handleTriage(action, triageReason() || undefined)
+                              }}
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              onClick={() => {
+                                setTriagePhase('idle')
+                                setTriagePendingAction(null)
+                                setTriageReason('')
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </Match>
+                      <Match when={triagePhase() === 'submitting'}>
+                        <div class={css({ display: 'flex', alignItems: 'center', gap: '3', color: 'fg.muted' })}>
+                          <Spinner size="sm" />
+                          <span class={css({ fontSize: 'sm' })}>Saving…</span>
+                        </div>
+                      </Match>
+                    </Switch>
+                  </div>
+                </Show>
+
+                {/* Front/Back content — basic and gloss kinds only */}
                 <Show when={data().kind === 'basic' || data().kind === 'gloss'}>
                   <Show when={editing()} fallback={
                     <div class={css({ mb: '6', p: '4', border: '1px solid', borderColor: 'border', borderRadius: 'l3', bg: 'bg.subtle' })}>
@@ -319,6 +758,42 @@ export default function NoteDetail() {
                       </div>
                     </div>
                   </Show>
+                </Show>
+
+                {/* Contextual note body sections */}
+                <Show when={isContextualKind(data().kind)}>
+                  <Switch>
+                    <Match when={data().kind === 'cloze'}>
+                      <ClozeBody
+                        sentenceText={data().sentenceText}
+                        gaps={data().gaps ?? []}
+                        explanation={data().explanation}
+                      />
+                    </Match>
+                    <Match when={data().kind === 'choice'}>
+                      <ChoiceBody
+                        sentenceText={data().sentenceText}
+                        front={data().front}
+                        options={data().options ?? []}
+                        explanation={data().explanation}
+                      />
+                    </Match>
+                    <Match when={data().kind === 'error'}>
+                      <ErrorBody
+                        front={data().front}
+                        back={data().back}
+                        explanation={data().explanation}
+                      />
+                    </Match>
+                    <Match when={data().kind === 'classifier'}>
+                      <ClassifierBody
+                        sentenceText={data().sentenceText}
+                        conceptName={concept()?.name}
+                        conceptLoading={concept.loading}
+                        explanation={data().explanation}
+                      />
+                    </Match>
+                  </Switch>
                 </Show>
 
                 {/* Cards / Preview tabs */}
@@ -480,17 +955,35 @@ export default function NoteDetail() {
                       <>
                         <div class={css({ display: 'flex', flexDirection: 'column', gap: '3', mb: '6' })}>
                           <For each={visibleCards()}>
-                            {(card) => (
-                              <QuizCardPreview
-                                kind={card.kind}
-                                tag={card.tag ?? null}
-                                lemmaText={data().lemmaText ?? null}
-                                front={data().front ?? null}
-                                back={data().back ?? null}
-                                forms={card.kind === 'morph_form' && card.tag ? (formsByTag().get(card.tag) ?? []) : []}
-                                audioUrl={card.kind === 'morph_form' && card.tag ? (audioUrlByTag().get(card.tag) ?? null) : null}
-                              />
-                            )}
+                            {(card) => {
+                              // Contextual card kinds get their own preview renderer
+                              if ((CONTEXTUAL_CARD_KINDS as readonly string[]).includes(card.kind)) {
+                                return (
+                                  <ContextualCardPreview
+                                    kind={card.kind}
+                                    sentenceText={data().sentenceText}
+                                    front={data().front}
+                                    back={data().back}
+                                    gaps={data().gaps}
+                                    options={data().options}
+                                    explanation={data().explanation}
+                                    conceptName={concept()?.name}
+                                    conceptLoading={concept.loading}
+                                  />
+                                )
+                              }
+                              return (
+                                <QuizCardPreview
+                                  kind={card.kind}
+                                  tag={card.tag ?? null}
+                                  lemmaText={data().lemmaText ?? null}
+                                  front={data().front ?? null}
+                                  back={data().back ?? null}
+                                  forms={card.kind === 'morph_form' && card.tag ? (formsByTag().get(card.tag) ?? []) : []}
+                                  audioUrl={card.kind === 'morph_form' && card.tag ? (audioUrlByTag().get(card.tag) ?? null) : null}
+                                />
+                              )
+                            }}
                           </For>
                         </div>
                         <Show when={allCards().length > PREVIEW_LIMIT && !showAll()}>
