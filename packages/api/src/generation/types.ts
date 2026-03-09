@@ -38,6 +38,7 @@ export interface BatchResult {
   approved: number;
   flagged: number;
   failed: number;
+  errors: string[];
 }
 
 // ---------------------------------------------------------------------------
