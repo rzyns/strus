@@ -1,0 +1,9 @@
+pre-push:
+  commands:
+    sync-bugs:
+      run: git bug bridge push
+      fail_text: |
+        git-bug bridge push failed.
+        Bug state is safe locally in refs/bugs/ — fix auth/network then run:
+          git bug bridge push
+          git push
