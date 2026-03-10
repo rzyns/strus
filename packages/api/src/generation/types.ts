@@ -6,13 +6,13 @@ import { z } from "zod";
 
 export interface GeneratedClozeNote {
   sentence_text: string;
-  translation: string | null;
+  translation?: string | null | undefined;
   gaps: Array<{
     gap_index: number;
     correct_answers: string[];
-    hint: string | null;
+    hint?: string | null | undefined;
     explanation: string;
-    why_not: string | null;
+    why_not?: string | null | undefined;
   }>;
 }
 
@@ -47,7 +47,7 @@ export interface BatchResult {
 
 export const ClozeNoteSchema = z.object({
   sentence_text: z.string().describe("Polish sentence with {{N}} gap markers"),
-  translation: z.string().nullable().describe("English translation of the sentence"),
+  translation: z.string().nullish().describe("English translation of the sentence"),
   gaps: z.array(
     z.object({
       gap_index: z.number().int().min(1).describe("1-based index matching {{N}} in sentence_text"),
@@ -55,11 +55,11 @@ export const ClozeNoteSchema = z.object({
         .array(z.string().min(1))
         .min(1)
         .describe("Primary form + any acceptable variants"),
-      hint: z.string().nullable().describe("Brief grammatical hint for the learner"),
+      hint: z.string().nullish().describe("Brief grammatical hint for the learner"),
       explanation: z.string().describe("Why this form is required here"),
       why_not: z
         .string()
-        .nullable()
+        .nullish()
         .describe("What would be wrong about a near-synonym or different form"),
     }),
   ).min(1),
