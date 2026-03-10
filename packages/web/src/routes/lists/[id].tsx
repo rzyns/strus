@@ -2,7 +2,7 @@ import { createResource, createSignal, createMemo, For, Show, Suspense, ErrorBou
 import { useParams, useNavigate, A } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
-import type { LemmaItem } from '../../api/types'
+import type { LemmaItem, NoteListItem } from '../../api/types'
 import { Button } from '../../components/Button'
 import { Badge } from '../../components/Badge'
 import { Spinner } from '../../components/Spinner'
@@ -14,12 +14,79 @@ import * as Table from '../../components/ui/table'
 
 const POS_OPTIONS = ['subst', 'verb', 'adj', 'adv'] as const
 
+const KIND_STYLE: Record<string, { bg: string; color: string }> = {
+  morph:      { bg: 'blue.3',   color: 'blue.11'   },
+  basic:      { bg: 'green.3',  color: 'green.11'  },
+  gloss:      { bg: 'purple.3', color: 'purple.11' },
+  cloze:      { bg: 'teal.3',   color: 'teal.11'   },
+  choice:     { bg: 'violet.3', color: 'violet.11' },
+  error:      { bg: 'red.3',    color: 'red.11'    },
+  classifier: { bg: 'orange.3', color: 'orange.11' },
+}
+
+const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
+  draft:    { bg: 'amber.3',  color: 'amber.11'  },
+  approved: { bg: 'green.3',  color: 'green.11'  },
+  flagged:  { bg: 'red.3',    color: 'red.11'    },
+  rejected: { bg: 'gray.3',   color: 'gray.11'   },
+}
+
+function KindBadge(props: { kind: string }) {
+  const style = () => KIND_STYLE[props.kind] ?? { bg: 'gray.3', color: 'gray.11' }
+  return (
+    <span class={css({
+      display: 'inline-block',
+      px: '2',
+      py: '0.5',
+      borderRadius: 'l2',
+      fontSize: 'xs',
+      fontWeight: 'medium',
+      bg: style().bg,
+      color: style().color,
+    })}>
+      {props.kind}
+    </span>
+  )
+}
+
+function StatusBadge(props: { status: string | null }) {
+  const style = () => STATUS_STYLE[props.status ?? ''] ?? { bg: 'gray.3', color: 'gray.11' }
+  return (
+    <span class={css({
+      display: 'inline-block',
+      px: '2',
+      py: '0.5',
+      borderRadius: 'l2',
+      fontSize: 'xs',
+      fontWeight: 'medium',
+      bg: style().bg,
+      color: style().color,
+    })}>
+      {props.status}
+    </span>
+  )
+}
+
+function notePreview(note: NoteListItem): string {
+  const truncate = (s: string) => s.length > 60 ? s.slice(0, 60) + '…' : s
+  if (note.kind === 'morph') return note.lemmaText ? truncate(note.lemmaText) : '—'
+  if (note.kind === 'gloss') {
+    const parts = [note.lemmaText, note.back].filter(Boolean)
+    return parts.length > 0 ? truncate(parts.join(' → ')) : '—'
+  }
+  if (note.kind === 'basic') return note.front ? truncate(note.front) : '—'
+  // Contextual kinds: use sentence text if available
+  if (note.sentenceText) return truncate(note.sentenceText)
+  if (note.front) return truncate(note.front)
+  return '—'
+}
+
 export default function ListDetail() {
   const params = useParams<{ id: string }>()
   const navigate = useNavigate()
 
   const [list, { refetch: refetchList }] = createResource(() => api.lists.get({ id: params.id }))
-  const [lemmas, { refetch: refetchLemmas }] = createResource<LemmaItem[]>(() => api.lemmas.list({ listId: params.id }))
+  const [notes, { refetch: refetchNotes }] = createResource<NoteListItem[]>(() => api.notes.list({ listId: params.id }))
 
   const [showDeleteList, setShowDeleteList] = createSignal(false)
   const [deletingList, setDeletingList] = createSignal(false)
@@ -39,21 +106,24 @@ export default function ListDetail() {
   const [addingExistingId, setAddingExistingId] = createSignal<string | null>(null)
 
   // createMemo — not a plain function — so SolidJS caches the result and only
-  // recomputes when allLemmas(), lemmas(), or existingSearch() changes.
-  // This function is called twice in JSX; without memo it would compute twice
-  // per reactive update (including the Set construction over all lemmas).
+  // recomputes when allLemmas(), notes(), or existingSearch() changes.
   const filteredExistingLemmas = createMemo(() => {
     const all = allLemmas() ?? []
-    const currentIds = new Set((lemmas() ?? []).map((l) => l.id))
+    // Exclude lemmas whose morph note is already in the list
+    const morphLemmaIds = new Set(
+      (notes() ?? [])
+        .filter((n) => n.kind === 'morph' && n.lemmaId != null)
+        .map((n) => n.lemmaId as string)
+    )
     const search = existingSearch().toLowerCase().trim()
-    return all.filter((l) => !currentIds.has(l.id) && (!search || l.lemma.toLowerCase().includes(search)))
+    return all.filter((l) => !morphLemmaIds.has(l.id) && (!search || l.lemma.toLowerCase().includes(search)))
   })
 
   const handleAddExisting = async (lemmaId: string) => {
     setAddingExistingId(lemmaId)
     try {
       await api.lists.addLemma({ listId: params.id, lemmaId })
-      refetchLemmas()
+      refetchNotes()
     } finally {
       setAddingExistingId(null)
     }
@@ -82,7 +152,7 @@ export default function ListDetail() {
       })
       setWord('')
       setShowAddForm(false)
-      refetchLemmas()
+      refetchNotes()
     } finally {
       setAdding(false)
     }
@@ -126,7 +196,7 @@ export default function ListDetail() {
                 </div>
 
                 <div class={css({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '4' })}>
-                  <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', color: 'fg.default' })}>Lemmas</h2>
+                  <h2 class={css({ fontSize: 'lg', fontWeight: 'semibold', color: 'fg.default' })}>Notes</h2>
                   <Button variant={showAddForm() ? 'ghost' : 'outline'} size="sm" onClick={() => setShowAddForm(!showAddForm())}>
                     {showAddForm() ? 'Cancel' : 'Add lemma'}
                   </Button>
@@ -223,34 +293,37 @@ export default function ListDetail() {
                 </Show>
 
                 <Suspense fallback={<Spinner />}>
-                  <Show when={lemmas()}>
-                    {(lemmaData) => (
+                  <Show when={notes()}>
+                    {(notesData) => (
                       <Show
-                        when={lemmaData().length > 0}
-                        fallback={<EmptyState heading="No lemmas in this list" description="Add lemmas or import text to get started." action={{ label: 'Add lemma', onClick: () => setShowAddForm(true) }} />}
+                        when={notesData().length > 0}
+                        fallback={<EmptyState heading="No notes in this list" description="Add lemmas or import text to get started." action={{ label: 'Add lemma', onClick: () => setShowAddForm(true) }} />}
                       >
                         <Table.Root>
                           <Table.Head>
                             <Table.Row>
-                              <Table.Header>Lemma</Table.Header>
-                              <Table.Header>POS</Table.Header>
-                              <Table.Header>Source</Table.Header>
+                              <Table.Header>Kind</Table.Header>
+                              <Table.Header>Preview</Table.Header>
                               <Table.Header>Created</Table.Header>
                             </Table.Row>
                           </Table.Head>
                           <Table.Body>
-                            <For each={lemmaData()}>
-                              {(lemma) => (
+                            <For each={notesData()}>
+                              {(note) => (
                                 <Table.Row>
                                   <Table.Cell>
-                                    <A href={`/lemmas/${lemma.id}`} class={css({ color: 'blue.9', textDecoration: 'none', fontWeight: 'medium', _hover: { textDecoration: 'underline' } })}>
-                                      {lemma.lemma}
+                                    <div class={css({ display: 'flex', gap: '1', alignItems: 'center' })}>
+                                      <KindBadge kind={note.kind} />
+                                      <Show when={note.status}><StatusBadge status={note.status} /></Show>
+                                    </div>
+                                  </Table.Cell>
+                                  <Table.Cell>
+                                    <A href={`/notes/${note.id}`} class={css({ color: 'blue.9', textDecoration: 'none', fontWeight: 'medium', _hover: { textDecoration: 'underline' } })}>
+                                      {notePreview(note)}
                                     </A>
                                   </Table.Cell>
-                                  <Table.Cell><Badge variant="pos" value={lemma.pos} /></Table.Cell>
-                                  <Table.Cell><Badge variant="source" value={lemma.source} /></Table.Cell>
-                                  <Table.Cell class={css({ color: 'fg.muted', fontSize: 'sm' })}>
-                                    {new Date(lemma.createdAt).toLocaleDateString()}
+                                  <Table.Cell class={css({ color: 'fg.muted', fontSize: 'sm', whiteSpace: 'nowrap' })}>
+                                    {new Date(note.createdAt).toLocaleDateString()}
                                   </Table.Cell>
                                 </Table.Row>
                               )}
@@ -265,7 +338,7 @@ export default function ListDetail() {
                 <ConfirmDialog
                   open={showDeleteList()}
                   title="Delete list"
-                  description={`Delete "${data().name}"? Lemma associations will be removed but lemmas themselves will not be deleted.`}
+                  description={`Delete "${data().name}"? Note associations will be removed but notes themselves will not be deleted.`}
                   confirmLabel="Delete"
                   onConfirm={handleDeleteList}
                   onCancel={() => setShowDeleteList(false)}
