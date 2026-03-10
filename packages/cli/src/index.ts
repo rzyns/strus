@@ -1133,20 +1133,25 @@ generateCmd
       console.log(JSON.stringify(result, null, 2));
 
       if (opts.list && result.batchId) {
-        // Fetch all notes from this batch
-        const notesResult = await apiGet<Array<{ id: string }>>(
-          `/api/notes?batchId=${encodeURIComponent(result.batchId)}&status=approved&limit=100`
-        );
-        const noteIds = notesResult.map((n) => n.id);
-        if (noteIds.length === 0) {
-          console.log("No approved notes to assign to list.");
-        } else {
-          let assigned = 0;
-          for (const noteId of noteIds) {
-            await apiPost<{ success: true }>(`/api/lists/${opts.list}/notes`, { listId: opts.list, noteId });
-            assigned++;
+        try {
+          // Fetch all approved notes from this batch via the correct drafts endpoint
+          const notesResult = await apiGet<{ notes: Array<{ id: string }>; total: number }>(
+            `/api/notes/drafts?batchId=${encodeURIComponent(result.batchId)}&status=approved&limit=100`
+          );
+          const noteIds = notesResult.notes.map((n) => n.id);
+          if (noteIds.length === 0) {
+            console.log("No approved notes to assign to list.");
+          } else {
+            let assigned = 0;
+            for (const noteId of noteIds) {
+              await apiPost<{ success: true }>(`/api/lists/${opts.list}/notes`, { listId: opts.list, noteId });
+              assigned++;
+            }
+            console.log(`Assigned ${assigned} note(s) to list ${opts.list}.`);
           }
-          console.log(`Assigned ${assigned} note(s) to list ${opts.list}.`);
+        } catch (err) {
+          console.error(`Warning: notes were generated but could not be assigned to list ${opts.list}:`, err instanceof Error ? err.message : err);
+          process.exit(1);
         }
       }
     },
