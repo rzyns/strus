@@ -1086,12 +1086,14 @@ generateCmd
   .requiredOption("--kind <kind>", "Exercise kind: cloze or choice")
   .option("--count <n>", "Number of notes to generate (1–20)", "5")
   .option("--difficulty <n>", "Difficulty level 1–3 (1=beginner, 2=intermediate, 3=advanced)")
+  .option("--list <uuid>", "Vocab list UUID to auto-assign generated notes to")
   .action(
     async (opts: {
       concept: string;
       kind: string;
       count: string;
       difficulty?: string;
+      list?: string;
     }) => {
       if (opts.kind !== "cloze" && opts.kind !== "choice") {
         console.error(`Error: --kind must be "cloze" or "choice", got "${opts.kind}"`);
@@ -1129,6 +1131,24 @@ generateCmd
       }>("/api/generation/generate", body);
 
       console.log(JSON.stringify(result, null, 2));
+
+      if (opts.list && result.batchId) {
+        // Fetch all notes from this batch
+        const notesResult = await apiGet<Array<{ id: string }>>(
+          `/api/notes?batchId=${encodeURIComponent(result.batchId)}&status=approved&limit=100`
+        );
+        const noteIds = notesResult.map((n) => n.id);
+        if (noteIds.length === 0) {
+          console.log("No approved notes to assign to list.");
+        } else {
+          let assigned = 0;
+          for (const noteId of noteIds) {
+            await apiPost<{ success: true }>(`/api/lists/${opts.list}/notes`, { listId: opts.list, noteId });
+            assigned++;
+          }
+          console.log(`Assigned ${assigned} note(s) to list ${opts.list}.`);
+        }
+      }
     },
   );
 
