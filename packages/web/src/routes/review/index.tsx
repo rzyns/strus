@@ -371,10 +371,12 @@ export default function ReviewQueue() {
 
   onMount(async () => {
     try {
-      const [draftResult, flaggedResult] = await Promise.all([
+      const [draftRes, flaggedRes] = await Promise.allSettled([
         api.notes.listDrafts({ status: 'draft', limit: 50 }),
         api.notes.listDrafts({ status: 'flagged', limit: 50 }),
       ])
+      const draftResult = draftRes.status === 'fulfilled' ? draftRes.value : { notes: [], total: 0 }
+      const flaggedResult = flaggedRes.status === 'fulfilled' ? flaggedRes.value : { notes: [], total: 0 }
       // Drafts first, then flagged — so reviewers see fresh unreviewed content before re-reviews
       const merged = [
         ...(draftResult.notes as DraftNote[]),
