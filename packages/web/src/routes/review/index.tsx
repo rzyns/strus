@@ -58,6 +58,25 @@ function KindBadge(props: { kind: string }) {
   )
 }
 
+function FlaggedBadge() {
+  return (
+    <span class={css({
+      display: 'inline-block',
+      px: '2',
+      py: '0.5',
+      borderRadius: 'l2',
+      fontSize: 'xs',
+      fontWeight: 'semibold',
+      textTransform: 'uppercase',
+      letterSpacing: 'wider',
+      bg: 'orange.3',
+      color: 'orange.11',
+    })}>
+      Flagged
+    </span>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Note renderers — per kind
 // ---------------------------------------------------------------------------
@@ -352,11 +371,21 @@ export default function ReviewQueue() {
 
   onMount(async () => {
     try {
-      const result = await api.notes.listDrafts({ status: 'draft', limit: 50 })
-      setNotes(result.notes as DraftNote[])
-      setTotal(result.total)
-      initialCount = result.notes.length
-      setPhase(result.notes.length === 0 ? 'done' : 'reviewing')
+      const [draftRes, flaggedRes] = await Promise.allSettled([
+        api.notes.listDrafts({ status: 'draft', limit: 50 }),
+        api.notes.listDrafts({ status: 'flagged', limit: 50 }),
+      ])
+      const draftResult = draftRes.status === 'fulfilled' ? draftRes.value : { notes: [], total: 0 }
+      const flaggedResult = flaggedRes.status === 'fulfilled' ? flaggedRes.value : { notes: [], total: 0 }
+      // Drafts first, then flagged — so reviewers see fresh unreviewed content before re-reviews
+      const merged = [
+        ...(draftResult.notes as DraftNote[]),
+        ...(flaggedResult.notes as DraftNote[]),
+      ]
+      setNotes(merged)
+      setTotal(draftResult.total + flaggedResult.total)
+      initialCount = merged.length
+      setPhase(merged.length === 0 ? 'done' : 'reviewing')
     } catch (e) {
       setError(String(e))
       setPhase('error')
@@ -543,14 +572,19 @@ export default function ReviewQueue() {
           <Show when={currentNote()}>
             {(note) => (
               <Card>
-                {/* Card header row: kind badge + optional concept ID */}
+                {/* Card header row: kind badge + flagged badge + optional concept ID */}
                 <div class={css({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   mb: '4',
                 })}>
-                  <KindBadge kind={note().kind} />
+                  <div class={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
+                    <KindBadge kind={note().kind} />
+                    <Show when={note().status === 'flagged'}>
+                      <FlaggedBadge />
+                    </Show>
+                  </div>
                   <Show when={note().conceptId}>
                     {(id) => (
                       <span class={css({ fontSize: 'xs', color: 'fg.subtle', fontFamily: 'mono' })}>

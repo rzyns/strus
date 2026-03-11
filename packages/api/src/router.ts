@@ -1138,6 +1138,7 @@ const sessionDue = os
     // Build optional filter conditions for kinds / tagContains.
     const extraFilters = [
       lte(cards.due, nowSecs),
+      eq(notes.status, "approved"),
       ...(input.kinds ? [inArray(cards.kind, input.kinds)] : []),
       ...(input.tagContains
         ? [or(ne(cards.kind, "morph_form"), like(cards.tag, `%${input.tagContains}%`))]
