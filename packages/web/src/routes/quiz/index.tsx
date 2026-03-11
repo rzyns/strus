@@ -326,7 +326,12 @@ function ClozeInput(props: ClozeInputProps) {
                     type="text"
                     value={props.answers[part.index] ?? ''}
                     onInput={e => props.onAnswer(part.index, e.currentTarget.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') props.onEnter?.() }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const allFilled = props.gaps.every(g => (props.answers[g.gapIndex] ?? '').trim() !== '')
+                        if (allFilled) props.onEnter?.()
+                      }
+                    }}
                     placeholder="…"
                     class={css({
                       display: 'inline-block', w: '32', px: '2', py: '1',
@@ -355,7 +360,7 @@ function ClozeInput(props: ClozeInputProps) {
 
 function highlightSie(text: string): Array<{ text: string; highlight: boolean }> {
   const parts: Array<{ text: string; highlight: boolean }> = []
-  const regex = /\bsię\b/g
+  const regex = /\bsię(?!\w)/g
   let last = 0
   let match: RegExpExecArray | null
   while ((match = regex.exec(text)) !== null) {
