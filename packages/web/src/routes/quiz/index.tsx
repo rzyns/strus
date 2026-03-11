@@ -52,6 +52,7 @@ interface DueCard {
     id: string
     name: string
     isCorrect: boolean
+    description: string | null
   }> | null
   noteExplanation: string | null
   stability: number
@@ -70,7 +71,7 @@ function formatNextDate(iso: string): string {
   return `${Math.round(days / 30)}mo`
 }
 
-type QuizType = 'all' | 'morph' | 'gloss' | 'basic'
+type QuizType = 'all' | 'morph' | 'gloss' | 'basic' | 'contextual'
 type GlossDirection = 'both' | 'to-english' | 'to-polish'
 
 type Phase =
@@ -278,6 +279,7 @@ function resolveKinds(
       if (direction === 'to-polish') return ['gloss_reverse']
       return ['gloss_forward', 'gloss_reverse']
     case 'basic': return ['basic_forward']
+    case 'contextual': return ['cloze_fill', 'multiple_choice', 'classify', 'error_correction']
     default: return undefined // 'all'
   }
 }
@@ -291,6 +293,7 @@ interface ClozeInputProps {
   gaps: Array<{ gapIndex: number; hint: string | null; correctAnswers: string[]; explanation: string | null }>
   answers: Record<number, string>
   onAnswer: (gapIndex: number, value: string) => void
+  onEnter?: () => void
 }
 
 function ClozeInput(props: ClozeInputProps) {
@@ -309,30 +312,64 @@ function ClozeInput(props: ClozeInputProps) {
   }
 
   return (
-    <p class={css({ fontSize: 'lg', lineHeight: '2' })}>
+    <p class={css({ fontSize: 'lg', lineHeight: '2.5' })}>
       <For each={parts()}>
         {(part) => (
           <>
             {part.type === 'text' ? (
               <span>{part.text}</span>
-            ) : (
-              <input
-                type="text"
-                value={props.answers[part.index] ?? ''}
-                onInput={e => props.onAnswer(part.index, e.currentTarget.value)}
-                placeholder={props.gaps.find(g => g.gapIndex === part.index)?.hint ?? '...'}
-                class={css({
-                  display: 'inline-block', w: '32', mx: '1', px: '2', py: '1',
-                  borderBottom: '2px solid', borderColor: 'blue.8', bg: 'transparent',
-                  fontSize: 'inherit', outline: 'none', textAlign: 'center',
-                })}
-              />
-            )}
+            ) : (() => {
+              const gap = props.gaps.find(g => g.gapIndex === part.index)
+              return (
+                <span class={css({ display: 'inline-flex', flexDir: 'column', alignItems: 'center', mx: '1', verticalAlign: 'bottom' })}>
+                  <input
+                    type="text"
+                    value={props.answers[part.index] ?? ''}
+                    onInput={e => props.onAnswer(part.index, e.currentTarget.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const allFilled = props.gaps.every(g => (props.answers[g.gapIndex] ?? '').trim() !== '')
+                        if (allFilled) props.onEnter?.()
+                      }
+                    }}
+                    placeholder="…"
+                    class={css({
+                      display: 'inline-block', w: '32', px: '2', py: '1',
+                      borderBottom: '2px solid', borderColor: 'blue.8', bg: 'transparent',
+                      fontSize: 'inherit', outline: 'none', textAlign: 'center',
+                    })}
+                  />
+                  <Show when={gap?.hint}>
+                    {(hint) => (
+                      <span class={css({ fontSize: 'xs', color: 'fg.muted', mt: '0.5' })}>{hint()}</span>
+                    )}
+                  </Show>
+                </span>
+              )
+            })()}
           </>
         )}
       </For>
     </p>
   )
+}
+
+// ---------------------------------------------------------------------------
+// highlightSie — wrap occurrences of "się" in a highlighted <strong>
+// ---------------------------------------------------------------------------
+
+function highlightSie(text: string): Array<{ text: string; highlight: boolean }> {
+  const parts: Array<{ text: string; highlight: boolean }> = []
+  const regex = /\bsię(?!\w)/g
+  let last = 0
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push({ text: text.slice(last, match.index), highlight: false })
+    parts.push({ text: match[0], highlight: true })
+    last = regex.lastIndex
+  }
+  if (last < text.length) parts.push({ text: text.slice(last), highlight: false })
+  return parts
 }
 
 // ---------------------------------------------------------------------------
@@ -405,8 +442,14 @@ function RevealedContextualContent(props: {
                 border: '1px solid',
                 borderColor: option.isCorrect ? 'green.8' : props.selectedOptionId === option.id ? 'red.8' : 'border',
                 fontWeight: option.isCorrect ? 'bold' : 'normal',
+                verticalAlign: 'top',
               })}>
-                {option.isCorrect ? '✓ ' : props.selectedOptionId === option.id ? '✗ ' : ''}{option.name}
+                <span class={css({ display: 'block' })}>
+                  {option.isCorrect ? '✓ ' : props.selectedOptionId === option.id ? '✗ ' : ''}{option.name}
+                </span>
+                <Show when={option.description}>
+                  {(desc) => <span class={css({ display: 'block', fontSize: 'xs', color: 'fg.muted', mt: '0.5', fontWeight: 'normal' })}>{desc()}</span>}
+                </Show>
               </div>
             )}
           </For>
@@ -521,6 +564,9 @@ export default function Quiz() {
   })
 
   const startQuiz = async () => {
+    setAnswer('')
+    setClozeAnswers({})
+    setSelectedOptionId(null)
     setPhase('loading')
     try {
       const params: Record<string, unknown> = { limit: limit() }
@@ -661,6 +707,7 @@ export default function Quiz() {
                   <option value="morph">Forms only</option>
                   <option value="gloss">Translations only</option>
                   <option value="basic">Basic cards</option>
+                  <option value="contextual">Contextual / Advanced</option>
                 </select>
               </div>
 
@@ -1007,6 +1054,13 @@ export default function Quiz() {
                         </div>
                       </Match>
                       <Match when={card().kind === 'cloze_fill'}>
+                        <Show when={card().lemmaText}>
+                          {(lemma) => (
+                            <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '2' })}>
+                              Verb: <strong>{lemma()}</strong>
+                            </p>
+                          )}
+                        </Show>
                         <ClozeInput
                           sentenceText={card().sentenceText ?? ''}
                           gaps={card().clozeGaps ?? []}
@@ -1014,6 +1068,7 @@ export default function Quiz() {
                           onAnswer={(gapIndex, value) =>
                             setClozeAnswers(prev => ({ ...prev, [gapIndex]: value }))
                           }
+                          onEnter={checkAnswer}
                         />
                         <div class={css({ mt: '4' })}>
                           <Button
@@ -1046,7 +1101,10 @@ export default function Quiz() {
                             </button>
                           )}
                         </For>
-                        <div class={css({ mt: '2' })}>
+                        <div
+                          class={css({ mt: '2' })}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && selectedOptionId()) checkAnswer() }}
+                        >
                           <Button
                             variant="solid"
                             onClick={checkAnswer}
@@ -1057,10 +1115,24 @@ export default function Quiz() {
                         </div>
                       </Match>
                       <Match when={card().kind === 'classify'}>
+                        <Show when={card().lemmaText}>
+                          {(lemma) => (
+                            <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '2' })}>
+                              Verb: <strong>{lemma()}</strong>
+                            </p>
+                          )}
+                        </Show>
                         <Show when={card().sentenceText}>
                           {(text) => (
                             <p class={css({ fontSize: 'lg', mb: '4', fontStyle: 'italic' })}>
-                              "{text()}"
+                              "
+                              <For each={highlightSie(text())}>
+                                {(part) => part.highlight
+                                  ? <strong class={css({ bg: 'yellow.3', color: 'fg.default', borderRadius: 'sm', px: '1' })}>{part.text}</strong>
+                                  : <span>{part.text}</span>
+                                }
+                              </For>
+                              "
                             </p>
                           )}
                         </Show>
@@ -1077,13 +1149,20 @@ export default function Quiz() {
                                 borderColor: selectedOptionId() === option.id ? 'blue.8' : 'border',
                                 bg: selectedOptionId() === option.id ? 'blue.2' : 'bg',
                                 cursor: 'pointer', fontSize: 'sm',
+                                verticalAlign: 'top',
                               })}
                             >
-                              {option.name}
+                              <span class={css({ display: 'block', fontWeight: 'medium' })}>{option.name}</span>
+                              <Show when={option.description}>
+                                {(desc) => <span class={css({ display: 'block', fontSize: 'xs', color: 'fg.muted', mt: '0.5' })}>{desc()}</span>}
+                              </Show>
                             </button>
                           )}
                         </For>
-                        <div class={css({ mt: '4' })}>
+                        <div
+                          class={css({ mt: '4' })}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && selectedOptionId()) checkAnswer() }}
+                        >
                           <Button
                             variant="solid"
                             onClick={checkAnswer}

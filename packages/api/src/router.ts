@@ -971,6 +971,7 @@ const ClassifyOptionRenderOutput = z.object({
   id: zId,
   name: z.string(),
   isCorrect: z.boolean(),
+  description: z.string().nullable().describe("Explanation of this concept; null if not set"),
 });
 
 const DueCardOutput = CardOutput.extend({
@@ -1474,7 +1475,7 @@ const sessionDue = os
       session.filter((r) => r.card.kind === "classify").map((r) => r.card.noteId)
     )];
     // Map noteId → classifyOptions[]
-    const classifyOptionsByNoteId = new Map<string, Array<{ id: string; name: string; isCorrect: boolean }>>();
+    const classifyOptionsByNoteId = new Map<string, Array<{ id: string; name: string; isCorrect: boolean; description: string | null }>>();
     if (classifyNoteIds.length > 0) {
       // Collect conceptIds for all classifier notes
       const conceptIds = [...new Set(
@@ -1517,7 +1518,7 @@ const sessionDue = os
           const correctConcept = conceptById.get(meta.conceptId);
           if (!correctConcept?.parentId) continue;
           const siblings = siblingsByParentId.get(correctConcept.parentId) ?? [];
-          const options = siblings.map((s) => ({ id: s.id, name: s.name, isCorrect: s.id === meta.conceptId }));
+          const options = siblings.map((s) => ({ id: s.id, name: s.name, isCorrect: s.id === meta.conceptId, description: s.description ?? null }));
           shuffle(options);
           classifyOptionsByNoteId.set(noteId, options);
         }
@@ -1602,7 +1603,7 @@ const sessionDue = os
       let sentenceText: string | null = null;
       let clozeGapsOut: Array<{ gapIndex: number; hint: string | null; correctAnswers: string[]; explanation: string | null }> | null = null;
       let choiceOptionsOut: Array<{ id: string; optionText: string; isCorrect: boolean; explanation: string | null }> | null = null;
-      let classifyOptionsOut: Array<{ id: string; name: string; isCorrect: boolean }> | null = null;
+      let classifyOptionsOut: Array<{ id: string; name: string; isCorrect: boolean; description: string | null }> | null = null;
       const noteExplanation = noteMeta?.explanation ?? null;
 
       if (r.card.kind === "cloze_fill") {
