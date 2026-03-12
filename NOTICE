@@ -1,0 +1,91 @@
+strus — Polish Morphological SRS
+=================================
+
+Copyright (c) 2024–2026, strus contributors.
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-only).
+See LICENSE for the full license text.
+
+
+Third-Party Components
+----------------------
+
+This software incorporates components from the following open-source projects.
+
+
+@rzyns/morfeusz-ts
+  License: BSD 2-Clause
+  Copyright (c) 2024, morfeusz-ts contributors
+  Portions Copyright © 2014, Institute of Computer Science, Polish Academy of Sciences (IPI PAN)
+  https://github.com/rzyns/morfeusz-ts
+  Note: TypeScript port of Morfeusz2 (https://morfeusz.sgjp.pl/)
+
+ts-fsrs
+  License: MIT
+  Copyright (c) open-spaced-repetition contributors
+  https://github.com/open-spaced-repetition/ts-fsrs
+
+drizzle-orm
+  License: Apache-2.0
+  Copyright (c) 2022–present Drizzle Team
+  https://github.com/drizzle-team/drizzle-orm
+
+elysia
+  License: MIT
+  Copyright (c) 2023 elysiajs
+  https://github.com/elysiajs/elysia
+
+@orpc/server, @orpc/client, @orpc/openapi, @orpc/zod
+  License: MIT
+  Copyright (c) dinwwwh contributors
+  https://github.com/unnoq/orpc
+
+solid-js, @solidjs/router
+  License: MIT
+  Copyright (c) 2016–present Ryan Carniato
+  https://github.com/solidjs/solid
+
+@ark-ui/solid
+  License: MIT
+  Copyright (c) 2023 Chakra UI
+  https://ark-ui.com
+
+zod
+  License: MIT
+  Copyright (c) 2020 Colin McDonnell
+  https://github.com/colinhacks/zod
+
+mustache
+  License: MIT
+  Copyright (c) 2009 Chris Wanstrath (Ruby)
+  Copyright (c) 2010–2014 Jan Lehnardt (JavaScript)
+  https://github.com/janl/mustache.js
+
+commander
+  License: MIT
+  Copyright (c) 2011 TJ Holowaychuk
+  https://github.com/tj/commander.js
+
+better-sqlite3
+  License: MIT
+  Copyright (c) 2016–present Joshua Wise
+  https://github.com/WiseLibs/better-sqlite3
+
+openai (Node.js SDK)
+  License: Apache-2.0
+  Copyright (c) OpenAI
+  https://github.com/openai/openai-node
+
+@google/genai
+  License: Apache-2.0
+  Copyright (c) Google LLC
+  https://github.com/googleapis/js-genai
+
+@opentelemetry/* packages
+  License: Apache-2.0
+  Copyright (c) OpenTelemetry Authors
+  https://github.com/open-telemetry/opentelemetry-js
+
+vite
+  License: MIT
+  Copyright (c) 2019–present Evan You and Vite contributors
+  https://github.com/vitejs/vite
