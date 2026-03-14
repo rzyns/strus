@@ -1,8 +1,8 @@
 [env]
+_.file = { path = ".env.json", redact = true }
+
 PORT = "3457"
 STRUS_DB_PATH = "{{ config_root }}/strus.db"
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
 VITE_OTEL_OTLP_ENDPOINT = "/otlp"
 VITE_OTEL_SERVICE_NAME = "strus-web"
-ELEVENLABS_API_KEY = "sk_67960d8f45f06808ef964c175b68aa4f12dd04bd1ffb91fe"
-GEMINI_API_KEY = "AIzaSyBLo1ag7997WbaAcQzJeZa6n8Rf-RVogPg"

@@ -39,3 +39,4 @@ Thumbs.db
 
 # Bun
 # bun.lockb — using bun.lock (text format) instead
+.env.json
