@@ -23,3 +23,26 @@ jobs:
 
       - name: Lint
         run: bun run lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install Morfeusz2 and its dictionaries from the committed .deb files in
+      # deb/ — avoids any dependency on sgjp.pl, which is periodically offline.
+      - name: Install Morfeusz2 from committed packages
+        run: |
+          sudo dpkg -i deb/*.deb
+          sudo apt-get install -f -y
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test
+        env:
+          STRUS_DB_PATH: ":memory:"
+        run: bun test
