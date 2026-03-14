@@ -2,6 +2,8 @@
 
 A Polish morphological spaced repetition system (SRS) built on FSRS.
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 Strus helps you learn Polish vocabulary by drilling morphological forms (declensions, conjugations, etc.) using a spaced repetition algorithm. It integrates with the Morfeusz2 Polish morphological analyser to automatically generate all forms of a word.
 
 ## Monorepo structure
@@ -93,3 +95,12 @@ The API server runs on `http://localhost:3000` by default.
 | Morphology | Morfeusz2 (subprocess) |
 | Validation | Zod |
 | Language | TypeScript |
+
+
+## License
+
+strus is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only).
+
+If you run strus as a network service, you must make the corresponding source code available to users who interact with it over the network.
+
+See [NOTICE](NOTICE) for third-party component attributions.
