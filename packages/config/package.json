@@ -1,7 +1,7 @@
 {
   "name": "@rzyns/strus-config",
   "license": "AGPL-3.0-only",
-  "version": "2.0.0-beta.23",
+  "version": "2.0.0-beta.24",
   "description": "Validated configuration for strus services",
   "type": "module",
   "main": "./src/index.ts",
