@@ -1,7 +1,7 @@
 {
   "name": "@rzyns/strus-db",
   "license": "AGPL-3.0-only",
-  "version": "2.0.0-beta.27",
+  "version": "2.0.0-beta.28",
   "description": "Drizzle ORM schema, migrations, and query helpers for strus",
   "type": "module",
   "main": "./src/index.ts",
