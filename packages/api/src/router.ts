@@ -3,7 +3,7 @@ import { record } from "@elysiajs/opentelemetry";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
-import { count, avg, eq, lte, ne, like, and, or, inArray, asc, desc, sql, isNull } from "drizzle-orm";
+import { count, eq, lte, ne, like, and, or, inArray, asc, sql, isNull } from "drizzle-orm";
 import { db } from "@rzyns/strus-db";
 import { createProvider } from "./generation/provider.js";
 import { generateBatch, createCardsForNote } from "./generation/generate.js";
