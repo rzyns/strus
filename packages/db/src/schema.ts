@@ -287,6 +287,12 @@ export const reviews = sqliteTable(
     scheduledDays:    integer("scheduled_days").notNull(),
     stabilityAfter:   real("stability_after").notNull(),
     difficultyAfter:  real("difficulty_after").notNull(),
+    /** The raw answer string submitted by the learner; null if not captured */
+    userAnswer:       text("user_answer"),
+    /** Dynamically generated question text; null if canonical format was used */
+    generatedQuestion: text("generated_question"),
+    /** JSON array of morphological dimension names that were wrong, e.g. '["case","number"]'; null if correct or N/A */
+    errorDimensions:  text("error_dimensions"),
   },
   (t) => [
     index("reviews_card_id_idx").on(t.cardId),
