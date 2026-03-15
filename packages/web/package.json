@@ -1,7 +1,7 @@
 {
   "name": "@rzyns/strus-web",
   "license": "AGPL-3.0-only",
-  "version": "2.0.0-beta.29",
+  "version": "2.0.0-beta.30",
   "private": true,
   "type": "module",
   "scripts": {
