@@ -1,0 +1,5 @@
+# openclaw symlink — resolves types for tsc; openclaw is a peerDep, not installed via pnpm
+node_modules/
+
+# Generated output (if any)
+dist/
