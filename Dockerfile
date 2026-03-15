@@ -3,13 +3,14 @@ FROM oven/bun:1 AS web-build
 
 WORKDIR /app
 COPY package.json bun.lock ./
-COPY packages/api/package.json     packages/api/
-COPY packages/cli/package.json     packages/cli/
-COPY packages/config/package.json  packages/config/
-COPY packages/core/package.json    packages/core/
-COPY packages/db/package.json      packages/db/
-COPY packages/morph/package.json   packages/morph/
-COPY packages/web/package.json     packages/web/
+COPY packages/api/package.json            packages/api/
+COPY packages/cli/package.json            packages/cli/
+COPY packages/config/package.json         packages/config/
+COPY packages/core/package.json           packages/core/
+COPY packages/db/package.json             packages/db/
+COPY packages/morph/package.json          packages/morph/
+COPY packages/openclaw-plugin/package.json packages/openclaw-plugin/
+COPY packages/web/package.json            packages/web/
 
 # --ignore-scripts defers Panda CSS prepare until source files are present
 RUN --mount=type=cache,id=bun,target=/root/.bun/install/cache \
@@ -45,13 +46,14 @@ WORKDIR /app
 
 # Copy all package manifests and workspace config
 COPY package.json bun.lock ./
-COPY packages/api/package.json     packages/api/
-COPY packages/cli/package.json     packages/cli/
-COPY packages/config/package.json  packages/config/
-COPY packages/core/package.json    packages/core/
-COPY packages/db/package.json      packages/db/
-COPY packages/morph/package.json   packages/morph/
-COPY packages/web/package.json     packages/web/
+COPY packages/api/package.json            packages/api/
+COPY packages/cli/package.json            packages/cli/
+COPY packages/config/package.json         packages/config/
+COPY packages/core/package.json           packages/core/
+COPY packages/db/package.json             packages/db/
+COPY packages/morph/package.json          packages/morph/
+COPY packages/openclaw-plugin/package.json packages/openclaw-plugin/
+COPY packages/web/package.json            packages/web/
 
 # Copy source for all packages the API depends on at runtime
 COPY packages/api/    packages/api/
