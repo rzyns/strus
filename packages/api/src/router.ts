@@ -3,7 +3,7 @@ import { record } from "@elysiajs/opentelemetry";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
-import { count, eq, lte, ne, like, and, or, inArray, asc, sql, isNull } from "drizzle-orm";
+import { count, avg, eq, lte, ne, like, and, or, inArray, asc, desc, sql, isNull } from "drizzle-orm";
 import { db } from "@rzyns/strus-db";
 import { createProvider } from "./generation/provider.js";
 import { generateBatch, createCardsForNote } from "./generation/generate.js";
@@ -1675,6 +1675,9 @@ const sessionReview = os
       "Review outcome: 1 = Again (forgot), 2 = Hard (correct but difficult), " +
       "3 = Good (correct), 4 = Easy (too easy)",
     ),
+    userAnswer: z.string().optional().describe("The raw answer string submitted by the learner"),
+    generatedQuestion: z.string().optional().describe("Dynamically generated question text; omit if canonical format was used"),
+    errorDimensions: z.array(z.string()).optional().describe("Morphological dimension names that were wrong, e.g. ['case','number']"),
   }))
   .output(z.object({
     reviewId: zId.describe("ID of the newly created review record"),
@@ -1747,6 +1750,9 @@ const sessionReview = os
       scheduledDays: updated.scheduledDays,
       stabilityAfter: updated.stability,
       difficultyAfter: updated.difficulty,
+      userAnswer: input.userAnswer ?? null,
+      generatedQuestion: input.generatedQuestion ?? null,
+      errorDimensions: input.errorDimensions ? JSON.stringify(input.errorDimensions) : null,
     });
 
     // Update the parent note's last-reviewed timestamp.
@@ -3678,6 +3684,425 @@ const notesReview = os
   });
 
 // ---------------------------------------------------------------------------
+// Analytics procedures
+// ---------------------------------------------------------------------------
+
+const WeakConceptOutput = z.object({
+  conceptId: zId.describe("ID of the grammar concept"),
+  name: z.string().describe("Human-readable concept name"),
+  description: z.string().nullable().describe("Concept description; null if not set"),
+  avgStability: z.number().describe("Average FSRS stability across all cards for this concept — lower = weaker"),
+  cardCount: z.number().int().describe("Total number of approved cards for this concept"),
+  overdueCount: z.number().int().describe("Number of cards currently overdue (due <= now)"),
+});
+
+const analyticsWeakConcepts = os
+  .route({
+    method: "GET",
+    path: "/analytics/weak-concepts",
+    tags: ["Analytics"],
+    summary: "Get grammar concepts ranked by weakness",
+    description:
+      "Returns grammar concepts ranked by average FSRS stability (ascending). " +
+      "Only concepts with at least one approved card are included. " +
+      "Lower stability = weaker concept. Overdue count is used as a tiebreaker.",
+  })
+  .input(z.object({
+    limit: z.coerce.number().int().min(1).max(100).default(10).describe("Maximum concepts to return (default: 10)"),
+  }))
+  .output(z.array(WeakConceptOutput))
+  .handler(async ({ input }) => {
+    const nowSecs = Math.floor(Date.now() / 1000);
+
+    // Fetch all grammar concepts that have approved cards via notes
+    const conceptRows = db
+      .select({
+        conceptId: grammarConcepts.id,
+        name: grammarConcepts.name,
+        description: grammarConcepts.description,
+        stability: cards.stability,
+        due: cards.due,
+      })
+      .from(grammarConcepts)
+      .innerJoin(notes, eq(notes.conceptId, grammarConcepts.id))
+      .innerJoin(cards, eq(cards.noteId, notes.id))
+      .where(eq(notes.status, "approved"))
+      .all();
+
+    if (conceptRows.length === 0) return [];
+
+    // Group in memory and compute aggregates
+    const conceptMap = new Map<string, {
+      name: string;
+      description: string | null;
+      stabilitySum: number;
+      cardCount: number;
+      overdueCount: number;
+    }>();
+
+    for (const row of conceptRows) {
+      const existing = conceptMap.get(row.conceptId);
+      if (existing) {
+        existing.stabilitySum += row.stability;
+        existing.cardCount += 1;
+        if (row.due <= nowSecs) existing.overdueCount += 1;
+      } else {
+        conceptMap.set(row.conceptId, {
+          name: row.name,
+          description: row.description,
+          stabilitySum: row.stability,
+          cardCount: 1,
+          overdueCount: row.due <= nowSecs ? 1 : 0,
+        });
+      }
+    }
+
+    // Build result, filter zero-card concepts (already filtered by inner join), sort
+    const result = [...conceptMap.entries()]
+      .map(([conceptId, data]) => ({
+        conceptId,
+        name: data.name,
+        description: data.description,
+        avgStability: data.stabilitySum / data.cardCount,
+        cardCount: data.cardCount,
+        overdueCount: data.overdueCount,
+      }))
+      .sort((a, b) => {
+        // Primary: avgStability ASC (lower = weaker)
+        const stabDiff = a.avgStability - b.avgStability;
+        if (Math.abs(stabDiff) > 1e-9) return stabDiff;
+        // Tiebreaker: overdueCount DESC (more overdue = show first)
+        return b.overdueCount - a.overdueCount;
+      })
+      .slice(0, input.limit);
+
+    return result;
+  });
+
+// ---------------------------------------------------------------------------
+// Targeted session procedure
+// ---------------------------------------------------------------------------
+
+const sessionTargeted = os
+  .route({
+    method: "POST",
+    path: "/session/targeted",
+    tags: ["Session"],
+    summary: "Get a targeted quiz session filtered by concept and/or card kind",
+    description:
+      "Returns due cards filtered by grammar concept and/or card kind. " +
+      "All filters are optional. Uses the same FSRS due-date ordering as /session/due. " +
+      "New cards are capped at newLimit. Only approved notes are included.",
+  })
+  .input(z.object({
+    conceptId: z.string().uuid().optional().describe("Filter to cards whose note has this concept_id"),
+    kinds: z
+      .array(z.enum(["morph_form", "gloss_forward", "gloss_reverse", "basic_forward", "cloze_fill", "multiple_choice", "error_correction", "classify"]))
+      .optional()
+      .describe("Filter to specific card kinds"),
+    limit: z.number().int().min(1).max(500).default(20).describe("Hard cap on total session size (default: 20)"),
+    newLimit: z.number().int().min(0).max(200).default(20).describe("Maximum new (state=0) cards to include (default: 20)"),
+  }))
+  .output(z.array(DueCardOutput))
+  .handler(async ({ input }) => {
+    const nowSecs = Math.floor(Date.now() / 1000);
+
+    const extraFilters = [
+      lte(cards.due, nowSecs),
+      eq(notes.status, "approved"),
+      ...(input.kinds ? [inArray(cards.kind, input.kinds)] : []),
+      ...(input.conceptId ? [eq(notes.conceptId, input.conceptId)] : []),
+    ];
+
+    const fetchCap = Math.max(500, input.limit * 2 + input.newLimit * 4);
+
+    const rawDue = db
+      .select({
+        card: cards,
+        lemmaId: notes.lemmaId,
+        lemmaText: lemmas.lemma,
+        front: notes.front,
+        back: notes.back,
+      })
+      .from(cards)
+      .innerJoin(notes, eq(notes.id, cards.noteId))
+      .leftJoin(lemmas, eq(lemmas.id, notes.lemmaId))
+      .where(and(...extraFilters))
+      .limit(fetchCap)
+      .all();
+
+    if (rawDue.length === 0) return [];
+
+    // Same session composition logic as sessionDue card-first mode
+    const reviewPool = rawDue.filter((r) => r.card.state > 0);
+    const newPool = shuffle(rawDue.filter((r) => r.card.state === 0));
+    const newCards = newPool.slice(0, input.newLimit);
+
+    shuffle(reviewPool);
+
+    let combined = [...reviewPool, ...newCards];
+    if (combined.length > 1) {
+      combined = interleaveByLemma(combined);
+    }
+
+    const session = combined.slice(0, input.limit);
+
+    if (session.length === 0) return [];
+
+    // Batch-fetch morph forms for lemmas in the session
+    const lemmaIds = [...new Set(session.map((r) => r.lemmaId).filter((id): id is string => id != null))];
+    const allForms = lemmaIds.length > 0
+      ? db
+          .select({
+            id: morphForms.id,
+            lemmaId: morphForms.lemmaId,
+            orth: morphForms.orth,
+            tag: morphForms.tag,
+            audioPath: morphForms.audioPath,
+          })
+          .from(morphForms)
+          .where(inArray(morphForms.lemmaId, lemmaIds))
+          .all()
+      : [];
+
+    const formsByKey = new Map<string, string[]>();
+    const formInfoByKey = new Map<string, { id: string; orth: string; tag: string; audioPath: string | null }>();
+    for (const f of allForms) {
+      const key = `${f.lemmaId}::${f.tag}`;
+      const existing = formsByKey.get(key);
+      if (existing !== undefined) existing.push(f.orth);
+      else formsByKey.set(key, [f.orth]);
+      if (!formInfoByKey.has(key)) {
+        formInfoByKey.set(key, { id: f.id, orth: f.orth, tag: f.tag, audioPath: f.audioPath });
+      }
+    }
+
+    const lemmaImagePaths = new Map<string, string | null>();
+    const lemmaImagePrompts = new Map<string, string | null>();
+    const lemmaAudioByLemmaId = new Map<string, string | null>();
+    const lemmaFormIdByLemmaId = new Map<string, string | null>();
+    if (lemmaIds.length > 0) {
+      const lemmaRows = db
+        .select({ id: lemmas.id, imagePath: lemmas.imagePath, imagePrompt: lemmas.imagePrompt, lemma: lemmas.lemma })
+        .from(lemmas)
+        .where(inArray(lemmas.id, lemmaIds))
+        .all();
+      for (const row of lemmaRows) {
+        lemmaImagePaths.set(row.id, row.imagePath);
+        lemmaImagePrompts.set(row.id, row.imagePrompt);
+        const citationFormForId = allForms.find((f) => f.lemmaId === row.id && f.orth === row.lemma);
+        lemmaFormIdByLemmaId.set(row.id, citationFormForId?.id ?? null);
+        const citationForm = allForms.find((f) => f.lemmaId === row.id && f.orth === row.lemma && f.audioPath != null);
+        lemmaAudioByLemmaId.set(row.id, citationForm?.audioPath ?? null);
+      }
+    }
+
+    // Fetch note metadata for new card kinds
+    const newKindCards = session.filter((r) =>
+      r.card.kind === "cloze_fill" ||
+      r.card.kind === "multiple_choice" ||
+      r.card.kind === "error_correction" ||
+      r.card.kind === "classify"
+    );
+
+    const newKindNoteIds = [...new Set(newKindCards.map((r) => r.card.noteId))];
+    type NewKindNoteMeta = { sentenceId: string | null; conceptId: string | null; explanation: string | null };
+    const noteMetaById = new Map<string, NewKindNoteMeta>();
+    if (newKindNoteIds.length > 0) {
+      const noteRows = db
+        .select({ id: notes.id, sentenceId: notes.sentenceId, conceptId: notes.conceptId, explanation: notes.explanation })
+        .from(notes)
+        .where(inArray(notes.id, newKindNoteIds))
+        .all();
+      for (const n of noteRows) {
+        noteMetaById.set(n.id, { sentenceId: n.sentenceId, conceptId: n.conceptId, explanation: n.explanation });
+      }
+    }
+
+    // Batch-fetch sentences
+    const sentenceIds = [...new Set(
+      newKindCards
+        .map((r) => noteMetaById.get(r.card.noteId)?.sentenceId)
+        .filter((id): id is string => id != null)
+    )];
+    const sentenceTextById = new Map<string, string>();
+    if (sentenceIds.length > 0) {
+      const sentenceRows = db.select({ id: sentences.id, text: sentences.text })
+        .from(sentences)
+        .where(inArray(sentences.id, sentenceIds))
+        .all();
+      for (const s of sentenceRows) {
+        sentenceTextById.set(s.id, s.text);
+      }
+    }
+
+    // Batch-fetch cloze gaps
+    const clozeNoteIds = [...new Set(session.filter((r) => r.card.kind === "cloze_fill").map((r) => r.card.noteId))];
+    const clozeGapsByNoteId = new Map<string, Array<{ gapIndex: number; hint: string | null; correctAnswers: string[]; explanation: string | null }>>();
+    if (clozeNoteIds.length > 0) {
+      const gapRows = db.select().from(clozeGaps).where(inArray(clozeGaps.noteId, clozeNoteIds)).all();
+      for (const g of gapRows) {
+        const existing = clozeGapsByNoteId.get(g.noteId);
+        const gap = {
+          gapIndex: g.gapIndex,
+          hint: g.hint,
+          correctAnswers: JSON.parse(g.correctAnswers) as string[],
+          explanation: g.explanation,
+        };
+        if (existing !== undefined) existing.push(gap);
+        else clozeGapsByNoteId.set(g.noteId, [gap]);
+      }
+    }
+
+    // Batch-fetch choice options
+    const choiceNoteIds = [...new Set(session.filter((r) => r.card.kind === "multiple_choice").map((r) => r.card.noteId))];
+    type ChoiceOptRow = { id: string; optionText: string; isCorrect: boolean; explanation: string | null };
+    const choiceOptionsByNoteId = new Map<string, ChoiceOptRow[]>();
+    if (choiceNoteIds.length > 0) {
+      const optRows = db.select().from(choiceOptions).where(inArray(choiceOptions.noteId, choiceNoteIds)).all();
+      for (const o of optRows) {
+        const existing = choiceOptionsByNoteId.get(o.noteId);
+        const opt: ChoiceOptRow = { id: o.id, optionText: o.optionText, isCorrect: o.isCorrect, explanation: o.explanation };
+        if (existing !== undefined) existing.push(opt);
+        else choiceOptionsByNoteId.set(o.noteId, [opt]);
+      }
+    }
+
+    // Batch-fetch classify options
+    const classifyNoteIds = [...new Set(session.filter((r) => r.card.kind === "classify").map((r) => r.card.noteId))];
+    const classifyOptionsByNoteId = new Map<string, Array<{ id: string; name: string; isCorrect: boolean; description: string | null }>>();
+    if (classifyNoteIds.length > 0) {
+      const conceptIds = [...new Set(
+        classifyNoteIds
+          .map((nid) => noteMetaById.get(nid)?.conceptId)
+          .filter((id): id is string => id != null)
+      )];
+      if (conceptIds.length > 0) {
+        const correctConceptRows = db.select().from(grammarConcepts)
+          .where(inArray(grammarConcepts.id, conceptIds))
+          .all();
+        const conceptById = new Map(correctConceptRows.map((c) => [c.id, c]));
+        const parentIds = [...new Set(
+          correctConceptRows.map((c) => c.parentId).filter((pid): pid is string => pid != null)
+        )];
+        const siblingRows = parentIds.length > 0
+          ? db.select().from(grammarConcepts).where(inArray(grammarConcepts.parentId, parentIds)).all()
+          : [];
+        const siblingsByParentId = new Map<string, typeof siblingRows>();
+        for (const s of siblingRows) {
+          if (!s.parentId) continue;
+          const g = siblingsByParentId.get(s.parentId);
+          if (g !== undefined) g.push(s);
+          else siblingsByParentId.set(s.parentId, [s]);
+        }
+        for (const noteId of classifyNoteIds) {
+          const meta = noteMetaById.get(noteId);
+          if (!meta?.conceptId) continue;
+          const correctConcept = conceptById.get(meta.conceptId);
+          if (!correctConcept?.parentId) continue;
+          const siblings = siblingsByParentId.get(correctConcept.parentId) ?? [];
+          const options = siblings.map((s) => ({ id: s.id, name: s.name, isCorrect: s.id === meta.conceptId, description: s.description ?? null }));
+          shuffle(options);
+          classifyOptionsByNoteId.set(noteId, options);
+        }
+      }
+    }
+
+    const now = new Date(nowSecs * 1000);
+    const baseUrl = getMediaBaseUrl();
+
+    return session.map((r) => {
+      let front = r.front;
+      let back = r.back;
+
+      if (r.card.kind === "gloss_forward") {
+        front = r.lemmaText;
+        back = r.back;
+      } else if (r.card.kind === "gloss_reverse") {
+        front = r.back;
+        back = r.lemmaText;
+      }
+
+      const domainCard: Card = {
+        id: r.card.id,
+        noteId: r.card.noteId,
+        kind: r.card.kind as Card["kind"],
+        state: r.card.state as CardState,
+        due: new Date(r.card.due * 1000),
+        stability: r.card.stability,
+        difficulty: r.card.difficulty,
+        elapsedDays: r.card.elapsedDays,
+        scheduledDays: r.card.scheduledDays,
+        reps: r.card.reps,
+        lapses: r.card.lapses,
+        learningSteps: r.card.learningSteps,
+        ...(r.card.tag != null ? { tag: r.card.tag } : {}),
+        ...(r.card.lastReview != null ? { lastReview: new Date(r.card.lastReview * 1000) } : {}),
+      };
+      const dates = getNextReviewDates(domainCard, now);
+
+      const formKey = r.lemmaId && r.card.tag ? `${r.lemmaId}::${r.card.tag}` : null;
+      const formInfo = formKey ? formInfoByKey.get(formKey) : undefined;
+      const audioPath = formInfo?.audioPath ?? null;
+      const imagePath = r.lemmaId ? lemmaImagePaths.get(r.lemmaId) ?? null : null;
+
+      const noteMeta = noteMetaById.get(r.card.noteId);
+      let sentenceText: string | null = null;
+      let clozeGapsOut: Array<{ gapIndex: number; hint: string | null; correctAnswers: string[]; explanation: string | null }> | null = null;
+      let choiceOptionsOut: Array<{ id: string; optionText: string; isCorrect: boolean; explanation: string | null }> | null = null;
+      let classifyOptionsOut: Array<{ id: string; name: string; isCorrect: boolean; description: string | null }> | null = null;
+      const noteExplanation = noteMeta?.explanation ?? null;
+
+      if (r.card.kind === "cloze_fill") {
+        const sid = noteMeta?.sentenceId;
+        sentenceText = sid ? (sentenceTextById.get(sid) ?? null) : null;
+        clozeGapsOut = clozeGapsByNoteId.get(r.card.noteId) ?? null;
+      } else if (r.card.kind === "multiple_choice") {
+        const opts = choiceOptionsByNoteId.get(r.card.noteId);
+        if (opts) {
+          const shuffled = [...opts];
+          shuffle(shuffled);
+          choiceOptionsOut = shuffled;
+        }
+      } else if (r.card.kind === "classify") {
+        const sid = noteMeta?.sentenceId;
+        sentenceText = sid ? (sentenceTextById.get(sid) ?? null) : null;
+        classifyOptionsOut = classifyOptionsByNoteId.get(r.card.noteId) ?? null;
+      }
+
+      return {
+        ...mapCardRow(r.card),
+        formId: formInfo?.id ?? null,
+        lemmaFormId: r.lemmaId ? (lemmaFormIdByLemmaId.get(r.lemmaId) ?? null) : null,
+        lemmaId: r.lemmaId ?? null,
+        lemmaText: r.lemmaText,
+        front,
+        back,
+        forms: r.lemmaId && r.card.tag
+          ? formsByKey.get(`${r.lemmaId}::${r.card.tag}`) ?? []
+          : [],
+        audioUrl: audioPath ? `${baseUrl}/${audioPath}` : null,
+        lemmaAudioUrl: r.lemmaId
+          ? (() => { const p = lemmaAudioByLemmaId.get(r.lemmaId!); return p ? `${baseUrl}/${p}` : null; })()
+          : null,
+        imageUrl: imagePath ? `${baseUrl}/${imagePath}` : null,
+        imagePrompt: r.lemmaId ? lemmaImagePrompts.get(r.lemmaId) ?? null : null,
+        nextDates: {
+          again: dates[Rating.Again].toISOString(),
+          hard: dates[Rating.Hard].toISOString(),
+          good: dates[Rating.Good].toISOString(),
+          easy: dates[Rating.Easy].toISOString(),
+        },
+        sentenceText,
+        clozeGaps: clozeGapsOut,
+        choiceOptions: choiceOptionsOut,
+        classifyOptions: classifyOptionsOut,
+        noteExplanation,
+      };
+    });
+  });
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -3733,6 +4158,10 @@ export const router = {
   session: {
     due: sessionDue,
     review: sessionReview,
+    targeted: sessionTargeted,
+  },
+  analytics: {
+    weakConcepts: analyticsWeakConcepts,
   },
   stats: {
     overview: statsOverview,
