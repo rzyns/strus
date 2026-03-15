@@ -1,0 +1,22 @@
+{
+  "id": "strus",
+  "name": "Strus Polish SRS",
+  "description": "Polish morphological spaced-repetition quiz system via Discord",
+  "version": "0.1.0",
+  "skills": ["./skills/strus"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": { "type": "boolean" },
+      "apiUrl": { "type": "string" },
+      "notifyChannel": { "type": ["string", "null"] },
+      "notifyIntervalMinutes": { "type": "integer", "minimum": 1 }
+    }
+  },
+  "uiHints": {
+    "apiUrl": { "label": "Strus API URL", "placeholder": "http://localhost:3457" },
+    "notifyChannel": { "label": "Discord Channel for Due-card Notifications" },
+    "notifyIntervalMinutes": { "label": "Notification Interval (minutes)" }
+  }
+}
