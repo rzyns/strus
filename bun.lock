@@ -18,7 +18,7 @@
     },
     "packages/api": {
       "name": "@rzyns/strus-api",
-      "version": "2.0.0-beta.20",
+      "version": "2.0.0-beta.24",
       "dependencies": {
         "@elysiajs/opentelemetry": "^1.4.10",
         "@elysiajs/static": "^1.4.7",
@@ -47,7 +47,7 @@
     },
     "packages/cli": {
       "name": "@rzyns/strus-cli",
-      "version": "2.0.0-beta.20",
+      "version": "2.0.0-beta.24",
       "bin": {
         "strus": "./src/index.ts",
       },
@@ -65,7 +65,7 @@
     },
     "packages/config": {
       "name": "@rzyns/strus-config",
-      "version": "2.0.0-beta.20",
+      "version": "2.0.0-beta.24",
       "dependencies": {
         "zod": "^3.23.0",
       },
@@ -76,7 +76,7 @@
     },
     "packages/core": {
       "name": "@rzyns/strus-core",
-      "version": "2.0.0-beta.20",
+      "version": "2.0.0-beta.24",
       "dependencies": {
         "@rzyns/strus-morph": "workspace:*",
         "ts-fsrs": "^5.2.3",
@@ -88,7 +88,7 @@
     },
     "packages/db": {
       "name": "@rzyns/strus-db",
-      "version": "2.0.0-beta.20",
+      "version": "2.0.0-beta.24",
       "dependencies": {
         "@rzyns/strus-config": "workspace:*",
         "@rzyns/strus-core": "workspace:*",
@@ -103,7 +103,7 @@
     },
     "packages/morph": {
       "name": "@rzyns/strus-morph",
-      "version": "2.0.0-beta.20",
+      "version": "2.0.0-beta.24",
       "dependencies": {
         "@rzyns/morfeusz-ts": "https://github.com/rzyns/morfeusz-ts/releases/download/v1.0.3/rzyns-morfeusz-ts-1.0.3.tgz",
       },
@@ -114,7 +114,7 @@
     },
     "packages/web": {
       "name": "@rzyns/strus-web",
-      "version": "2.0.0-beta.20",
+      "version": "2.0.0-beta.24",
       "dependencies": {
         "@ark-ui/solid": "^5.34.0",
         "@opentelemetry/api": "^1.9.0",
