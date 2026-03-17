@@ -136,7 +136,7 @@ export function createApiClient(baseUrl?: string) {
       if (params?.limit != null) sp.set("limit", String(params.limit));
       if (params?.interleave != null) sp.set("interleave", String(params.interleave));
       if (params?.listId) sp.set("listId", params.listId);
-      if (params?.kinds?.length) params.kinds.forEach((k) => sp.append("kinds", k));
+      if (params?.kinds?.length) params.kinds.forEach((k) => sp.append("kinds[]", k));
       if (params?.tagContains) sp.set("tagContains", params.tagContains);
       if (params?.mode) sp.set("mode", params.mode);
       if (params?.noteLimit != null) sp.set("noteLimit", String(params.noteLimit));

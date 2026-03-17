@@ -174,13 +174,13 @@ async function callGemini(
   config: GeneratorConfig,
   signal: AbortSignal,
 ): Promise<string> {
-  const model = config.model ?? "gemini-2.0-flash";
+  const model = config.model ?? "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.apiKey}`;
 
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents: [{ role: "user", parts: [{ text: userMessage }] }],
-    generationConfig: { temperature: 0.9, maxOutputTokens: 150 },
+    generationConfig: { temperature: 0.9, maxOutputTokens: 500, thinkingConfig: { thinkingBudget: 0 } },
   };
 
   const res = await fetch(url, {
