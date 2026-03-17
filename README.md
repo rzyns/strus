@@ -21,36 +21,38 @@ strus/
 ## Prerequisites
 
 - [Bun](https://bun.sh/) >= 1.1
-- [pnpm](https://pnpm.io/) >= 9
 - [Morfeusz2](http://morfeusz.sgjp.pl/) CLI binary installed and on `$PATH`
 
 ## Install
 
 ```bash
-pnpm install
+bun install
 ```
 
 ## Development
 
 ```bash
 # Start the API server (dev mode)
-pnpm dev
+bun dev
+
+# Run tests
+bun test
 
 # Typecheck all packages
-pnpm typecheck
+bun typecheck
 
 # Build all packages
-pnpm build
+bun build
 ```
 
 ## Database setup
 
 ```bash
 # Generate migrations from schema
-pnpm db:generate
+bun db:generate
 
 # Apply migrations
-pnpm db:migrate
+bun db:migrate
 ```
 
 Set `STRUS_DB_PATH` to override the default database location (`./strus.db`).
@@ -87,7 +89,7 @@ The API server runs on `http://localhost:3000` by default.
 | Layer | Technology |
 |-------|-----------|
 | Runtime | Bun |
-| Package manager | pnpm workspaces |
+| Package manager | Bun workspaces |
 | HTTP framework | Elysia |
 | RPC layer | oRPC |
 | Database | SQLite + Drizzle ORM |
