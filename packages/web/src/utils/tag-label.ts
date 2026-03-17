@@ -10,9 +10,9 @@ const POS_PREFIX: Record<string, string> = {
   ger:    'verbal noun',
   pact:   'active participle',
   ppas:   'passive participle',
-  pcon:   'contemp. participle',
-  pant:   'anterior participle',
-  imps:   'impersonal',
+  pcon:   'contemporary adverbial participle (converb)',
+  pant:   'anterior adverbial participle (converb)',
+  imps:   'impersonal form',
   bedzie: 'future',
   winien: 'ought-to form',
 }

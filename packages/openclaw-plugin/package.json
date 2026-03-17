@@ -6,6 +6,10 @@
   "openclaw": {
     "extensions": ["./index.ts"]
   },
+  "scripts": {
+    "test": "bun test src/",
+    "typecheck": "tsc --noEmit"
+  },
   "devDependencies": {
     "typescript": "^5.0.0"
   },

@@ -161,6 +161,21 @@ export function tagLabel(tag: string): string {
     return `passive participle${aspect}`;
   }
 
+  // Impersonal form: imps (e.g. bito, jedzono)
+  if (pos === "imps") {
+    return "impersonal form";
+  }
+
+  // Anterior adverbial participle (converb): pant (e.g. zjadłszy)
+  if (pos === "pant") {
+    return `anterior adverbial participle (converb)${aspect}`;
+  }
+
+  // Contemporary adverbial participle (converb): pcon (e.g. jedząc)
+  if (pos === "pcon") {
+    return `contemporary adverbial participle (converb)${aspect}`;
+  }
+
   // Adjectives: adj:number:case:gender[:degree]
   // Degree is pos (positive), com (comparative), sup (superlative)
   if (pos === "adj" && parts.length >= 4) {
