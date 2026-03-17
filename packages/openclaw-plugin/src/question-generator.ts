@@ -159,13 +159,29 @@ Zasady:
 - Zdanie musi być krótkie (5–12 słów), naturalne i poprawne gramatycznie
 - Luka ___ musi wymagać dokładnie tej formy, którą podano (przypadek, liczba, rodzaj)
 - Nie dodawaj tłumaczeń, objaśnień ani komentarzy — tylko samo zdanie
-- Nie powtarzaj lematu w zdaniu w żadnej innej formie`;
+- Nie powtarzaj lematu w zdaniu w żadnej innej formie
+- Odpowiedź to WYŁĄCZNIE polskie zdanie z luką ___. Zero wstępu, zero etykiet, zero wyjaśnień.`;
 
-function buildUserMessage(lemma: string, label: string, hint: string | null): string {
+function buildUserMessage(lemma: string, label: string, hint: string | null, reinforce = false): string {
   let msg = `Słowo: ${lemma}\nWymagana forma: ${label}`;
   if (hint) msg += `\n${hint}`;
   msg += "\nNapisz zdanie z luką ___.";
+  if (reinforce) {
+    msg += "\nTwoje zdanie MUSI zawierać dokładnie jedną lukę zapisaną jako ___. Żadnych wyjątków.";
+  }
   return msg;
+}
+
+/**
+ * Strip any prompt leakage from LLM response.
+ * If the model echoes back the dialogue scaffolding (e.g. "Uczeń: ...\nNauczyciel: ..."),
+ * the actual sentence is on the last non-empty line.
+ */
+function stripLeakage(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed.includes("\n")) return trimmed;
+  const lines = trimmed.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  return lines[lines.length - 1] ?? trimmed;
 }
 
 async function callGemini(
@@ -200,7 +216,7 @@ async function callGemini(
   };
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Gemini: empty response");
-  return text.trim();
+  return stripLeakage(text);
 }
 
 async function callOpenAICompat(
@@ -242,7 +258,62 @@ async function callOpenAICompat(
   };
   const text = result.choices?.[0]?.message?.content;
   if (!text) throw new Error("OpenAI-compat: empty response");
-  return text.trim();
+  return stripLeakage(text);
+}
+
+// ---------------------------------------------------------------------------
+// Blank validation
+// ---------------------------------------------------------------------------
+
+const BLANK = "___";
+const MAX_RETRIES = 2;
+
+/**
+ * Count the number of ___ blanks in a string.
+ */
+export function countBlanks(text: string): number {
+  let count = 0;
+  let pos = 0;
+  while ((pos = text.indexOf(BLANK, pos)) !== -1) {
+    count++;
+    pos += BLANK.length;
+  }
+  return count;
+}
+
+/**
+ * Generate a morph_form gap sentence with retry-on-blank-miss logic.
+ * Exported for testing.
+ *
+ * Retry policy:
+ * - If response has ≠ 1 blank → retry with reinforced prompt (max 2 retries)
+ * - On exhaustion → canonical fallback: "Napisz {tagLabel} słowa „{lemma}":"
+ */
+export async function generateMorphQuestion(
+  lemma: string,
+  label: string,
+  hint: string | null,
+  config: GeneratorConfig,
+  signal: AbortSignal,
+): Promise<GeneratedQuestion> {
+  const callLlm = (userMessage: string): Promise<string> =>
+    config.provider === "gemini"
+      ? callGemini(SYSTEM_PROMPT, userMessage, config, signal)
+      : callOpenAICompat(SYSTEM_PROMPT, userMessage, config, signal);
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const reinforce = attempt > 0;
+    const userMessage = buildUserMessage(lemma, label, hint, reinforce);
+    const text = await callLlm(userMessage);
+    if (countBlanks(text) === 1) {
+      return { text, raw: text };
+    }
+    // blank count mismatch — retry (loop continues) or fall through to fallback
+  }
+
+  // Canonical fallback after exhausting retries
+  const text = `Napisz ${label} słowa „${lemma}":`;
+  return { text, raw: text };
 }
 
 // ---------------------------------------------------------------------------
@@ -285,20 +356,14 @@ export async function generateQuestion(
 
       const label = tagLabel(card.tag);
       const hint = tagContextHint(card.tag);
-      const userMessage = buildUserMessage(lemma, label, hint);
 
       const timeoutMs = config.timeoutMs ?? 5000;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        let text: string;
-        if (config.provider === "gemini") {
-          text = await callGemini(SYSTEM_PROMPT, userMessage, config, controller.signal);
-        } else {
-          text = await callOpenAICompat(SYSTEM_PROMPT, userMessage, config, controller.signal);
-        }
-        return { text, raw: text };
+        const result = await generateMorphQuestion(lemma, label, hint, config, controller.signal);
+        return result;
       } finally {
         clearTimeout(timer);
       }
