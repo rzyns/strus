@@ -1,6 +1,6 @@
 # strus
 
-A Polish morphological spaced repetition system (SRS) built on FSRS.
+A Polish morphological spaced repetition system (SRS) built on FSRS v5.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
