@@ -17,11 +17,11 @@ describe("countBlanks", () => {
     expect(countBlanks("Ona idzie do domu.")).toBe(0);
   });
 
-  test("returns 1 for a single blank", () => {
+  test("returns 1 for a single blank (three underscores)", () => {
     expect(countBlanks("Ona ___ do domu.")).toBe(1);
   });
 
-  test("returns 2 for two blanks", () => {
+  test("returns 2 for two blanks (three underscores each)", () => {
     expect(countBlanks("___ idzie do ___.")).toBe(2);
   });
 
@@ -29,9 +29,31 @@ describe("countBlanks", () => {
     expect(countBlanks("___ ___ ___.")).toBe(3);
   });
 
-  test("adjacent blanks — no overlap", () => {
-    // "______" contains two non-overlapping ___ at positions 0 and 3
-    expect(countBlanks("______")).toBe(2);
+  test("adjacent blanks — six underscores = one blank run", () => {
+    // "______" is a single run of underscores — one blank
+    expect(countBlanks("______")).toBe(1);
+  });
+
+  test("two underscores (QG3 regression) — counts as one blank", () => {
+    // LLM produced __ instead of ___; must be detected, not silently passed through
+    expect(countBlanks("Ona __ do domu.")).toBe(1);
+  });
+
+  test("two-underscore blank between words — detected", () => {
+    expect(countBlanks("Księżniczce podobał się książę, ale jego __ brakowało.")).toBe(1);
+  });
+
+  test("four underscores — counts as one blank", () => {
+    expect(countBlanks("Ona ____ do domu.")).toBe(1);
+  });
+
+  test("two separate two-underscore blanks", () => {
+    expect(countBlanks("__ idzie do __.")).toBe(2);
+  });
+
+  test("single underscore is not a blank", () => {
+    // A lone _ is used in some grammatical notation, not a gap
+    expect(countBlanks("Forma_słowa")).toBe(0);
   });
 
   test("empty string", () => {

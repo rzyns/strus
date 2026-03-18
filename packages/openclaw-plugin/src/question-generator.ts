@@ -154,10 +154,11 @@ export function tagContextHint(tag: string): string | null {
 
 const SYSTEM_PROMPT = `Jesteś generatorem ćwiczeń do nauki języka polskiego dla obcokrajowców.
 Napisz jedno naturalne polskie zdanie, w którym brakuje formy podanego wyrazu.
-W miejsce brakującej formy wstaw ___.
+W miejsce brakującej formy wstaw dokładnie trzy podkreślniki: ___ (trzy znaki podkreślenia).
 Zasady:
 - Zdanie musi być krótkie (5–12 słów), naturalne i poprawne gramatycznie
 - Luka ___ musi wymagać dokładnie tej formy, którą podano (przypadek, liczba, rodzaj)
+- Użyj DOKŁADNIE trzech podkreślników jako luki: ___ — nie dwóch (__), nie czterech (____), tylko trzech (___)
 - Nie dodawaj tłumaczeń, objaśnień ani komentarzy — tylko samo zdanie
 - Nie powtarzaj lematu w zdaniu w żadnej innej formie
 - Odpowiedź to WYŁĄCZNIE polskie zdanie z luką ___. Zero wstępu, zero etykiet, zero wyjaśnień.`;
@@ -265,20 +266,17 @@ async function callOpenAICompat(
 // Blank validation
 // ---------------------------------------------------------------------------
 
-const BLANK = "___";
 const MAX_RETRIES = 2;
 
 /**
- * Count the number of ___ blanks in a string.
+ * Count the number of blanks in a string.
+ * A blank is any sequence of 2 or more consecutive underscores.
+ * This is intentionally tolerant: the system prompt asks for exactly ___ (3),
+ * but if the LLM produces __ (2) or ____ (4+) we still count it as one blank
+ * rather than silently passing an unusable sentence through to the user.
  */
 export function countBlanks(text: string): number {
-  let count = 0;
-  let pos = 0;
-  while ((pos = text.indexOf(BLANK, pos)) !== -1) {
-    count++;
-    pos += BLANK.length;
-  }
-  return count;
+  return (text.match(/__+/g) ?? []).length;
 }
 
 /**
