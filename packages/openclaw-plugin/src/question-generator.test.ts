@@ -1,10 +1,12 @@
 /**
- * Tests for question-generator.ts — QG3 retry/fallback logic and blank validation.
+ * Tests for question-generator.ts — QG3 retry/fallback logic, blank validation,
+ * and QG4 syntactic frame hints.
  */
 import { describe, test, expect, mock, beforeEach } from "bun:test";
 import {
   countBlanks,
   generateMorphQuestion,
+  tagContextHint,
   type GeneratorConfig,
 } from "./question-generator.js";
 
@@ -233,5 +235,97 @@ describe("generateMorphQuestion", () => {
 
     expect(result.text).toBe("Wideo ___ na stole.");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tagContextHint — QG4 syntactic frame hints
+// ---------------------------------------------------------------------------
+
+describe("tagContextHint — QG4 frame hints", () => {
+  // ger + inst
+  test("ger:sg:inst returns instrumental frame hint", () => {
+    const hint = tagContextHint("ger:sg:inst:n:imperf:aff");
+    expect(hint).not.toBeNull();
+    expect(hint).toMatch(/z ___/);
+    expect(hint).toMatch(/narzędnika/i);
+    // Must warn against subject-position trap
+    expect(hint).toMatch(/podmiot/i);
+  });
+
+  // ger + gen
+  test("ger:sg:gen returns genitive frame hint", () => {
+    const hint = tagContextHint("ger:sg:gen:n:perf:aff");
+    expect(hint).not.toBeNull();
+    expect(hint).toMatch(/nie ma ___/);
+    expect(hint).toMatch(/dopełniacza/i);
+  });
+
+  // subst + inst — must include syntactic frame, not just case name
+  test("subst:sg:inst returns instrumental frame hint with preposition examples", () => {
+    const hint = tagContextHint("subst:sg:inst:m1");
+    expect(hint).not.toBeNull();
+    expect(hint).toMatch(/z ___/);
+    // Must warn against subject-position trap
+    expect(hint).toMatch(/podmiot/i);
+  });
+
+  // subst + gen
+  test("subst:sg:gen returns genitive frame hint with verb examples", () => {
+    const hint = tagContextHint("subst:sg:gen:m1");
+    expect(hint).not.toBeNull();
+    expect(hint).toMatch(/nie ma ___/);
+  });
+
+  // subst + dat — dative-governing verbs
+  test("subst:sg:dat returns dative frame hint with governing verbs", () => {
+    const hint = tagContextHint("subst:sg:dat:m1");
+    expect(hint).not.toBeNull();
+    // Must include at least one dative-governing verb
+    expect(hint).toMatch(/ufać|pomagać|dziękować|brakować/);
+  });
+
+  // imps — impersonal form is the main predicate
+  test("imps:perf returns impersonal predicate frame hint", () => {
+    const hint = tagContextHint("imps:perf");
+    expect(hint).not.toBeNull();
+    expect(hint).toMatch(/orzeczenie/i);
+    // Must warn against modal / subordinate clause traps
+    expect(hint).toMatch(/modaln/i);
+  });
+
+  // pant — converb must open the sentence
+  test("pant:perf returns anterior converb opening hint", () => {
+    const hint = tagContextHint("pant:perf");
+    expect(hint).not.toBeNull();
+    expect(hint).toMatch(/OTWIERAĆ|otwierać/i);
+    // Must show the pattern with blank first
+    expect(hint).toMatch(/___,/);
+  });
+
+  // pcon — simultaneous action converb
+  test("pcon:imperf returns simultaneous converb hint", () => {
+    const hint = tagContextHint("pcon:imperf");
+    expect(hint).not.toBeNull();
+    expect(hint).toMatch(/równoczesn/i);
+    // Must show the converb trailing pattern
+    expect(hint).toMatch(/, ___/);
+  });
+
+  // Existing behaviour preserved: nom returns null
+  test("subst:sg:nom returns null (nominative needs no frame hint)", () => {
+    expect(tagContextHint("subst:sg:nom:m1")).toBeNull();
+  });
+
+  // Existing behaviour preserved: adj gen still works
+  test("adj:sg:gen returns genitive hint", () => {
+    const hint = tagContextHint("adj:sg:gen:m1:pos");
+    expect(hint).not.toBeNull();
+    expect(hint).toMatch(/dopełniacza/i);
+  });
+
+  // Unknown tag returns null
+  test("unknown POS returns null", () => {
+    expect(tagContextHint("xxx:sg")).toBeNull();
   });
 });
