@@ -73,23 +73,25 @@ export function tagContextHint(tag: string): string | null {
   const parts = tag.split(":");
   const pos = parts[0];
 
-  // Nouns: subst:number:case:gender — extract the case portion (parts[2])
-  if (pos === "subst" && parts.length >= 3) {
-    const casePart = parts[2]; // may be dot-separated multi-case like "nom.acc"
-    // Extract individual case values
-    const cases = casePart.split(".");
-    // Use the most specific/dominant case for the hint
+  // Helper: return a case-based syntactic frame hint for nouns and gerunds
+  function caseHint(cases: string[], isGer: boolean): string | null {
     if (cases.includes("gen")) {
-      return "Użyj dopełniacza po 'nie mam', 'brak', 'bez' lub po liczebnikach.";
+      return isGer
+        ? "Użyj dopełniacza gerundium po 'nie ma ___, brak ___, szukam ___' lub innym czasowniku rządzącym dopełniaczem. Składnia: nie ma ___, brak ___, szukam ___."
+        : "Użyj dopełniacza po 'nie ma ___, brak ___, bez ___' lub innym czasowniku rządzącym dopełniaczem. Składnia: nie ma ___, brak ___, szukam ___.";
     }
     if (cases.includes("dat")) {
-      return "Użyj celownika po 'dać', 'pomóc', 'powiedzieć' lub 'podobać się'.";
+      return isGer
+        ? "Użyj celownika gerundium po czasowniku rządzącym celownikiem: ufać ___, pomagać ___, dziękować ___, brakować ___."
+        : "Użyj celownika po czasowniku rządzącym celownikiem: ufać ___, pomagać ___, dziękować ___, brakować ___.";
     }
     if (cases.includes("acc")) {
       return "Użyj biernika po czasowniku przechodnim (np. 'widzieć', 'kupić', 'mieć').";
     }
     if (cases.includes("inst")) {
-      return "Użyj narzędnika po 'być', 'z', 'między' lub jako orzecznik.";
+      return isGer
+        ? "Użyj narzędnika gerundium z przyimkiem rządzącym narzędnikiem: z ___, przed ___, między ___. Nie stawiaj luki w pozycji podmiotu."
+        : "Użyj narzędnika z przyimkiem rządzącym narzędnikiem: z ___, przed ___, między ___. Nie stawiaj luki w pozycji podmiotu.";
     }
     if (cases.includes("loc")) {
       return "Użyj miejscownika po 'w', 'na', 'o', 'przy'.";
@@ -98,6 +100,20 @@ export function tagContextHint(tag: string): string | null {
       return "Napisz zdanie z bezpośrednim zwrotem do tej osoby/rzeczy.";
     }
     return null; // nom or unrecognised
+  }
+
+  // Nouns: subst:number:case:gender — extract the case portion (parts[2])
+  if (pos === "subst" && parts.length >= 3) {
+    const casePart = parts[2]; // may be dot-separated multi-case like "nom.acc"
+    const cases = casePart.split(".");
+    return caseHint(cases, false);
+  }
+
+  // Gerunds: ger:number:case:gender:aspect:negation — case at parts[2]
+  if (pos === "ger" && parts.length >= 3) {
+    const casePart = parts[2];
+    const cases = casePart.split(".");
+    return caseHint(cases, true);
   }
 
   // Adjectives: adj:number:case:gender — extract case from parts[2]
@@ -143,6 +159,24 @@ export function tagContextHint(tag: string): string | null {
   // Infinitive: inf:...
   if (pos === "inf") {
     return "Użyj bezokolicznika po 'chcieć', 'móc', 'trzeba' itp.";
+  }
+
+  // Impersonal form: imps (e.g. zdradzono, jedzono)
+  // The blank IS the entire main predicate — do not place it after modal or in subordinate clause.
+  if (pos === "imps") {
+    return "Luka JEST głównym orzeczeniem zdania — nie stawiaj jej po modalnym ani w zdaniu podrzędnym. Wzorzec: Tam ___ dużo czasu. / W tym pokoju ___ okno.";
+  }
+
+  // Anterior adverbial participle / converb: pant (e.g. zjadłszy, zrobiwszy)
+  // Must open the sentence as a converb clause before the main clause.
+  if (pos === "pant") {
+    return "Luka MUSI OTWIERAĆ zdanie jako imiesłów uprzedni. Wzorzec: ___, [podmiot] [orzeczenie]. Przykład: ___, wyszedł z pokoju.";
+  }
+
+  // Contemporary adverbial participle / converb: pcon (e.g. jedząc, czytając)
+  // Expresses action simultaneous with the main verb.
+  if (pos === "pcon") {
+    return "Luka wyraża czynność równoczesną z orzeczeniem (imiesłów współczesny). Wzorzec: [podmiot] [orzeczenie], ___ coś. Przykład: Siedział przy oknie, ___ herbatę.";
   }
 
   return null;
