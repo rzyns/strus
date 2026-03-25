@@ -25,6 +25,8 @@ import {
   knowledgeComponents,
   cardKnowledgeComponents,
   mapCardToKCs,
+  seedKCs,
+  backfillKCs,
 } from "@rzyns/strus-db";
 import { generate, parseTag, tagGender, analyseText, analyse } from "@rzyns/strus-morph";
 import { generateAudio, generateImage, getMediaBaseUrl } from "./media.js";
@@ -4416,6 +4418,51 @@ const sessionTargeted = os
   });
 
 // ---------------------------------------------------------------------------
+// Knowledge Component management procedures
+// ---------------------------------------------------------------------------
+
+const kcSeed = os
+  .route({
+    method: "POST",
+    path: "/kc/seed",
+    tags: ["KC"],
+    summary: "Seed structural knowledge components",
+    description:
+      "Creates the 26 structural KCs (case, number, gender, tense, mood, pos) " +
+      "with deterministic IDs. Idempotent — safe to call multiple times. " +
+      "Returns counts of newly created and already-existing KCs.",
+  })
+  .input(z.object({}))
+  .output(z.object({
+    created: z.number().int().describe("Number of KCs newly inserted"),
+    skipped: z.number().int().describe("Number of KCs already present"),
+  }))
+  .handler(async () => {
+    return seedKCs(db);
+  });
+
+const kcBackfill = os
+  .route({
+    method: "POST",
+    path: "/kc/backfill",
+    tags: ["KC"],
+    summary: "Backfill card↔KC junction table",
+    description:
+      "Populates card_knowledge_components for all existing morph_form cards. " +
+      "For each card: matches structural KCs via tag patterns, then finds or creates " +
+      "a lemma-kind KC. Idempotent — uses INSERT OR IGNORE so re-running is safe.",
+  })
+  .input(z.object({}))
+  .output(z.object({
+    cardsProcessed: z.number().int().describe("Total morph_form cards examined"),
+    linksCreated: z.number().int().describe("card↔KC pairs inserted (or already existed)"),
+    lemmaKCsCreated: z.number().int().describe("New lemma-kind KCs created"),
+  }))
+  .handler(async () => {
+    return backfillKCs(db);
+  });
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -4499,6 +4546,10 @@ export const router = {
     addMember: clustersAddMember,
     removeMember: clustersRemoveMember,
     suggest: clustersSuggest,
+  },
+  kc: {
+    seed: kcSeed,
+    backfill: kcBackfill,
   },
 };
 
