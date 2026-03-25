@@ -7,6 +7,7 @@ import { Button } from '../components/Button'
 import { Spinner } from '../components/Spinner'
 import { ErrorState } from '../components/ErrorState'
 import { CreateNoteDialog } from '../components/CreateNoteDialog'
+import { KcDashboard } from '../components/KcDashboard'
 
 function dueBadgeColor(count: number): string {
   if (count === 0) return 'green.9'
@@ -59,48 +60,48 @@ function DashboardContent(props: { onNewNote: () => void }) {
                 </div>
               </Show>
 
-              <div class={css({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4', mb: '8' })}>
+              {/* Secondary stats — de-emphasized */}
+              <div class={css({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '3', mb: '6' })}>
                 <div class={css({
                   bg: 'bg',
                   border: '1px solid',
                   borderColor: 'border',
-                  borderRadius: 'l3',
-                  p: '5',
-                  shadow: 'sm',
-                  borderLeft: '4px solid',
-                  borderLeftColor: 'blue.9',
+                  borderRadius: 'l2',
+                  p: '3',
+                  shadow: 'xs',
                 })}>
-                  <p class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.muted', mb: '1' })}>Lemmas</p>
-                  <p class={css({ fontSize: '3xl', fontWeight: 'bold', color: 'fg.default' })}>{data().lemmaCount}</p>
+                  <p class={css({ fontSize: 'xs', fontWeight: 'medium', color: 'fg.muted', mb: '0.5' })}>Lemmas</p>
+                  <p class={css({ fontSize: 'xl', fontWeight: 'semibold', color: 'fg.subtle' })}>{data().lemmaCount}</p>
                 </div>
                 <div class={css({
                   bg: 'bg',
                   border: '1px solid',
                   borderColor: 'border',
-                  borderRadius: 'l3',
-                  p: '5',
-                  shadow: 'sm',
-                  borderLeft: '4px solid',
-                  borderLeftColor: 'green.9',
+                  borderRadius: 'l2',
+                  p: '3',
+                  shadow: 'xs',
                 })}>
-                  <p class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.muted', mb: '1' })}>Lists</p>
-                  <p class={css({ fontSize: '3xl', fontWeight: 'bold', color: 'fg.default' })}>{data().listCount}</p>
+                  <p class={css({ fontSize: 'xs', fontWeight: 'medium', color: 'fg.muted', mb: '0.5' })}>Lists</p>
+                  <p class={css({ fontSize: 'xl', fontWeight: 'semibold', color: 'fg.subtle' })}>{data().listCount}</p>
                 </div>
                 <div class={css({
                   bg: 'bg',
                   border: '1px solid',
                   borderColor: 'border',
-                  borderRadius: 'l3',
-                  p: '5',
-                  shadow: 'sm',
-                  borderLeft: '4px solid',
-                  borderLeftColor: dueBadgeColor(data().dueCount),
+                  borderRadius: 'l2',
+                  p: '3',
+                  shadow: 'xs',
                 })}>
-                  <p class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.muted', mb: '1' })}>Due</p>
-                  <p class={css({ fontSize: '3xl', fontWeight: 'bold', color: dueBadgeColor(data().dueCount) })}>
+                  <p class={css({ fontSize: 'xs', fontWeight: 'medium', color: 'fg.muted', mb: '0.5' })}>Cards due</p>
+                  <p class={css({ fontSize: 'xl', fontWeight: 'semibold' })} style={{ color: `var(--colors-${dueBadgeColor(data().dueCount).replace('.', '-')})` }}>
                     {data().dueCount}
                   </p>
                 </div>
+              </div>
+
+              {/* KC Mastery Dashboard */}
+              <div class={css({ mb: '8' })}>
+                <KcDashboard />
               </div>
 
               <Card title="Quick actions">
