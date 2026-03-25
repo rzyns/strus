@@ -3,7 +3,7 @@ import { record } from "@elysiajs/opentelemetry";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
-import { count, eq, lte, ne, like, and, or, inArray, asc, sql, isNull } from "drizzle-orm";
+import { count, eq, lte, ne, like, and, or, inArray, asc, desc, sql, isNull } from "drizzle-orm";
 import { db } from "@rzyns/strus-db";
 import { createProvider } from "./generation/provider.js";
 import { generateBatch, createCardsForNote } from "./generation/generate.js";
@@ -3853,6 +3853,246 @@ const analyticsWeakConcepts = os
   });
 
 // ---------------------------------------------------------------------------
+// KC mastery analytics
+// ---------------------------------------------------------------------------
+
+/** FSRS stability threshold in days for a card to be considered "mastered". */
+const MASTERY_THRESHOLD = 21;
+
+const KcMasteryOutput = z.object({
+  id: z.string().describe("Knowledge component ID"),
+  kind: z.string().describe("KC kind: 'case' | 'number' | 'tense' | 'mood' | 'gender' | 'pos' | 'lemma'"),
+  label: z.string().describe("English label, e.g. 'genitive'"),
+  labelPl: z.string().nullable().describe("Polish label, e.g. 'dopełniacz'"),
+  avgStability: z.number().describe("Average FSRS stability across linked cards"),
+  totalCards: z.number().int().describe("Total cards linked to this KC"),
+  overdueCount: z.number().int().describe("Cards past their due date"),
+  masteredCount: z.number().int().describe("Cards with stability > MASTERY_THRESHOLD"),
+  masteredPct: z.number().describe("masteredCount / totalCards * 100, rounded to 1 decimal; 0 when totalCards=0"),
+});
+
+const KC_KINDS = ["case", "number", "tense", "mood", "gender", "pos", "lemma"] as const;
+
+const analyticsKcMastery = os
+  .route({
+    method: "GET",
+    path: "/analytics/kc-mastery",
+    tags: ["Analytics"],
+    summary: "Get knowledge components ranked by FSRS mastery",
+    description:
+      "Returns knowledge components aggregated by average FSRS stability. " +
+      "Includes overdue count and mastery percentage. " +
+      "KCs with zero linked cards are included with zero aggregates. " +
+      `Mastery threshold: stability > ${MASTERY_THRESHOLD} days.`,
+  })
+  .input(z.object({
+    kind: z.enum(KC_KINDS).optional().describe("Filter to a specific KC kind"),
+    limit: z.coerce.number().int().min(1).max(200).default(50).describe("Maximum results (default: 50)"),
+    sort: z.enum(["weakest", "strongest", "label"]).default("weakest").describe(
+      "Sort order: weakest (avg stability ASC), strongest (DESC), label (alphabetical)",
+    ),
+  }))
+  .output(z.array(KcMasteryOutput))
+  .handler(async ({ input }) => {
+    const nowSecs = Math.floor(Date.now() / 1000);
+
+    // Fetch all KCs with their linked card data (left join so zero-card KCs appear)
+    const rows = db
+      .select({
+        kcId: knowledgeComponents.id,
+        kind: knowledgeComponents.kind,
+        label: knowledgeComponents.label,
+        labelPl: knowledgeComponents.labelPl,
+        stability: cards.stability,
+        due: cards.due,
+      })
+      .from(knowledgeComponents)
+      .leftJoin(cardKnowledgeComponents, eq(cardKnowledgeComponents.kcId, knowledgeComponents.id))
+      .leftJoin(cards, eq(cards.id, cardKnowledgeComponents.cardId))
+      .where(input.kind ? eq(knowledgeComponents.kind, input.kind) : undefined)
+      .all();
+
+    if (rows.length === 0) return [];
+
+    // Group in memory by KC id
+    const kcMap = new Map<string, {
+      kind: string;
+      label: string;
+      labelPl: string | null;
+      stabilitySum: number;
+      totalCards: number;
+      overdueCount: number;
+      masteredCount: number;
+    }>();
+
+    for (const row of rows) {
+      const existing = kcMap.get(row.kcId);
+      if (existing) {
+        if (row.stability !== null && row.due !== null) {
+          existing.stabilitySum += row.stability;
+          existing.totalCards += 1;
+          if (row.due <= nowSecs) existing.overdueCount += 1;
+          if (row.stability > MASTERY_THRESHOLD) existing.masteredCount += 1;
+        }
+      } else {
+        const hasCard = row.stability !== null && row.due !== null;
+        kcMap.set(row.kcId, {
+          kind: row.kind,
+          label: row.label,
+          labelPl: row.labelPl,
+          stabilitySum: hasCard ? row.stability! : 0,
+          totalCards: hasCard ? 1 : 0,
+          overdueCount: hasCard && row.due! <= nowSecs ? 1 : 0,
+          masteredCount: hasCard && row.stability! > MASTERY_THRESHOLD ? 1 : 0,
+        });
+      }
+    }
+
+    // Build result array
+    const result = [...kcMap.entries()]
+      .map(([id, data]) => ({
+        id,
+        kind: data.kind,
+        label: data.label,
+        labelPl: data.labelPl,
+        avgStability: data.totalCards > 0 ? data.stabilitySum / data.totalCards : 0,
+        totalCards: data.totalCards,
+        overdueCount: data.overdueCount,
+        masteredCount: data.masteredCount,
+        masteredPct: data.totalCards > 0
+          ? Math.round((data.masteredCount / data.totalCards) * 1000) / 10
+          : 0,
+      }));
+
+    // Sort
+    if (input.sort === "weakest") {
+      result.sort((a, b) => a.avgStability - b.avgStability);
+    } else if (input.sort === "strongest") {
+      result.sort((a, b) => b.avgStability - a.avgStability);
+    } else {
+      result.sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    return result.slice(0, input.limit);
+  });
+
+const KcSummaryOutput = z.object({
+  totalLemmas: z.number().int().describe("Count of kind='lemma' KCs"),
+  masteredLemmas: z.number().int().describe("Lemma KCs where masteredPct >= 80"),
+  totalStructural: z.number().int().describe("Count of non-lemma KCs"),
+  weakestKC: z.object({
+    label: z.string(),
+    labelPl: z.string().nullable(),
+    kind: z.string(),
+    avgStability: z.number(),
+  }).nullable().describe("Structural KC with lowest average stability (null if none)"),
+  totalDueCards: z.number().int().describe("Cards past due across all linked KCs"),
+});
+
+const analyticsKcSummary = os
+  .route({
+    method: "GET",
+    path: "/analytics/kc-summary",
+    tags: ["Analytics"],
+    summary: "Get compact KC mastery overview for dashboard",
+    description:
+      "Returns aggregate counts for the dashboard overview. " +
+      "totalDueCards counts distinct overdue cards across all KCs. " +
+      "weakestKC is the non-lemma KC with the lowest average stability.",
+  })
+  .input(z.object({}))
+  .output(KcSummaryOutput)
+  .handler(async () => {
+    const nowSecs = Math.floor(Date.now() / 1000);
+
+    // Fetch all KCs with card data
+    const rows = db
+      .select({
+        kcId: knowledgeComponents.id,
+        kind: knowledgeComponents.kind,
+        label: knowledgeComponents.label,
+        labelPl: knowledgeComponents.labelPl,
+        cardId: cards.id,
+        stability: cards.stability,
+        due: cards.due,
+      })
+      .from(knowledgeComponents)
+      .leftJoin(cardKnowledgeComponents, eq(cardKnowledgeComponents.kcId, knowledgeComponents.id))
+      .leftJoin(cards, eq(cards.id, cardKnowledgeComponents.cardId))
+      .all();
+
+    if (rows.length === 0) {
+      return { totalLemmas: 0, masteredLemmas: 0, totalStructural: 0, weakestKC: null, totalDueCards: 0 };
+    }
+
+    // Group by KC
+    const kcMap = new Map<string, {
+      kind: string;
+      label: string;
+      labelPl: string | null;
+      stabilitySum: number;
+      totalCards: number;
+      masteredCount: number;
+    }>();
+    const dueCardIds = new Set<string>();
+
+    for (const row of rows) {
+      const existing = kcMap.get(row.kcId);
+      if (existing) {
+        if (row.stability !== null && row.due !== null && row.cardId !== null) {
+          existing.stabilitySum += row.stability;
+          existing.totalCards += 1;
+          if (row.stability > MASTERY_THRESHOLD) existing.masteredCount += 1;
+          if (row.due <= nowSecs) dueCardIds.add(row.cardId);
+        }
+      } else {
+        const hasCard = row.stability !== null && row.due !== null && row.cardId !== null;
+        kcMap.set(row.kcId, {
+          kind: row.kind,
+          label: row.label,
+          labelPl: row.labelPl,
+          stabilitySum: hasCard ? row.stability! : 0,
+          totalCards: hasCard ? 1 : 0,
+          masteredCount: hasCard && row.stability! > MASTERY_THRESHOLD ? 1 : 0,
+        });
+        if (hasCard && row.due! <= nowSecs) dueCardIds.add(row.cardId!);
+      }
+    }
+
+    let totalLemmas = 0;
+    let masteredLemmas = 0;
+    let totalStructural = 0;
+    let weakestKC: { label: string; labelPl: string | null; kind: string; avgStability: number } | null = null;
+
+    for (const [, data] of kcMap.entries()) {
+      const avgStability = data.totalCards > 0 ? data.stabilitySum / data.totalCards : 0;
+      const masteredPct = data.totalCards > 0
+        ? Math.round((data.masteredCount / data.totalCards) * 1000) / 10
+        : 0;
+
+      if (data.kind === "lemma") {
+        totalLemmas += 1;
+        if (masteredPct >= 80) masteredLemmas += 1;
+      } else {
+        totalStructural += 1;
+        if (data.totalCards > 0) {
+          if (weakestKC === null || avgStability < weakestKC.avgStability) {
+            weakestKC = { label: data.label, labelPl: data.labelPl, kind: data.kind, avgStability };
+          }
+        }
+      }
+    }
+
+    return {
+      totalLemmas,
+      masteredLemmas,
+      totalStructural,
+      weakestKC,
+      totalDueCards: dueCardIds.size,
+    };
+  });
+
+// ---------------------------------------------------------------------------
 // Targeted session procedure
 // ---------------------------------------------------------------------------
 
@@ -4235,6 +4475,8 @@ export const router = {
   },
   analytics: {
     weakConcepts: analyticsWeakConcepts,
+    kcMastery: analyticsKcMastery,
+    kcSummary: analyticsKcSummary,
   },
   stats: {
     overview: statsOverview,
