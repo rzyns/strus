@@ -21,7 +21,9 @@
   "dependencies": {
     "@rzyns/strus-api": "workspace:*",
     "@rzyns/strus-core": "workspace:*",
+    "@rzyns/strus-db": "workspace:*",
     "commander": "^12.1.0",
+    "drizzle-orm": "^0.45.1",
     "zod": "^3.23.0",
     "@rzyns/strus-config": "workspace:*"
   },

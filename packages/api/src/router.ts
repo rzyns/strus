@@ -22,6 +22,9 @@ import {
   choiceOptions,
   semanticClusters,
   semanticClusterMembers,
+  knowledgeComponents,
+  cardKnowledgeComponents,
+  mapCardToKCs,
 } from "@rzyns/strus-db";
 import { generate, parseTag, tagGender, analyseText, analyse } from "@rzyns/strus-morph";
 import { generateAudio, generateImage, getMediaBaseUrl } from "./media.js";
@@ -306,6 +309,70 @@ function isExcludedForm(tag: string): boolean {
   return tag.endsWith(":neg");
 }
 
+/**
+ * Load all structural KCs (cached lazily in-process).
+ * We cache because this is called once per card during creation — loading
+ * all KCs from the DB for each card would be wasteful.
+ */
+let _structuralKCsCache: (typeof knowledgeComponents.$inferSelect)[] | null = null;
+
+function getStructuralKCs(): (typeof knowledgeComponents.$inferSelect)[] {
+  if (_structuralKCsCache) return _structuralKCsCache;
+  _structuralKCsCache = db
+    .select()
+    .from(knowledgeComponents)
+    .where(ne(knowledgeComponents.kind, "lemma"))
+    .all();
+  return _structuralKCsCache;
+}
+
+/**
+ * Link a morph_form card to its structural KCs and a lemma KC.
+ * Creates the lemma KC if it doesn't exist.
+ * Idempotent — uses INSERT OR IGNORE.
+ */
+async function linkCardToKCs(
+  cardId: string,
+  tag: string,
+  lemmaId: string | null,
+): Promise<void> {
+  const structuralKCs = getStructuralKCs();
+  const matchingKcIds = mapCardToKCs(tag, structuralKCs);
+
+  if (lemmaId) {
+    // Find or create the lemma KC
+    let lemmaKC = db
+      .select({ id: knowledgeComponents.id })
+      .from(knowledgeComponents)
+      .where(and(eq(knowledgeComponents.kind, "lemma"), eq(knowledgeComponents.lemmaId, lemmaId)))
+      .get();
+
+    if (!lemmaKC) {
+      const kcId = `kc-lemma-${lemmaId}`;
+      db.insert(knowledgeComponents).values({
+        id: kcId,
+        kind: "lemma",
+        label: `lemma:${lemmaId}`,
+        labelPl: null,
+        tagPattern: null,
+        lemmaId,
+        createdAt: new Date(),
+      }).run();
+      lemmaKC = { id: kcId };
+    }
+
+    matchingKcIds.push(lemmaKC.id);
+  }
+
+  // Bulk insert (idempotent)
+  for (const kcId of matchingKcIds) {
+    db.insert(cardKnowledgeComponents)
+      .values({ cardId, kcId })
+      .onConflictDoNothing()
+      .run();
+  }
+}
+
 function inferPos(tag: string): string {
   const base = tag.split(":")[0] ?? tag;
   if (base === "subst") return "subst";
@@ -437,8 +504,9 @@ async function createMorphNoteAndCards(
     });
 
     const cardData = createCard(noteId, "morph_form", form.tag);
+    const cardId = crypto.randomUUID();
     await db.insert(cards).values({
-      id: crypto.randomUUID(),
+      id: cardId,
       noteId: cardData.noteId,
       kind: cardData.kind,
       tag: cardData.tag ?? null,
@@ -453,6 +521,11 @@ async function createMorphNoteAndCards(
       lastReview: cardData.lastReview
         ? Math.floor(cardData.lastReview.getTime() / 1000)
         : null,
+    });
+
+    // Link card to knowledge components (fire-and-forget style — don't block)
+    linkCardToKCs(cardId, form.tag, lemmaId).catch((err) => {
+      console.warn(`[kc] Failed to link card ${cardId} to KCs:`, err);
     });
   }
 
