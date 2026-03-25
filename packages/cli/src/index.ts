@@ -1657,7 +1657,7 @@ kcCmd
       process.exit(1);
     }
 
-    const sqlite = new Database(dbPath, { create: false });
+    const sqlite = new Database(dbPath);
     sqlite.exec("PRAGMA foreign_keys = ON;");
     sqlite.exec("PRAGMA journal_mode = WAL;");
     const db = drizzle(sqlite);
