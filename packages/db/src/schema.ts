@@ -265,6 +265,52 @@ export const cards = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// knowledgeComponents  — structural grammatical dimensions + lemma-level KCs
+// ---------------------------------------------------------------------------
+
+export const knowledgeComponents = sqliteTable(
+  "knowledge_components",
+  {
+    id:         text("id").primaryKey(),
+    /** Structural dimension or lemma-level: 'case' | 'number' | 'tense' | 'mood' | 'gender' | 'pos' | 'lemma' */
+    kind:       text("kind", { enum: ["case", "number", "tense", "mood", "gender", "pos", "lemma"] }).notNull(),
+    /** English label, e.g. 'genitive', 'singular', 'dom' */
+    label:      text("label").notNull(),
+    /** Polish label for UI, e.g. 'dopełniacz', 'liczba pojedyncza' */
+    labelPl:    text("label_pl"),
+    /** Glob pattern for NKJP tag matching, e.g. '*:gen:*'; null for kind='lemma' */
+    tagPattern: text("tag_pattern"),
+    /** FK to lemmas.id — set for kind='lemma' only, null otherwise */
+    lemmaId:    text("lemma_id").references(() => lemmas.id, { onDelete: "cascade" }),
+    createdAt:  integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [
+    index("knowledge_components_kind_idx").on(t.kind),
+    index("knowledge_components_lemma_id_idx").on(t.lemmaId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// cardKnowledgeComponents  — junction: card ↔ knowledge_component
+// ---------------------------------------------------------------------------
+
+export const cardKnowledgeComponents = sqliteTable(
+  "card_knowledge_components",
+  {
+    cardId: text("card_id")
+      .notNull()
+      .references(() => cards.id, { onDelete: "cascade" }),
+    kcId:   text("kc_id")
+      .notNull()
+      .references(() => knowledgeComponents.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.cardId, t.kcId] }),
+    index("card_knowledge_components_kc_id_idx").on(t.kcId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // reviews
 // ---------------------------------------------------------------------------
 
