@@ -34,9 +34,11 @@ export function MasteryBar(props: MasteryBarProps) {
         <span class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'fg.default' })}>
           {props.labelPl ?? props.label}
         </span>
-        <span class={css({ fontSize: 'xs', color: 'fg.muted', ml: '1' })}>
-          ({props.labelPl ? props.label : ''})
-        </span>
+        {props.labelPl && (
+          <span class={css({ fontSize: 'xs', color: 'fg.muted', ml: '1' })}>
+            ({props.label})
+          </span>
+        )}
       </div>
       <div class={css({ flex: 1, position: 'relative', height: '2', bg: 'bg.subtle', borderRadius: 'full', overflow: 'hidden' })}>
         <div

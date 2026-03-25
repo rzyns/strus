@@ -77,89 +77,96 @@ function SummaryBar() {
   return (
     <ErrorBoundary fallback={(err) => <ErrorState message={String(err)} onRetry={refetch} />}>
       <Suspense fallback={<div class={css({ display: 'flex', justifyContent: 'center', py: '4' })}><Spinner /></div>}>
-        <Show when={summary()}>
-          {(data) => (
-            <Card>
-              <div class={css({ display: 'flex', alignItems: 'center', gap: '6', flexWrap: 'wrap' })}>
-                {/* Progress ring */}
-                <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1' })}>
-                  <ProgressRing value={data().masteredLemmas} max={data().totalLemmas} size={80} />
-                  <span class={css({ fontSize: 'xs', color: 'fg.muted', textAlign: 'center' })}>
-                    lemmas mastered
-                  </span>
-                </div>
+        <Show
+          when={summary() && summary()!.totalLemmas > 0}
+          fallback={
+            <Show when={summary()}>
+              <div class={css({
+                p: '4',
+                bg: 'bg.subtle',
+                border: '1px solid',
+                borderColor: 'border',
+                borderRadius: 'l3',
+                fontSize: 'sm',
+                color: 'fg.muted',
+              })}>
+                No knowledge components seeded yet. Run <code class={css({ fontFamily: 'mono', bg: 'bg.muted', px: '1', borderRadius: 'sm' })}>strus kc seed</code> to populate mastery data.
+              </div>
+            </Show>
+          }
+        >
+          {(() => {
+            const data = () => summary()!
+            return (
+              <Card>
+                <div class={css({ display: 'flex', alignItems: 'center', gap: '6', flexWrap: 'wrap' })}>
+                  {/* Progress ring */}
+                  <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1' })}>
+                    <ProgressRing value={data().masteredLemmas} max={data().totalLemmas} size={80} />
+                    <span class={css({ fontSize: 'xs', color: 'fg.muted', textAlign: 'center' })}>
+                      lemmas mastered
+                    </span>
+                  </div>
 
-                {/* Main stats */}
-                <div class={css({ flex: 1 })}>
-                  <h2 class={css({ fontSize: 'xl', fontWeight: 'bold', color: 'fg.default', mb: '1' })}>
-                    {data().masteredLemmas} / {data().totalLemmas} lemmas mastered
-                  </h2>
-                  <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '2' })}>
-                    {data().totalDueCards} cards due
-                  </p>
-                  <Show when={data().weakestKC}>
-                    {(kc) => (
-                      <div class={css({
+                  {/* Main stats */}
+                  <div class={css({ flex: 1 })}>
+                    <h2 class={css({ fontSize: 'xl', fontWeight: 'bold', color: 'fg.default', mb: '1' })}>
+                      {data().masteredLemmas} / {data().totalLemmas} lemmas mastered
+                    </h2>
+                    <p class={css({ fontSize: 'sm', color: 'fg.muted', mb: '2' })}>
+                      {data().totalDueCards} cards due
+                    </p>
+                    <Show when={data().weakestKC}>
+                      {(kc) => (
+                        <div class={css({
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '2',
+                          px: '3',
+                          py: '1.5',
+                          bg: 'orange.2',
+                          border: '1px solid',
+                          borderColor: 'orange.6',
+                          borderRadius: 'l2',
+                        })}>
+                          <span class={css({ fontSize: 'xs', color: 'orange.11', fontWeight: 'semibold' })}>🎯 Focus today:</span>
+                          <span class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'orange.11' })}>
+                            {kc().labelPl ?? kc().label}
+                            <Show when={kc().labelPl}>
+                              <span class={css({ fontWeight: 'normal', ml: '1', color: 'orange.9' })}>({kc().label})</span>
+                            </Show>
+                          </span>
+                        </div>
+                      )}
+                    </Show>
+                  </div>
+
+                  {/* CTA */}
+                  <div>
+                    <A
+                      href="/quiz"
+                      class={css({
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '2',
-                        px: '3',
-                        py: '1.5',
-                        bg: 'orange.2',
-                        border: '1px solid',
-                        borderColor: 'orange.6',
+                        px: '4',
+                        py: '2',
+                        bg: 'blue.9',
+                        color: 'white',
                         borderRadius: 'l2',
-                      })}>
-                        <span class={css({ fontSize: 'xs', color: 'orange.11', fontWeight: 'semibold' })}>🎯 Focus today:</span>
-                        <span class={css({ fontSize: 'sm', fontWeight: 'medium', color: 'orange.11' })}>
-                          {kc().labelPl ?? kc().label}
-                          <Show when={kc().labelPl}>
-                            <span class={css({ fontWeight: 'normal', ml: '1', color: 'orange.9' })}>({kc().label})</span>
-                          </Show>
-                        </span>
-                      </div>
-                    )}
-                  </Show>
+                        fontSize: 'sm',
+                        fontWeight: 'semibold',
+                        textDecoration: 'none',
+                        _hover: { bg: 'blue.10' },
+                        transition: 'background 0.15s',
+                      })}
+                    >
+                      ▶ Start focused session
+                    </A>
+                  </div>
                 </div>
-
-                {/* CTA */}
-                <div>
-                  <A
-                    href="/quiz"
-                    class={css({
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      px: '4',
-                      py: '2',
-                      bg: 'accent.9',
-                      color: 'accent.fg',
-                      borderRadius: 'l2',
-                      fontSize: 'sm',
-                      fontWeight: 'semibold',
-                      textDecoration: 'none',
-                      _hover: { bg: 'accent.10' },
-                      transition: 'background 0.15s',
-                    })}
-                  >
-                    ▶ Start focused session
-                  </A>
-                </div>
-              </div>
-            </Card>
-          )}
-        </Show>
-        <Show when={summary() && summary()!.totalLemmas === 0}>
-          <div class={css({
-            p: '4',
-            bg: 'bg.subtle',
-            border: '1px solid',
-            borderColor: 'border',
-            borderRadius: 'l3',
-            fontSize: 'sm',
-            color: 'fg.muted',
-          })}>
-            No knowledge components seeded yet. Run <code class={css({ fontFamily: 'mono', bg: 'bg.muted', px: '1', borderRadius: 'sm' })}>strus kc seed</code> to populate mastery data.
-          </div>
+              </Card>
+            )
+          })()}
         </Show>
       </Suspense>
     </ErrorBoundary>
