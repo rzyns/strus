@@ -2,7 +2,7 @@ import {
   createSignal, createMemo, createEffect, createResource,
   Show, Switch, Match, For, onMount, batch,
 } from 'solid-js'
-import { A } from '@solidjs/router'
+import { A, useSearchParams } from '@solidjs/router'
 import { css } from '../../../styled-system/css'
 import { api } from '../../api/client'
 import { Button } from '../../components/Button'
@@ -467,6 +467,12 @@ function RevealedContextualContent(props: {
 // ---------------------------------------------------------------------------
 
 export default function Quiz() {
+  // KC focused session params from URL
+  const [searchParams] = useSearchParams()
+  const focusedKcId = () => searchParams.kcId ?? null
+  const focusedKcLabel = () => searchParams.kcLabel ?? null
+  const focusedKcLabelPl = () => searchParams.kcLabelPl ?? null
+
   // Config form state
   const [quizType, setQuizType] = createSignal<QuizType>('all')
   const [direction, setDirection] = createSignal<GlossDirection>('both')
@@ -582,7 +588,15 @@ export default function Quiz() {
         params.cardsPerNote = cardsPerNote()
       }
 
-      const due = await api.session.due(params) as DueCard[]
+      const kcId = focusedKcId()
+      let due: DueCard[]
+      if (kcId) {
+        const targetedParams: Record<string, unknown> = { kcId, limit: limit() }
+        if (kinds) targetedParams.kinds = kinds
+        due = await api.session.targeted(targetedParams) as DueCard[]
+      } else {
+        due = await api.session.due(params) as DueCard[]
+      }
       setCards(due)
       setPhase(due.length === 0 ? 'done' : 'asking')
     } catch (err) {
@@ -686,9 +700,36 @@ export default function Quiz() {
 
   return (
     <div class={css({ py: '4', maxW: '640px', mx: 'auto' })}>
-      <h1 class={css({ fontSize: '2xl', fontWeight: 'bold', mb: '6', color: 'fg.default' })}>
+      <h1 class={css({ fontSize: '2xl', fontWeight: 'bold', mb: focusedKcId() ? '2' : '6', color: 'fg.default' })}>
         Quiz
       </h1>
+
+      <Show when={focusedKcId()}>
+        <div class={css({
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '2',
+          px: '3',
+          py: '1.5',
+          mb: '4',
+          bg: 'orange.2',
+          border: '1px solid',
+          borderColor: 'orange.6',
+          borderRadius: 'l2',
+          fontSize: 'sm',
+        })}>
+          <span class={css({ fontWeight: 'semibold', color: 'orange.11' })}>🎯 Focusing:</span>
+          <span class={css({ color: 'orange.11' })}>
+            {focusedKcLabelPl() ?? focusedKcLabel() ?? focusedKcId()}
+            <Show when={focusedKcLabelPl() && focusedKcLabel()}>
+              <span class={css({ ml: '1', color: 'orange.9', fontWeight: 'normal' })}>({focusedKcLabel()})</span>
+            </Show>
+          </span>
+          <A href="/quiz" class={css({ ml: '2', fontSize: 'xs', color: 'orange.9', textDecoration: 'underline' })}>
+            clear
+          </A>
+        </div>
+      </Show>
 
       <Switch>
         {/* Config */}
