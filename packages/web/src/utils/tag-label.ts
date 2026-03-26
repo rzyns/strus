@@ -14,6 +14,7 @@ const POS_PREFIX: Record<string, string> = {
   pant:   'anterior adverbial participle (converb)',
   imps:   'impersonal form',
   bedzie: 'future',
+  cond:   'conditional',
   winien: 'ought-to form',
 }
 

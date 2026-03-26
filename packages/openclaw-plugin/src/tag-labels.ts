@@ -132,6 +132,13 @@ export function tagLabel(tag: string): string {
     return `imperative ${personLabel} ${num === "sg" ? "sg." : "pl."}`;
   }
 
+  // Conditional: cond:number:gender:aspect
+  if (pos === "cond" && parts.length >= 3) {
+    const num = NUMBER_MAP[parts[1]] ?? parts[1];
+    const gender = parts[2] ? formatGender(parts[2]) : "";
+    return `conditional ${num}${gender ? " " + gender : ""}${aspect}`;
+  }
+
   // Gerund / verbal noun: ger:number:case:gender:aspect...
   if (pos === "ger" && parts.length >= 3) {
     const num = NUMBER_MAP[parts[1]] ?? parts[1];
