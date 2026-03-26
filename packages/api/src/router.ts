@@ -3983,6 +3983,7 @@ const KcSummaryOutput = z.object({
   masteredLemmas: z.number().int().describe("Lemma KCs where masteredPct >= 80"),
   totalStructural: z.number().int().describe("Count of non-lemma KCs"),
   weakestKC: z.object({
+    id: z.string(),
     label: z.string(),
     labelPl: z.string().nullable(),
     kind: z.string(),
@@ -4064,9 +4065,9 @@ const analyticsKcSummary = os
     let totalLemmas = 0;
     let masteredLemmas = 0;
     let totalStructural = 0;
-    let weakestKC: { label: string; labelPl: string | null; kind: string; avgStability: number } | null = null;
+    let weakestKC: { id: string; label: string; labelPl: string | null; kind: string; avgStability: number } | null = null;
 
-    for (const [, data] of kcMap.entries()) {
+    for (const [kcId, data] of kcMap.entries()) {
       const avgStability = data.totalCards > 0 ? data.stabilitySum / data.totalCards : 0;
       const masteredPct = data.totalCards > 0
         ? Math.round((data.masteredCount / data.totalCards) * 1000) / 10
@@ -4079,7 +4080,7 @@ const analyticsKcSummary = os
         totalStructural += 1;
         if (data.totalCards > 0) {
           if (weakestKC === null || avgStability < weakestKC.avgStability) {
-            weakestKC = { label: data.label, labelPl: data.labelPl, kind: data.kind, avgStability };
+            weakestKC = { id: kcId, label: data.label, labelPl: data.labelPl, kind: data.kind, avgStability };
           }
         }
       }
@@ -4111,6 +4112,7 @@ const sessionTargeted = os
   })
   .input(z.object({
     conceptId: z.string().uuid().optional().describe("Filter to cards whose note has this concept_id"),
+    kcId: z.string().optional().describe("Filter to cards linked to this knowledge component id"),
     kinds: z
       .array(z.enum(["morph_form", "gloss_forward", "gloss_reverse", "basic_forward", "cloze_fill", "multiple_choice", "error_correction", "classify"]))
       .optional()
@@ -4127,6 +4129,11 @@ const sessionTargeted = os
       eq(notes.status, "approved"),
       ...(input.kinds ? [inArray(cards.kind, input.kinds)] : []),
       ...(input.conceptId ? [eq(notes.conceptId, input.conceptId)] : []),
+      ...(input.kcId ? [inArray(cards.id,
+        db.select({ cardId: cardKnowledgeComponents.cardId })
+          .from(cardKnowledgeComponents)
+          .where(eq(cardKnowledgeComponents.kcId, input.kcId))
+      )] : []),
     ];
 
     const fetchCap = Math.max(500, input.limit * 2 + input.newLimit * 4);

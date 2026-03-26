@@ -144,7 +144,14 @@ function SummaryBar() {
                   {/* CTA */}
                   <div>
                     <A
-                      href="/quiz"
+                      href={(() => {
+                        const wkc = data().weakestKC
+                        if (!wkc) return '/quiz'
+                        const params = new URLSearchParams({ kcId: wkc.id })
+                        if (wkc.label) params.set('kcLabel', wkc.label)
+                        if (wkc.labelPl) params.set('kcLabelPl', wkc.labelPl)
+                        return `/quiz?${params.toString()}`
+                      })()}
                       class={css({
                         display: 'inline-flex',
                         alignItems: 'center',
