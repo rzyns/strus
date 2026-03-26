@@ -9,20 +9,30 @@ export const SETTINGS_KEYS = {
 export const DEFAULTS: Record<string, string> = {
   [SETTINGS_KEYS.IMAGE_PROMPT_TEMPLATE]: `Write a vivid, specific image generation prompt to help a Polish language learner remember the word "{{word}}" ({{wordClass}}{{#gender}}, {{gender}}{{/gender}}{{#meaning}}, meaning "{{meaning}}"{{/meaning}}).
 
-The image must be RETRIEVABLE: a learner who sees it days later should be able to reconstruct the word's meaning without any other context.
+PURPOSE: The image is a mnemonic — a learner who sees it days later, without any caption, should immediately recall the word's meaning.
 
-Core rule: the word's meaning is the unmistakable subject of the scene. Absurdity, exaggeration, and humor are welcome — but they must amplify the meaning, not obscure it.
+COMPOSITION — meaning first:
+The word's meaning must be the dominant visual subject, occupying the largest portion of the frame.
+- For verbs: show a person clearly performing the action as the central figure.
+- For nouns: show the object/concept itself prominently, not a metaphor for it.
+- For adjectives: show a person or object unmistakably exhibiting the quality.
+Everything else in the scene — setting, props, background — exists to support and reinforce the meaning, not to compete with it.
 
-Retrievability test: a person unfamiliar with Polish should look at the image and correctly guess what the word means.
+SOUND-ALIKE HOOK (optional, use with care):
+If the Polish word sounds like an English (or other language) word, you may include a visual reference to that sound-alike as a SMALL BACKGROUND DETAIL or environmental texture — a logo on a shirt, a poster on a wall, a shape in the clouds. It must NOT be the focal point, must NOT dominate the composition, and must NOT distract from the meaning. If the sound-alike would naturally overwhelm the scene (e.g. a famous landmark), shrink it to a minor element or skip it entirely.
 
-Optional — keyword method: if the word (or part of it) sounds like a recognizable word in English or another language, you may build that sound-alike into the scene alongside the meaning. The sound-alike is a secondary hook; the meaning remains the primary anchor.
+SELF-TEST before finalizing: Imagine showing this image to someone with no context. Would they say "that's a person writing" (correct) or "that's the Leaning Tower of Pisa" (wrong)? The first thing a viewer notices must be the meaning.
 
-Anti-pattern to avoid: a scene that metaphorically enacts the concept without the concept itself being visually obvious. Avoid clever indirection that requires the viewer to decode a metaphor.
+ANTI-PATTERNS:
+- A famous landmark or object dominating the scene while the meaning is abstract or tiny
+- Clever metaphors that require decoding — the meaning should be literal and obvious
+- The action/concept represented only by its effects rather than being shown directly
 
-Requirements for the image prompt you write:
+REQUIREMENTS:
 - No text, letters, numbers, symbols, or writing of any kind in the image
 - Photorealistic style
 - One clear focal scene, not a collage
+- Human figures should have natural proportions and be the right scale to be clearly visible
 
 Respond with only the image prompt text, nothing else.`,
 };
