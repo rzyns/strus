@@ -25,6 +25,7 @@ import {
   knowledgeComponents,
   cardKnowledgeComponents,
   createInitialKnowledgeComponentFsrsState,
+  scheduleKnowledgeComponentReview,
   mapCardToKCs,
   seedKCs,
   backfillKCs,
@@ -1762,87 +1763,125 @@ const sessionReview = os
     updated: CardOutput.describe("The card with its updated FSRS state"),
   }))
   .handler(async ({ input }) => {
-    const [row] = await db
-      .select()
-      .from(cards)
-      .where(eq(cards.id, input.cardId))
-      .limit(1);
-
-    if (!row) {
-      throw new ORPCError("NOT_FOUND", {
-        message: `Card not found: ${input.cardId}`,
-      });
-    }
-
     const now = new Date();
-    const dueDateBefore = new Date(row.due * 1000);
-
-    const card: Card = {
-      id: row.id,
-      noteId: row.noteId,
-      kind: row.kind as Card["kind"],
-      state: row.state as CardState,
-      due: dueDateBefore,
-      stability: row.stability,
-      difficulty: row.difficulty,
-      elapsedDays: row.elapsedDays,
-      scheduledDays: row.scheduledDays,
-      reps: row.reps,
-      lapses: row.lapses,
-      learningSteps: row.learningSteps,
-      ...(row.tag != null ? { tag: row.tag } : {}),
-      ...(row.lastReview != null ? { lastReview: new Date(row.lastReview * 1000) } : {}),
-    };
-
-    const updated = scheduleReview(card, input.rating, now);
-
-    await db
-      .update(cards)
-      .set({
-        state: updated.state,
-        due: Math.floor(updated.due.getTime() / 1000),
-        stability: updated.stability,
-        difficulty: updated.difficulty,
-        elapsedDays: updated.elapsedDays,
-        scheduledDays: updated.scheduledDays,
-        reps: updated.reps,
-        lapses: updated.lapses,
-        learningSteps: updated.learningSteps,
-        lastReview: updated.lastReview
-          ? Math.floor(updated.lastReview.getTime() / 1000)
-          : null,
-      })
-      .where(eq(cards.id, input.cardId));
-
     const nowSecs = Math.floor(now.getTime() / 1000);
 
-    const reviewId = crypto.randomUUID();
-    await db.insert(reviews).values({
-      id: reviewId,
-      cardId: input.cardId,
-      rating: input.rating,
-      stateBefore: card.state,
-      due: Math.floor(dueDateBefore.getTime() / 1000),
-      reviewedAt: nowSecs,
-      elapsedDays: updated.elapsedDays,
-      scheduledDays: updated.scheduledDays,
-      stabilityAfter: updated.stability,
-      difficultyAfter: updated.difficulty,
-      userAnswer: input.userAnswer ?? null,
-      generatedQuestion: input.generatedQuestion ?? null,
-      errorDimensions: input.errorDimensions ? JSON.stringify(input.errorDimensions) : null,
+    return db.transaction((tx) => {
+      const [row] = tx
+        .select()
+        .from(cards)
+        .where(eq(cards.id, input.cardId))
+        .limit(1)
+        .all();
+
+      if (!row) {
+        throw new ORPCError("NOT_FOUND", {
+          message: `Card not found: ${input.cardId}`,
+        });
+      }
+
+      const dueDateBefore = new Date(row.due * 1000);
+      const card: Card = {
+        id: row.id,
+        noteId: row.noteId,
+        kind: row.kind as Card["kind"],
+        state: row.state as CardState,
+        due: dueDateBefore,
+        stability: row.stability,
+        difficulty: row.difficulty,
+        elapsedDays: row.elapsedDays,
+        scheduledDays: row.scheduledDays,
+        reps: row.reps,
+        lapses: row.lapses,
+        learningSteps: row.learningSteps,
+        ...(row.tag != null ? { tag: row.tag } : {}),
+        ...(row.lastReview != null ? { lastReview: new Date(row.lastReview * 1000) } : {}),
+      };
+
+      const updated = scheduleReview(card, input.rating, now);
+
+      tx
+        .update(cards)
+        .set({
+          state: updated.state,
+          due: Math.floor(updated.due.getTime() / 1000),
+          stability: updated.stability,
+          difficulty: updated.difficulty,
+          elapsedDays: updated.elapsedDays,
+          scheduledDays: updated.scheduledDays,
+          reps: updated.reps,
+          lapses: updated.lapses,
+          learningSteps: updated.learningSteps,
+          lastReview: updated.lastReview
+            ? Math.floor(updated.lastReview.getTime() / 1000)
+            : null,
+        })
+        .where(eq(cards.id, input.cardId))
+        .run();
+
+      const parentKcIds = tx
+        .select({ kcId: cardKnowledgeComponents.kcId })
+        .from(cardKnowledgeComponents)
+        .where(eq(cardKnowledgeComponents.cardId, input.cardId))
+        .all()
+        .map((row) => row.kcId);
+
+      if (parentKcIds.length > 0) {
+        const parentKcs = tx
+          .select()
+          .from(knowledgeComponents)
+          .where(inArray(knowledgeComponents.id, parentKcIds))
+          .all();
+
+        for (const kc of parentKcs) {
+          const updatedKc = scheduleKnowledgeComponentReview({
+            state: kc.state,
+            due: kc.due,
+            stability: kc.stability,
+            difficulty: kc.difficulty,
+            elapsedDays: kc.elapsedDays,
+            scheduledDays: kc.scheduledDays,
+            reps: kc.reps,
+            lapses: kc.lapses,
+            lastReview: kc.lastReview,
+          }, input.rating, now);
+
+          tx
+            .update(knowledgeComponents)
+            .set(updatedKc)
+            .where(eq(knowledgeComponents.id, kc.id))
+            .run();
+        }
+      }
+
+      const reviewId = crypto.randomUUID();
+      tx.insert(reviews).values({
+        id: reviewId,
+        cardId: input.cardId,
+        rating: input.rating,
+        stateBefore: card.state,
+        due: Math.floor(dueDateBefore.getTime() / 1000),
+        reviewedAt: nowSecs,
+        elapsedDays: updated.elapsedDays,
+        scheduledDays: updated.scheduledDays,
+        stabilityAfter: updated.stability,
+        difficultyAfter: updated.difficulty,
+        userAnswer: input.userAnswer ?? null,
+        generatedQuestion: input.generatedQuestion ?? null,
+        errorDimensions: input.errorDimensions ? JSON.stringify(input.errorDimensions) : null,
+      }).run();
+
+      tx
+        .update(notes)
+        .set({ lastReviewedAt: nowSecs })
+        .where(eq(notes.id, row.noteId))
+        .run();
+
+      return {
+        reviewId,
+        updated: mapCardDomain(updated),
+      };
     });
-
-    // Update the parent note's last-reviewed timestamp.
-    await db
-      .update(notes)
-      .set({ lastReviewedAt: nowSecs })
-      .where(eq(notes.id, row.noteId));
-
-    return {
-      reviewId,
-      updated: mapCardDomain(updated),
-    };
   });
 
 // ---------------------------------------------------------------------------
