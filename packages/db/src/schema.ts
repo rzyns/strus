@@ -282,6 +282,18 @@ export const knowledgeComponents = sqliteTable(
     tagPattern: text("tag_pattern"),
     /** FK to lemmas.id — set for kind='lemma' only, null otherwise */
     lemmaId:    text("lemma_id").references(() => lemmas.id, { onDelete: "cascade" }),
+    /** CardState enum value (0=New,1=Learning,2=Review,3=Relearning) */
+    state:      integer("state").notNull().default(0),
+    /** Unix timestamp (seconds) */
+    due:        integer("due").notNull(),
+    stability:  real("stability").notNull().default(0),
+    difficulty: real("difficulty").notNull().default(0),
+    elapsedDays: integer("elapsed_days").notNull().default(0),
+    scheduledDays: integer("scheduled_days").notNull().default(0),
+    reps:       integer("reps").notNull().default(0),
+    lapses:     integer("lapses").notNull().default(0),
+    /** Unix timestamp (seconds), nullable */
+    lastReview: integer("last_review"),
     createdAt:  integer("created_at", { mode: "timestamp" }).notNull(),
   },
   (t) => [

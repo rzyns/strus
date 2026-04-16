@@ -7,6 +7,7 @@
  */
 import { eq } from "drizzle-orm";
 import type { DbClient } from "./client.js";
+import { createInitialKnowledgeComponentFsrsState } from "./kc-fsrs.js";
 import {
   knowledgeComponents,
   cardKnowledgeComponents,
@@ -69,6 +70,7 @@ export async function backfillKCs(db: DbClient): Promise<BackfillKCsResult> {
       let lemmaKC = lemmaKCByLemmaId.get(card.lemmaId);
       if (!lemmaKC) {
         const kcId = `kc-lemma-${card.lemmaId}`;
+        const fsrs = createInitialKnowledgeComponentFsrsState();
         db.insert(knowledgeComponents).values({
           id: kcId,
           kind: "lemma",
@@ -76,6 +78,7 @@ export async function backfillKCs(db: DbClient): Promise<BackfillKCsResult> {
           labelPl: null,
           tagPattern: null,
           lemmaId: card.lemmaId,
+          ...fsrs,
           createdAt: now,
         }).run();
         lemmaKC = {
@@ -85,6 +88,7 @@ export async function backfillKCs(db: DbClient): Promise<BackfillKCsResult> {
           labelPl: null,
           tagPattern: null,
           lemmaId: card.lemmaId,
+          ...fsrs,
           createdAt: now,
         };
         lemmaKCByLemmaId.set(card.lemmaId, lemmaKC);

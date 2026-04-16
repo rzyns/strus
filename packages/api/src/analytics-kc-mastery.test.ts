@@ -10,7 +10,13 @@ import { randomUUID } from "node:crypto";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { call } from "@orpc/server";
 import { db } from "@rzyns/strus-db";
-import { knowledgeComponents, cardKnowledgeComponents, cards, notes } from "@rzyns/strus-db";
+import {
+  knowledgeComponents,
+  cardKnowledgeComponents,
+  cards,
+  notes,
+  createInitialKnowledgeComponentFsrsState,
+} from "@rzyns/strus-db";
 import { router } from "./router.js";
 
 // ---------------------------------------------------------------------------
@@ -35,6 +41,7 @@ function makeKC(opts: {
   labelPl?: string;
 }): string {
   const id = randomUUID();
+  const fsrs = createInitialKnowledgeComponentFsrsState();
   db.insert(knowledgeComponents).values({
     id,
     kind: opts.kind ?? "case",
@@ -42,6 +49,7 @@ function makeKC(opts: {
     labelPl: opts.labelPl ?? null,
     tagPattern: "*:gen:*",
     lemmaId: null,
+    ...fsrs,
     createdAt: NOW,
   }).run();
   return id;

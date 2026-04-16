@@ -24,6 +24,7 @@ import {
   semanticClusterMembers,
   knowledgeComponents,
   cardKnowledgeComponents,
+  createInitialKnowledgeComponentFsrsState,
   mapCardToKCs,
   seedKCs,
   backfillKCs,
@@ -351,6 +352,7 @@ async function linkCardToKCs(
 
     if (!lemmaKC) {
       const kcId = `kc-lemma-${lemmaId}`;
+      const fsrs = createInitialKnowledgeComponentFsrsState();
       db.insert(knowledgeComponents).values({
         id: kcId,
         kind: "lemma",
@@ -358,6 +360,7 @@ async function linkCardToKCs(
         labelPl: null,
         tagPattern: null,
         lemmaId,
+        ...fsrs,
         createdAt: new Date(),
       }).run();
       lemmaKC = { id: kcId };

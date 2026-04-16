@@ -8,6 +8,7 @@
  */
 import { eq } from "drizzle-orm";
 import type { DbClient } from "./client.js";
+import { createInitialKnowledgeComponentFsrsState } from "./kc-fsrs.js";
 import { knowledgeComponents } from "./schema.js";
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,7 @@ export function seedKCs(db: DbClient): SeedKCsResult {
       continue;
     }
 
+    const fsrs = createInitialKnowledgeComponentFsrsState();
     db.insert(knowledgeComponents).values({
       id: seed.id,
       kind: seed.kind,
@@ -111,6 +113,7 @@ export function seedKCs(db: DbClient): SeedKCsResult {
       labelPl: seed.labelPl,
       tagPattern: seed.tagPattern,
       lemmaId: null,
+      ...fsrs,
       createdAt: now,
     }).run();
 
