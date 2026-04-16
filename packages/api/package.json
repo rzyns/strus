@@ -1,7 +1,7 @@
 {
   "name": "@rzyns/strus-api",
   "license": "AGPL-3.0-only",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "Elysia + oRPC HTTP server for strus",
   "type": "module",
   "main": "./src/index.ts",
