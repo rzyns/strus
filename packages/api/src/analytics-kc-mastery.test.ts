@@ -4,7 +4,7 @@
  * Tests for STR-17 (KC4): Analytics API endpoints that aggregate FSRS stability
  * per knowledge component via the card_knowledge_components junction table.
  */
-import { describe, test, expect, beforeAll } from "bun:test";
+import { describe, test, expect, beforeAll, beforeEach } from "bun:test";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
@@ -15,6 +15,9 @@ import {
   cardKnowledgeComponents,
   cards,
   notes,
+  reviews,
+  vocabListNotes,
+  vocabLists,
   createInitialKnowledgeComponentFsrsState,
 } from "@rzyns/strus-db";
 import { router } from "./router.js";
@@ -36,6 +39,18 @@ const PAST = NOW_SECS - 3600;       // 1 hour ago — overdue
 const FUTURE = NOW_SECS + 86400;    // tomorrow — not due
 const KC_FUTURE = NOW_SECS + 10 * 86400; // comfortably scheduled KC
 const KC_SOON = NOW_SECS + 2 * 86400;    // upcoming KC due soon
+
+beforeEach(() => {
+  // Root `bun test` shares one in-memory DB across files, so these analytics
+  // assertions must start from a clean slate instead of inheriting seeded KCs.
+  db.delete(reviews).run();
+  db.delete(cardKnowledgeComponents).run();
+  db.delete(vocabListNotes).run();
+  db.delete(cards).run();
+  db.delete(knowledgeComponents).run();
+  db.delete(notes).run();
+  db.delete(vocabLists).run();
+});
 
 function makeKC(opts: {
   kind?: "case" | "number" | "tense" | "mood" | "gender" | "pos" | "lemma";
