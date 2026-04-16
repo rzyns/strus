@@ -5,20 +5,20 @@
     "": {
       "name": "strus",
       "devDependencies": {
-        "@commitlint/cli": "^20.4.3",
-        "@commitlint/config-conventional": "^20.4.3",
-        "@types/bun": "^1.3.10",
+        "@commitlint/cli": "^20.5.0",
+        "@commitlint/config-conventional": "^20.5.0",
+        "@types/bun": "^1.3.12",
         "bumpp": "^10.4.1",
         "concurrently": "^9.2.1",
         "conventional-changelog-cli": "^5.0.0",
-        "conventional-changelog-conventionalcommits": "^9.3.0",
-        "lefthook": "^2.1.3",
+        "conventional-changelog-conventionalcommits": "^9.3.1",
+        "lefthook": "^2.1.6",
         "typescript": "^5.9.3",
       },
     },
     "packages/api": {
       "name": "@rzyns/strus-api",
-      "version": "2.1.4",
+      "version": "3.0.3",
       "dependencies": {
         "@elysiajs/opentelemetry": "^1.4.10",
         "@elysiajs/static": "^1.4.7",
@@ -47,7 +47,7 @@
     },
     "packages/cli": {
       "name": "@rzyns/strus-cli",
-      "version": "2.1.4",
+      "version": "3.0.3",
       "bin": {
         "strus": "./src/index.ts",
       },
@@ -67,7 +67,7 @@
     },
     "packages/config": {
       "name": "@rzyns/strus-config",
-      "version": "2.1.4",
+      "version": "3.0.3",
       "dependencies": {
         "zod": "^3.23.0",
       },
@@ -78,7 +78,7 @@
     },
     "packages/core": {
       "name": "@rzyns/strus-core",
-      "version": "2.1.4",
+      "version": "3.0.3",
       "dependencies": {
         "@rzyns/strus-morph": "workspace:*",
         "ts-fsrs": "^5.2.3",
@@ -90,7 +90,7 @@
     },
     "packages/db": {
       "name": "@rzyns/strus-db",
-      "version": "2.1.4",
+      "version": "3.0.3",
       "dependencies": {
         "@rzyns/strus-config": "workspace:*",
         "@rzyns/strus-core": "workspace:*",
@@ -105,7 +105,7 @@
     },
     "packages/morph": {
       "name": "@rzyns/strus-morph",
-      "version": "2.1.4",
+      "version": "3.0.3",
       "dependencies": {
         "@rzyns/morfeusz-ts": "https://github.com/rzyns/morfeusz-ts/releases/download/v1.0.3/rzyns-morfeusz-ts-1.0.3.tgz",
       },
@@ -116,7 +116,7 @@
     },
     "packages/openclaw-plugin": {
       "name": "strus",
-      "version": "2.1.4",
+      "version": "3.0.3",
       "devDependencies": {
         "typescript": "^5.0.0",
       },
@@ -126,7 +126,7 @@
     },
     "packages/web": {
       "name": "@rzyns/strus-web",
-      "version": "2.1.4",
+      "version": "3.0.3",
       "dependencies": {
         "@ark-ui/solid": "^5.34.0",
         "@opentelemetry/api": "^1.9.0",
