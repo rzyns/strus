@@ -432,26 +432,60 @@ function SummaryBar() {
                     </Show>
                   </div>
 
-                  <div>
-                    <A
-                      href={weakest() ? buildFocusedSessionHref(weakest()!) : '/quiz'}
-                      class={css({
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        px: '4',
-                        py: '2',
-                        bg: 'blue.9',
-                        color: 'white',
-                        borderRadius: 'l2',
-                        fontSize: 'sm',
-                        fontWeight: 'semibold',
-                        textDecoration: 'none',
-                        _hover: { bg: 'blue.10' },
-                        transition: 'background 0.15s',
-                      })}
+                  <div class={css({ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '2' })}>
+                    <Show
+                      when={weakest()}
+                      fallback={
+                        <>
+                          <button
+                            type="button"
+                            disabled
+                            class={css({
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              px: '4',
+                              py: '2',
+                              bg: 'bg.muted',
+                              color: 'fg.muted',
+                              borderRadius: 'l2',
+                              fontSize: 'sm',
+                              fontWeight: 'semibold',
+                              border: '1px solid',
+                              borderColor: 'border',
+                              cursor: 'not-allowed',
+                              opacity: 0.7,
+                            })}
+                          >
+                            ▶ Practice weakest KC
+                          </button>
+                          <span class={css({ fontSize: 'xs', color: 'fg.muted', maxWidth: '16rem' })}>
+                            Focused KC practice appears once structural KCs have linked cards.
+                          </span>
+                        </>
+                      }
                     >
-                      ▶ Practice weakest KC
-                    </A>
+                      {(kc) => (
+                        <A
+                          href={buildFocusedSessionHref(kc())}
+                          class={css({
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            px: '4',
+                            py: '2',
+                            bg: 'blue.9',
+                            color: 'white',
+                            borderRadius: 'l2',
+                            fontSize: 'sm',
+                            fontWeight: 'semibold',
+                            textDecoration: 'none',
+                            _hover: { bg: 'blue.10' },
+                            transition: 'background 0.15s',
+                          })}
+                        >
+                          ▶ Practice weakest KC
+                        </A>
+                      )}
+                    </Show>
                   </div>
                 </div>
               </Card>
