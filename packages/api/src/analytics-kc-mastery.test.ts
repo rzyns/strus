@@ -34,11 +34,19 @@ const NOW = new Date();
 const NOW_SECS = Math.floor(Date.now() / 1000);
 const PAST = NOW_SECS - 3600;       // 1 hour ago — overdue
 const FUTURE = NOW_SECS + 86400;    // tomorrow — not due
+const KC_FUTURE = NOW_SECS + 10 * 86400; // comfortably scheduled KC
+const KC_SOON = NOW_SECS + 2 * 86400;    // upcoming KC due soon
 
 function makeKC(opts: {
   kind?: "case" | "number" | "tense" | "mood" | "gender" | "pos" | "lemma";
   label: string;
   labelPl?: string;
+  kcDue?: number;
+  kcStability?: number;
+  scheduledDays?: number;
+  reps?: number;
+  lapses?: number;
+  lastReview?: number | null;
 }): string {
   const id = randomUUID();
   const fsrs = createInitialKnowledgeComponentFsrsState();
@@ -50,6 +58,12 @@ function makeKC(opts: {
     tagPattern: "*:gen:*",
     lemmaId: null,
     ...fsrs,
+    due: opts.kcDue ?? KC_FUTURE,
+    stability: opts.kcStability ?? 14,
+    scheduledDays: opts.scheduledDays ?? 7,
+    reps: opts.reps ?? fsrs.reps,
+    lapses: opts.lapses ?? fsrs.lapses,
+    lastReview: opts.lastReview ?? fsrs.lastReview,
     createdAt: NOW,
   }).run();
   return id;
@@ -134,6 +148,34 @@ describe("analytics.kcMastery", () => {
     expect(kc!.masteredCount).toBe(1);
     expect(kc!.avgStability).toBeCloseTo((5 + 30) / 2, 5);
     expect(kc!.masteredPct).toBe(50.0);
+  });
+
+  test("includes current KC scheduler fields for due-state UI", async () => {
+    const kcId = makeKC({
+      kind: "case",
+      label: "current-kc-status",
+      kcDue: PAST,
+      kcStability: 4.5,
+      scheduledDays: 2,
+      reps: 6,
+      lapses: 1,
+      lastReview: PAST - 7200,
+    });
+    const card = makeCard({ stability: 12, due: FUTURE });
+
+    linkCardToKC(card, kcId);
+
+    const result = await call(router.analytics.kcMastery, { kind: "case", limit: 200, sort: "weakest" });
+    const kc = result.find((r) => r.id === kcId);
+
+    expect(kc).toBeDefined();
+    expect(kc!.dueStatus).toBe("overdue");
+    expect(kc!.currentStability).toBeCloseTo(4.5, 5);
+    expect(kc!.scheduledDays).toBe(2);
+    expect(kc!.reps).toBe(6);
+    expect(kc!.lapses).toBe(1);
+    expect(kc!.currentDue).toContain("T");
+    expect(kc!.lastReview).toContain("T");
   });
 
   test("KC with zero linked cards: masteredPct=0, avgStability=0", async () => {
@@ -258,5 +300,36 @@ describe("analytics.kcSummary", () => {
     const result = await call(router.analytics.kcSummary, {});
     // At least 1 overdue card from our setup
     expect(result.totalDueCards).toBeGreaterThanOrEqual(1);
+  });
+
+  test("structuralDueStates bucket current KC scheduler state", async () => {
+    const overdueId = makeKC({ kind: "case", label: "summary-overdue", kcDue: PAST, kcStability: 5 });
+    const upcomingId = makeKC({ kind: "case", label: "summary-upcoming", kcDue: KC_SOON, kcStability: 8 });
+    const scheduledId = makeKC({ kind: "case", label: "summary-scheduled", kcDue: KC_FUTURE, kcStability: 20 });
+
+    linkCardToKC(makeCard({ stability: 11, due: FUTURE }), overdueId);
+    linkCardToKC(makeCard({ stability: 11, due: FUTURE }), upcomingId);
+    linkCardToKC(makeCard({ stability: 11, due: FUTURE }), scheduledId);
+
+    const result = await call(router.analytics.kcSummary, {});
+    expect(result.structuralDueStates.overdue).toBeGreaterThanOrEqual(1);
+    expect(result.structuralDueStates.upcoming).toBeGreaterThanOrEqual(1);
+    expect(result.structuralDueStates.scheduled).toBeGreaterThanOrEqual(1);
+  });
+
+  test("weakestKC prefers the weakest populated overdue structural KC", async () => {
+    const weakestId = makeKC({ kind: "case", label: "summary-weakest-overdue", kcDue: PAST, kcStability: 1.5 });
+    const strongerOverdueId = makeKC({ kind: "case", label: "summary-stronger-overdue", kcDue: PAST, kcStability: 6 });
+    const scheduledButLowerAvgId = makeKC({ kind: "case", label: "summary-scheduled-low-avg", kcDue: KC_FUTURE, kcStability: 0.5 });
+
+    linkCardToKC(makeCard({ stability: 9, due: FUTURE }), weakestId);
+    linkCardToKC(makeCard({ stability: 15, due: FUTURE }), strongerOverdueId);
+    linkCardToKC(makeCard({ stability: 2, due: FUTURE }), scheduledButLowerAvgId);
+
+    const result = await call(router.analytics.kcSummary, {});
+    expect(result.weakestKC?.id).toBe(weakestId);
+    expect(result.weakestKC?.dueStatus).toBe("overdue");
+    expect(result.weakestKC?.currentStability).toBeCloseTo(1.5, 5);
+    expect(result.weakestKC?.currentDue).toContain("T");
   });
 });
