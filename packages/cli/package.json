@@ -1,7 +1,7 @@
 {
   "name": "@rzyns/strus-cli",
   "license": "AGPL-3.0-only",
-  "version": "2.1.4",
+  "version": "3.0.1",
   "description": "Commander.js CLI for strus",
   "type": "module",
   "main": "./src/index.ts",
