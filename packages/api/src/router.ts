@@ -1138,6 +1138,109 @@ function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
+type SessionCandidateRow = {
+  card: typeof cards.$inferSelect;
+  lemmaId: string | null;
+  lemmaText: string | null;
+  front: string | null;
+  back: string | null;
+};
+
+/**
+ * Today's structural focus is the most-overdue non-lemma KC among the current
+ * candidate cards. Cards linked to that KC are served first, then cards linked
+ * to any other overdue structural KC, then everything else.
+ */
+function buildKcPriorityContext<T extends { card: { id: string } }>(items: T[], nowSecs: number): {
+  focusCardIds: Set<string>;
+  overdueStructuralCardIds: Set<string>;
+} {
+  const cardIds = [...new Set(items.map((item) => item.card.id))];
+  if (cardIds.length === 0) {
+    return {
+      focusCardIds: new Set<string>(),
+      overdueStructuralCardIds: new Set<string>(),
+    };
+  }
+
+  const linkedOverdueKcs = db
+    .select({
+      cardId: cardKnowledgeComponents.cardId,
+      kcId: knowledgeComponents.id,
+      kcDue: knowledgeComponents.due,
+      kcStability: knowledgeComponents.stability,
+    })
+    .from(cardKnowledgeComponents)
+    .innerJoin(knowledgeComponents, eq(knowledgeComponents.id, cardKnowledgeComponents.kcId))
+    .where(and(
+      inArray(cardKnowledgeComponents.cardId, cardIds),
+      ne(knowledgeComponents.kind, "lemma"),
+      lte(knowledgeComponents.due, nowSecs),
+    ))
+    .all();
+
+  if (linkedOverdueKcs.length === 0) {
+    return {
+      focusCardIds: new Set<string>(),
+      overdueStructuralCardIds: new Set<string>(),
+    };
+  }
+
+  const overdueStructuralCardIds = new Set<string>();
+  const overdueKcs = new Map<string, { due: number; stability: number }>();
+  for (const row of linkedOverdueKcs) {
+    overdueStructuralCardIds.add(row.cardId);
+    if (!overdueKcs.has(row.kcId)) {
+      overdueKcs.set(row.kcId, {
+        due: row.kcDue,
+        stability: row.kcStability,
+      });
+    }
+  }
+
+  const [focusKcId] = [...overdueKcs.entries()]
+    .sort((a, b) => a[1].due - b[1].due || a[1].stability - b[1].stability || a[0].localeCompare(b[0]))[0]!;
+
+  const focusCardIds = new Set(
+    linkedOverdueKcs
+      .filter((row) => row.kcId === focusKcId)
+      .map((row) => row.cardId),
+  );
+
+  return { focusCardIds, overdueStructuralCardIds };
+}
+
+function prioritizeSessionCandidates<T extends { card: { id: string }; lemmaId: string | null }>(
+  items: T[],
+  nowSecs: number,
+  interleave: boolean,
+): T[] {
+  if (items.length <= 1) return items;
+
+  const { focusCardIds, overdueStructuralCardIds } = buildKcPriorityContext(items, nowSecs);
+  if (overdueStructuralCardIds.size === 0) {
+    return interleave ? interleaveByLemma(items) : items;
+  }
+
+  const focus: T[] = [];
+  const overdue: T[] = [];
+  const rest: T[] = [];
+
+  for (const item of items) {
+    if (focusCardIds.has(item.card.id)) {
+      focus.push(item);
+    } else if (overdueStructuralCardIds.has(item.card.id)) {
+      overdue.push(item);
+    } else {
+      rest.push(item);
+    }
+  }
+
+  const maybeInterleave = (bucket: T[]) => (interleave && bucket.length > 1 ? interleaveByLemma(bucket) : bucket);
+
+  return [...maybeInterleave(focus), ...maybeInterleave(overdue), ...maybeInterleave(rest)];
+}
+
 const sessionDue = os
   .route({
     method: "GET",
@@ -1224,15 +1327,7 @@ const sessionDue = os
         : []),
     ];
 
-    type RawRow = {
-      card: typeof cards.$inferSelect;
-      lemmaId: string | null;
-      lemmaText: string | null;
-      front: string | null;
-      back: string | null;
-    };
-
-    let session: RawRow[];
+    let session: SessionCandidateRow[];
 
     if (input.mode === "note-first") {
       // -----------------------------------------------------------------
@@ -1304,7 +1399,7 @@ const sessionDue = os
             .all();
 
       // Step 2b: group by note, cap cardsPerNote, enforce newLimit across session.
-      const byNote = new Map<string, RawRow[]>();
+      const byNote = new Map<string, SessionCandidateRow[]>();
       for (const r of rawDue) {
         const g = byNote.get(r.card.noteId);
         if (g !== undefined) g.push(r);
@@ -1312,7 +1407,7 @@ const sessionDue = os
       }
 
       let newCount = 0;
-      const collected: RawRow[] = [];
+      const collected: SessionCandidateRow[] = [];
       // Iterate in the same order as selectedNotes to preserve priority.
       for (const { noteId } of selectedNotes) {
         const noteCards = byNote.get(noteId);
@@ -1395,12 +1490,11 @@ const sessionDue = os
       // Shuffle reviews too so the order isn't purely by insertion date.
       shuffle(reviewPool);
 
-      let combined = [...reviewPool, ...newCards];
-
-      // Interleave by lemma: round-robin so forms of the same word are spread out.
-      if (input.interleave && combined.length > 1) {
-        combined = interleaveByLemma(combined);
-      }
+      const combined = prioritizeSessionCandidates(
+        [...reviewPool, ...newCards],
+        nowSecs,
+        input.interleave,
+      );
 
       session = combined.slice(0, input.limit);
     }
@@ -4146,10 +4240,10 @@ const sessionTargeted = os
     method: "POST",
     path: "/session/targeted",
     tags: ["Session"],
-    summary: "Get a targeted quiz session filtered by concept and/or card kind",
+    summary: "Get a targeted quiz session filtered by concept, KC, and/or card kind",
     description:
-      "Returns due cards filtered by grammar concept and/or card kind. " +
-      "All filters are optional. Uses the same FSRS due-date ordering as /session/due. " +
+      "Returns due cards filtered by grammar concept, knowledge component, and/or card kind. " +
+      "All filters are optional. Uses the same KC-aware prioritization as /session/due. " +
       "New cards are capped at newLimit. Only approved notes are included.",
   })
   .input(z.object({
@@ -4204,10 +4298,11 @@ const sessionTargeted = os
 
     shuffle(reviewPool);
 
-    let combined = [...reviewPool, ...newCards];
-    if (combined.length > 1) {
-      combined = interleaveByLemma(combined);
-    }
+    const combined = prioritizeSessionCandidates(
+      [...reviewPool, ...newCards],
+      nowSecs,
+      true,
+    );
 
     const session = combined.slice(0, input.limit);
 
