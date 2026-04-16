@@ -1,4 +1,5 @@
 import { describe, test, expect } from "bun:test";
+import { createInitialKnowledgeComponentFsrsState } from "./kc-fsrs.js";
 import { tagMatchesKC, mapCardToKCs } from "./kc-engine.js";
 import type { KnowledgeComponent } from "./kc-engine.js";
 
@@ -11,6 +12,7 @@ function makeKC(overrides: Partial<KnowledgeComponent> & { id: string; kind: str
     labelPl: null,
     tagPattern: null,
     lemmaId: null,
+    ...createInitialKnowledgeComponentFsrsState(),
     createdAt: new Date(),
     ...overrides,
   } as KnowledgeComponent;

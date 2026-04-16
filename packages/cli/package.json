@@ -15,7 +15,7 @@
     "build": "tsc --project tsconfig.json",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test --pass-with-no-tests",
     "lint": "echo 'lint: ok'"
   },
   "dependencies": {
